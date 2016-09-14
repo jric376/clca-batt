@@ -106,16 +106,17 @@ bldg_load <- R6Class("Bldg Load",
                      )
 )
 
-metadat = list(
-            "name" = "Bob the Building_TS",
-            "run_id" = "RUNID",
-            "ctrl_id" = "CTRLID",
-            "run_timestr" = "RUNTIMESTR"
-)
-bldg_test <- bldg_load$new(
-                            bldg_ts_path = "inputs/bldg_gasheat.csv",
-                            meta = metadat, rand_copies = 4, rand_factor = 0.05
-                          )
-base_ts <- bldg_test$get_base_ts()[1:2]
-ts_df1 <- as.data.frame(bldg_test$get_ts_df()[2])[1:2]
-base_ts <- cbind(base_ts, ts_df1$kwh)
+get_test_bldg <- function() {
+  metadat = list(
+    "name" = "Bob the Building_TS",
+    "run_id" = "RUNID",
+    "ctrl_id" = "CTRLID",
+    "run_timestr" = "RUNTIMESTR"
+  )
+  bldg_test <- bldg_load$new(
+    bldg_ts_path = "inputs/bldg_gasheat.csv",
+    meta = metadat, rand_copies = 4, rand_factor = 0.05
+  )
+  
+  return(bldg_test)
+}
