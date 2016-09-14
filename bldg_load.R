@@ -5,8 +5,9 @@
 # get methods for stats describing the load profile.
 
 rm(list=ls())
-wd_path = paste(Sys.getenv("USERPROFILE"), "\\OneDrive\\School\\Thesis\\program2", sep = "")
-setwd(as.character(wd_path))
+# wd_path = paste(Sys.getenv("USERPROFILE"), "\\OneDrive\\School\\Thesis\\program2", sep = "")
+# setwd(as.character(wd_path))
+setwd("E:\\GitHub\\clca-batt")
 library('doSNOW')
 library('foreach')
 library('iterators')

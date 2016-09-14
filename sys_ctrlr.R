@@ -11,8 +11,9 @@
 # an array of values decribing the next timestep
 
 rm(list=ls())
-wd_path = paste(Sys.getenv("USERPROFILE"), "\\OneDrive\\School\\Thesis\\program2", sep = "")
-setwd(as.character(wd_path))
+# wd_path = paste(Sys.getenv("USERPROFILE"), "\\OneDrive\\School\\Thesis\\program2", sep = "")
+# setwd(as.character(wd_path))
+setwd("E:\\GitHub\\clca-batt")
 library("futile.logger")
 library("R6")
 if(!exists("batt_bank", mode = "function")) source("battery_bank.R")
