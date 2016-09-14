@@ -105,13 +105,17 @@ pv_load <- R6Class("PV Load",
                      )
 )
 
-metadat = list(
-                "name" = "Penelope the PV_TS",
-                "run_id" = "RUNID",
-                "ctrl_id" = "CTRLID",
-                "run_timestr" = "RUNTIMESTR"
-)
-pv_test <- pv_load$new(
-                        pv_ts_path = "inputs/solar_nycDC.csv",
-                        meta = metadat, rand_copies = 2, rand_factor = 0.05
-)
+get_test_pv <- function() {
+  metadat = list(
+    "name" = "Penelope the PV_TS",
+    "run_id" = "RUNID",
+    "ctrl_id" = "CTRLID",
+    "run_timestr" = "RUNTIMESTR"
+  )
+  pv_test <- pv_load$new(
+    pv_ts_path = "inputs/solar_nycDC.csv",
+    meta = metadat, rand_copies = 2, rand_factor = 0.05
+  )
+  
+  return(pv_test)
+}

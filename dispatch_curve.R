@@ -268,16 +268,18 @@ mc_input = "inputs/marg_costs.csv"
 plants_input = "inputs/plants_all.csv"
 iso_terr = "NYISO"
 
-disp_metadat = list(
-                "name" = "Doris the Dispatch",
-                "run_id" = "RUNID",
-                "ctrl_id" = "CTRLID",
-                "run_timestr" = "RUNTIMESTR"
-)
-dispatch <- disp_curv$new(
-                          meta = disp_metadat, mc_path = mc_input, 
-                          plts_path = plants_input, iso_terr = iso_terr
-                          )
-dispatch$plot_dispatch()
-dispatch$stochastize_costs(T)
+get_test_disp <- function() {
+  metadat = list(
+    "name" = "Doris the Dispatch",
+    "run_id" = "RUNID",
+    "ctrl_id" = "CTRLID",
+    "run_timestr" = "RUNTIMESTR"
+  )
+  dispatch <- disp_curv$new(
+    meta = metadat, mc_path = mc_input, 
+    plts_path = plants_input, iso_terr = iso_terr
+  )
+  
+  return(dispatch)
+}
 

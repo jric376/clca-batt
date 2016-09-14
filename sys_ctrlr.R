@@ -165,7 +165,7 @@ sys_ctrlr <- R6Class("System Controller",
                        time_int = NULL
                      ))
 
-metadat = list(
+ctrlr_metadat = list(
   "name" = "Sam the System_Controller",
   "run_id" = "RUNID",
   "ctrl_id" = "CTRLID",

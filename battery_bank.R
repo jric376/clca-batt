@@ -222,17 +222,20 @@ batt_bank <- R6Class("Batteries",
     )
 )
 
-metadat = list(
-  "name" = "Boris the Battery",
-  "run_id" = "RUNID",
-  "ctrl_id" = "CTRLID",
-  "run_timestr" = "RUNTIMESTR"
-)
-test_bank <- batt_bank$new(
-                            meta = metadat, type = 'li_ion',
-                            pwr = 50, nameplt = 65
-                          )
-test_bank$draw <- -52
+get_test_batt <- function() {
+  metadat = list(
+    "name" = "Boris the Battery",
+    "run_id" = "RUNID",
+    "ctrl_id" = "CTRLID",
+    "run_timestr" = "RUNTIMESTR"
+  )
+  bank <- batt_bank$new(
+    meta = metadat, type = 'li_ion',
+    pwr = 50, nameplt = 65
+  )
+  
+  return(bank)
+}
 
 deplete_test <- function(test_batt) {
   test_batt$draw <- -0.6*test_batt$nameplate
