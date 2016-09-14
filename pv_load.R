@@ -49,7 +49,7 @@ pv_load <- R6Class("PV Load",
                                          base_ts$date_time[start_pt + 1],
                                          units = "hours"))))
                            )
-                           base_ts$date_time = strftime(base_ts$date_time, format="%m/%d %H:%M:%S")
+                           # base_ts$date_time = strftime(base_ts$date_time, format="%m/%d %H:%M:%S")
                            base_ts$kW = base_ts$PVinv_W*0.001*(1-0.1408) # loss factor taken from SAM
                            base_ts$PVinv_W = NULL
                            

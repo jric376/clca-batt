@@ -51,7 +51,7 @@ bldg_load <- R6Class("Bldg Load",
                                          base_ts$date_time[start_pt + 1],
                                          units = "hours"))))
                            )
-                           base_ts$date_time = strftime(base_ts$date_time, format="%m/%d %H:%M:%S")
+                           # base_ts$date_time = strftime(base_ts$date_time, format="%m/%d %H:%M:%S")
                            
                            private$metadata = append(private$metadata, interval)
                            base_ts$kw = base_ts$kwh*private$metadata$time_int
@@ -116,3 +116,6 @@ bldg_test <- bldg_load$new(
                             bldg_ts_path = "inputs/bldg_gasheat.csv",
                             meta = metadat, rand_copies = 4, rand_factor = 0.05
                           )
+base_ts <- bldg_test$get_base_ts()[1:2]
+ts_df1 <- as.data.frame(bldg_test$get_ts_df()[2])[1:2]
+base_ts <- cbind(base_ts, ts_df1$kwh)

@@ -50,7 +50,7 @@ grid_load <- R6Class("Grid Load",
                                                         base_ts$date_time[start_pt + 1],
                                                         units = "hours"))))
                          )
-                         base_ts$date_time = strftime(base_ts$date_time, format="%m/%d %H:%M:%S")
+                         # base_ts$date_time = strftime(base_ts$date_time, format="%m/%d %H:%M:%S")
                          
                          private$metadata = append(private$metadata, interval)
                          private$base_ts = base_ts
