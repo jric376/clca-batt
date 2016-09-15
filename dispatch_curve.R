@@ -167,8 +167,8 @@ disp_curv <- R6Class("Dispatch",
             )
         }
         disp_frame$wtd_plc2erta = disp_frame$namepcap*disp_frame$plc2erta
-        disp_frame$wtd_plc2erta = cumsum(disp_frame$wtd_plc2erta)
-        disp_frame$cumul_plc2erta = disp_frame$wtd_plc2erta / disp_frame$cumul_cap
+        disp_frame$cumul_plc2erta = cumsum(disp_frame$wtd_plc2erta)
+        disp_frame$cumul_plc2erta = disp_frame$cumul_plc2erta / disp_frame$cumul_cap
         
         private$disp_frame = disp_frame
         self$assign_colors()

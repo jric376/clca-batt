@@ -8,6 +8,7 @@ rm(list=ls())
 # setwd(as.character(wd_path))
 setwd("E:\\GitHub\\clca-batt")
 library("animation")
+library("cowplot")
 library("dplyr")
 library("futile.logger")
 library("gganimate")
@@ -176,57 +177,136 @@ get_ani_disp <- function(disp, runs = 20) {
   }
   
   disp_plt.bare <- ggplot(data = full_df,
-                          mapping = aes(
-                                         x = cumul_cap, y = MC_rand,
-                                         size = namepcap)) +
-                          scale_size(name = "Capacity (MW)", breaks = c(250,500,1000,2000), range = c(3,13)) +
-                          labs(x = "Cumulative Capacity (MW)",
-                               y = "Marg Cost ($ / kWh)",
-                               title = "Dispatch Curve") +
+                          mapping = aes(x = cumul_cap)) +
+                          labs(x = "Cumulative Capacity (MW)") +
                           theme(panel.background = element_rect(colour = "gray75", fill = "gray80")) +
-                          theme(panel.grid.major = element_line(colour = "gray85")) +
-                          theme(panel.grid.minor = element_line(colour = "gray85")) +
                           theme(text = element_text(size = 16),
                                 axis.text.x = element_text(size = 14),
-                                axis.text.y = element_text(size = 14))
-                          expand_limits(y = c(0, 0.32))
+                                axis.text.y = element_text(size = 14)) +
+                          theme(legend.position = c(0.30, 0.70), legend.box = "horizontal",
+                                legend.background = element_rect(fill = "white", colour = "gray75")) +
+                          background_grid(major = "xy", minor = "none",
+                                          size.major = 0.5, colour.major = "gray85")
 
 
-  disp_plt <- disp_plt.bare + geom_errorbar(
+  disp_cost <- disp_plt.bare + labs(
+                                    y = "Marg Cost ($ / kWh)",
+                                    title = "NYISO Dispatch Curve") +
+                                    expand_limits(y = c(0, 0.32)) +
+                                geom_errorbar(
+                                              data = subset(full_df, full_df$run == 1),
+                                              mapping = aes(
+                                                  y = MC_rand, size = namepcap,
+                                                  ymax = MC_rand + se, ymin = MC_rand - se),
+                                              width = 50, colour = "black", size = 1) +
+                                geom_point(
                                             data = subset(full_df, full_df$run == 1),
-                                            aes(ymax = MC_rand + se, ymin = MC_rand - se),
-                                            width = 50, colour = "black", size = 1) +
-                              geom_point(
-                                          data = subset(full_df, full_df$run == 1),
-                                          aes(fill = fuel_type), alpha = 1/1.2,
-                                          colour = "gray35", shape = 21) +
-                              scale_fill_brewer(
-                                                name = "Fuel", type = "div", palette = "Set1",
-                                                guide = guide_legend(override.aes = list(alpha = 1, size = 5))) +
-                              theme(
-                                    legend.position = c(0.30, 0.70), legend.box = "horizontal",
-                                    legend.background = element_rect(colour = "gray75"))
+                                            mapping = aes(
+                                                y = MC_rand, size = namepcap,
+                                                fill = fuel_type),
+                                            alpha = 1/1.2,
+                                            colour = "gray35", shape = 21) +
+                                scale_size(
+                                            name = "Capacity (MW)",
+                                            breaks = c(250,500,1000,2000),
+                                            range = c(3,15)) +
+                                scale_fill_brewer(
+                                                  name = "Fuel", type = "div", palette = "Set1",
+                                                  guide = guide_legend(override.aes = list(alpha = 1, size = 5)))
+  
+  disp_emish <- disp_plt.bare + labs(
+                                      y = "Emissions Factor (lb CO2eq / MWh)",
+                                      title = "NYISO Dispatch EF Curve") +
+                                expand_limits(y = c(0, 1500)) +
+                                geom_point(
+                                            data = subset(full_df, full_df$run == 1),
+                                            mapping = aes(
+                                                          y = cumul_plc2erta, size = wtd_plc2erta,
+                                                          fill = fuel_type),
+                                            alpha = 1/1.2,
+                                            colour = "gray35", shape = 21) +
+                                scale_size(
+                                            name = "lb CO2eq / h",
+                                            breaks = c(0,5E5,2E6,8E6),
+                                            range = c(3,15)) +
+                                scale_fill_brewer(guide = "none", palette = "Set1")
+                                                  # name = "Fuel", type = "div", palette = "Set1",      
+                                                  # guide_legend(override.aes = list(alpha = 1, size = 5)))
+                              
+  disp_plt <- plot_grid(disp_cost, disp_emish,
+                        labels = c("A","B"),
+                        nrow = 2, align = "v")
+  
+  ### For saving combined plot
+  # save_plot(filename = "outputs\\plots\\disp_nyiso_combined.png",
+  #           disp_plt, ncol = 1, nrow = 2,
+  #           base_height = 6.25, base_width = 10)
+  
+  ### For saving individual ggplot objects
+  # ggsave(disp_cost, filename = "outputs\\plots\\disp_nyiso.png",
+  #        width = 10, height = 6.25, units = "in")
+  # ggsave(disp_emish, filename = "outputs\\plots\\disp_nyiso_emish.png",
+  #        width = 10, height = 6.25, units = "in")
 
-  ggsave(filename = "outputs\\plots\\disp_nyiso.png",
-         width = 10, height = 6.25, units = "in")
-
-  ani_disp_plt <- disp_plt.bare + geom_point(alpha = 1/2, color = "gray35") +
-                                  geom_line(
-                                            aes(frame = run),
-                                            size = 1, colour = "gray65") +
-                                  geom_point(
-                                              aes(fill = fuel_type, frame = run),
-                                              colour = "black", shape = 21) +
-                                  scale_fill_brewer(
-                                    name = "Fuel", type = "div", palette = "Set1",
-                                    guide = guide_legend(override.aes = list(alpha = 1, size = 5))) +
-                                  theme(
-                                    legend.position = c(0.30, 0.70), legend.box = "horizontal",
-                                    legend.background = element_rect(colour = "gray75"))
+  ani_disp_cost <- disp_plt.bare + labs(
+                                        y = "Marg Cost ($ / kWh)",
+                                        title = "NYISO Dispatch Curve") +
+                                        expand_limits(y = c(0, 0.32)) +
+                                    geom_point(
+                                              mapping = aes(y = MC_rand, size = namepcap),
+                                              alpha = 1/2, color = "gray35") +
+                                    geom_line(
+                                              mapping = aes(
+                                                            y = MC_rand, size = namepcap,
+                                                            frame = run),
+                                              size = 1, colour = "gray65") +
+                                    geom_point(
+                                                mapping = aes(
+                                                    y = MC_rand, size = namepcap,
+                                                    fill = fuel_type, frame = run),
+                                                colour = "black", shape = 21) +
+                                    scale_size(
+                                                name = "Capacity (MW)",
+                                                breaks = c(250,500,1000,2000),
+                                                range = c(3,15)) +
+                                    scale_fill_brewer(
+                                      name = "Fuel", type = "div", palette = "Set1",
+                                      guide = guide_legend(override.aes = list(alpha = 1, size = 5))) +
+                                    theme(
+                                      legend.position = c(0.30, 0.70), legend.box = "horizontal",
+                                      legend.background = element_rect(colour = "gray75"))
+  
+  ani_disp_emish <- disp_plt.bare + labs(
+                                          y = "Emissions Factor (lb CO2eq / MWh)",
+                                          title = "NYISO Dispatch EF Curve") +
+                                geom_point(
+                                                mapping = aes(y = cumul_plc2erta, size = wtd_plc2erta),
+                                                alpha = 1/2, color = "gray35") +
+                                geom_line(
+                                          mapping = aes(
+                                                        y = cumul_plc2erta, size = wtd_plc2erta,
+                                                        frame = run),
+                                          size = 1, colour = "gray65") +
+                                geom_point(
+                                          aes(
+                                              y = cumul_plc2erta, size = wtd_plc2erta,
+                                              fill = fuel_type, frame = run),
+                                          colour = "black", shape = 21) +
+                                scale_size(
+                                            name = "lb CO2eq / h",
+                                            breaks = c(0,5E5,2E6,8E6),
+                                            range = c(3,15)) +
+                                scale_fill_brewer(
+                                          name = "Fuel", type = "div", palette = "Set1",
+                                          guide = guide_legend(override.aes = list(alpha = 1, size = 5))) +
+                                theme(
+                                      legend.position = c(0.30, 0.70), legend.box = "horizontal",
+                                      legend.background = element_rect(colour = "gray75"))
 
 
   ani.options(outdir = getwd(), ani.width = 960, ani.height = 600)
-  gg_animate(ani_disp_plt, "outputs\\plots\\disp_nyiso.gif")
+  # gg_animate(ani_disp_cost, "outputs\\plots\\disp_nyiso_cost.gif")
+  # gg_animate(ani_disp_emish, "outputs\\plots\\disp_nyiso_emish.gif")
   
   return(full_df)
 }
