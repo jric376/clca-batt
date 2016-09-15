@@ -7,6 +7,7 @@ rm(list=ls())
 # wd_path = paste(Sys.getenv("USERPROFILE"), "\\OneDrive\\School\\Thesis\\program2", sep = "")
 # setwd(as.character(wd_path))
 setwd("E:\\GitHub\\clca-batt")
+library("animation")
 library("futile.logger")
 library("gganimate")
 library("ggplot2")
@@ -33,19 +34,20 @@ get_ani_bldg <- function(bldg) {
   jul_plt <- ggplot(data = jul_df, aes(date_time, kwh)) +
                     geom_point() +
                     geom_line(data = subset(jul_df, jul_df$run == 1),
-                                mapping = aes(frame = run),
                                 colour = "white", size = 1) +
-                    geom_point(data = subset(jul_df, jul_df$run == 1),
-                                mapping = aes(frame = run),
-                                colour = "#00CC66", size = 1.5) +
+                    geom_point(mapping = aes(frame = run),
+                                colour = "#00CC66", size = 1.5,
+                                alpha = 1/1.5) +
                     labs(x = "",
                          y = "kWh",
-                         title = "Medium Office Elec. (July)") +
+                         title = "July - 5min Office Elecricity Profile - Trial") +
                     theme(panel.background = element_rect(colour = "gray75", fill = "gray80")) +
                     theme(panel.grid.major = element_line(colour = "gray85")) +
-                    theme(panel.grid.minor = element_line(colour = "gray85"))
-  ani_jul_plt <- gg_animate(jul_plt)
+                    theme(panel.grid.minor = element_line(colour = "gray85")) +
+                    theme(text = element_text(size = 14))
   
-  return(ani_jul_plt)
+  ani.options(outdir = getwd(), ani.width = 960, ani.height = 600)
+  ani_jul_plt <- gg_animate(jul_plt, "bldg_load.gif")
 }
-get_ani_bldg(test_bldg)
+
+bldg_gif <- get_ani_bldg(test_bldg)

@@ -125,7 +125,7 @@ get_test_bldg <- function() {
   )
   bldg_test <- bldg_load$new(
     bldg_ts_path = "inputs/bldg_gasheat.csv",
-    meta = metadat, rand_copies = 4, rand_factor = 0.15
+    meta = metadat, rand_copies = 4, rand_factor = 0.1
   )
   
   return(bldg_test)
