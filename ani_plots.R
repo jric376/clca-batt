@@ -19,12 +19,12 @@ src_list = list.files(pattern = "*load.R", full.names = TRUE)
 # "bldg_load", "grid_load", "pv_load"
 
 ### This is for loading the dispatch curve script
-# source("dispatch_curve.R")
+source("dispatch_curve.R")
 
 # test_bldg <- get_test_bldg()
 # test_grid <- get_test_grid()
 # test_pv <- get_test_pv()
-# test_disp <- get_test_disp()
+test_disp <- get_test_disp()
 
 get_ani_bldg <- function(bldg) {
   full_df <- bldg$get_base_ts()
@@ -198,8 +198,9 @@ get_ani_disp <- function(disp, runs = 20) {
                                             width = 50, colour = "black", size = 1) +
                               geom_point(
                                           data = subset(full_df, full_df$run == 1),
-                                          aes(color = fuel_type), alpha = 1/1.2) +
-                              scale_color_brewer(
+                                          aes(fill = fuel_type), alpha = 1/1.2,
+                                          colour = "gray35", shape = 21) +
+                              scale_fill_brewer(
                                                 name = "Fuel", type = "div", palette = "Set1",
                                                 guide = guide_legend(override.aes = list(alpha = 1, size = 5))) +
                               theme(
@@ -214,8 +215,9 @@ get_ani_disp <- function(disp, runs = 20) {
                                             aes(frame = run),
                                             size = 1, colour = "gray65") +
                                   geom_point(
-                                              aes(color = fuel_type, frame = run)) +
-                                  scale_color_brewer(
+                                              aes(fill = fuel_type, frame = run),
+                                              colour = "black", shape = 21) +
+                                  scale_fill_brewer(
                                     name = "Fuel", type = "div", palette = "Set1",
                                     guide = guide_legend(override.aes = list(alpha = 1, size = 5))) +
                                   theme(
@@ -277,4 +279,4 @@ get_bldg_comp <- function() {
 # bldg_gif <- get_ani_bldg(test_bldg)
 # grid_gif <- get_ani_grid(test_grid)
 # pv_gif <- get_ani_pv(test_pv)
-# disp_gif <- get_ani_disp(test_disp)
+disp_gif <- get_ani_disp(test_disp)
