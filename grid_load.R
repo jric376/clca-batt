@@ -21,7 +21,7 @@ grid_load <- R6Class("Grid Load",
                                              ) {
                        self$add_metadata(meta)
                        self$add_base_ts(read.csv(grid_ts_path, head = T, stringsAsFactors = F))
-                       # self$stochastize_ts(rand_copies, rand_factor)
+                       self$stochastize_ts(rand_copies, rand_factor)
                      },
                      
                      add_metadata = function(metadata) {
