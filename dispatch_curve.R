@@ -9,7 +9,6 @@ rm(list=ls())
 setwd("E:\\GitHub\\clca-batt")
 library("dplyr")
 library("futile.logger")
-library("ggplot2")
 library("R6")
 
 disp_curv <- R6Class("Dispatch",
@@ -74,17 +73,14 @@ disp_curv <- R6Class("Dispatch",
         self$stochastize_costs()
       },
       
-      stochastize_costs = function(redraw = F) {
+      stochastize_costs = function() {
         # applies stochastizer to all lines in dataframe
         
         private$iso_plants$MC_rand = mapply(
                                               function(x) self$stochastizer(x),
                                               private$iso_plants$plprmfl
         )
-        if (redraw) {
-          self$set_dispatch()
-          self$plot_dispatch()
-        }
+        self$set_dispatch()
       },
       
       stochastizer = function(fuel, hold_seed = F) {
@@ -175,6 +171,7 @@ disp_curv <- R6Class("Dispatch",
         disp_frame$cumul_plc2erta = disp_frame$wtd_plc2erta / disp_frame$cumul_cap
         
         private$disp_frame = disp_frame
+        self$assign_colors()
         
         return(self)
       },
@@ -222,38 +219,6 @@ disp_curv <- R6Class("Dispatch",
         private$disp_frame$fuel_type[private$disp_frame$plprmfl %in% biomass] <- "Biomass"
         private$disp_frame$fuel_type[private$disp_frame$plprmfl %in% petroleum] <- "Petro-fuels"
         private$disp_frame$fuel_type[private$disp_frame$plprmfl %in% coal] <- "Coal-based"
-      },
-      
-      plot_dispatch = function() {
-        self$assign_colors()
-        disp_plot <- ggplot(
-                            self$get_dispatch(),
-                            aes(
-                                x = cumul_cap, y = MC_rand,
-                                size = namepcap
-                                )
-                            ) +
-          geom_errorbar(
-            aes(ymax = MC_rand + se, ymin = MC_rand - se),
-            width = 1, colour = "black", size = 1,
-            position = position_dodge(width = 1)
-          ) +
-          geom_point(aes(fill = fuel_type), shape = 21, alpha = 1/1.5) +
-          scale_fill_brewer(name = "Fuel", type = "div", palette = "Set1",
-                            guide = guide_legend(override.aes = list(alpha = 1, size = 5))
-                            ) +
-          scale_size(name = "Capacity (MW)", breaks = c(250,500,1000,2000), range = c(3,13)) +
-          labs(x = "Cumulative Capacity (MW)",
-               y = "Marg Cost ($ / kWh)",
-               title = "Dispatch Curve") +
-          theme(panel.background = element_rect(colour = "gray75", fill = "gray80")) +
-          theme(panel.grid.major = element_line(colour = "gray85")) +
-          theme(panel.grid.minor = element_line(colour = "gray85")) +
-          theme(legend.position = c(0.30, 0.70), legend.box = "horizontal",
-                legend.background = element_rect(colour = "gray75")) +
-          expand_limits(y = c(0, 0.32))
-        
-        return(disp_plot)
       }
     ),
     private = list(
@@ -264,11 +229,11 @@ disp_curv <- R6Class("Dispatch",
     )
 )
 
-mc_input = "inputs/marg_costs.csv"
-plants_input = "inputs/plants_all.csv"
-iso_terr = "NYISO"
-
 get_test_disp <- function() {
+  mc_input = "inputs/marg_costs.csv"
+  plants_input = "inputs/plants_all.csv"
+  iso_terr = "NYISO"
+  
   metadat = list(
     "name" = "Doris the Dispatch",
     "run_id" = "RUNID",
