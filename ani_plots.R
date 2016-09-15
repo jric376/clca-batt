@@ -169,7 +169,10 @@ get_bldg_comp <- function() {
                                                src == "model" &
                                                  bldg_type == "Office"),
                                  size = 2) +
+<<<<<<< HEAD
                       # facet_wrap(~bldg_type, switch = "x") +
+=======
+>>>>>>> 26cbe20243554f28405677be84cc6308158d02c5
                       labs(x = "",
                            y = "kWh",
                            title = "Office Annual Electricity Usage Validation") +
