@@ -8,9 +8,9 @@ rm(list=ls())
 # wd_path = paste(Sys.getenv("USERPROFILE"), "\\OneDrive\\School\\Thesis\\program2", sep = "")
 # setwd(as.character(wd_path))
 setwd("E:\\GitHub\\clca-batt")
-library('doSNOW')
 library('foreach')
 library('iterators')
+library('doSNOW')
 library('R6')
 
 bldg_load <- R6Class("Bldg Load",
@@ -91,8 +91,18 @@ bldg_load <- R6Class("Bldg Load",
                          return(length(private$ts_df))
                        },
                        
-                       get_ts_df = function() {
-                         return(private$ts_df)
+                       get_ts_df = function(index) {
+                         if (missing(index)) return(private$ts_df)
+                         if (index %in%  seq.int(1:length(private$ts_df))) {
+                          return(private$ts_df[index])
+                         }
+                         else {
+                           stop(paste(
+                                      "Index", index, "not in bounds.",
+                                      "It's between 1 and", length(private$ts_df)
+                                      )
+                           )
+                         }
                        },
                        
                        get_metadata = function() {
@@ -115,7 +125,7 @@ get_test_bldg <- function() {
   )
   bldg_test <- bldg_load$new(
     bldg_ts_path = "inputs/bldg_gasheat.csv",
-    meta = metadat, rand_copies = 4, rand_factor = 0.05
+    meta = metadat, rand_copies = 4, rand_factor = 0.15
   )
   
   return(bldg_test)

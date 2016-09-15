@@ -89,8 +89,18 @@ grid_load <- R6Class("Grid Load",
                        return(length(private$ts_df))
                      },
                      
-                     get_ts_df = function() {
-                       return(private$ts_df)
+                     get_ts_df = function(index) {
+                       if (missing(index)) return(private$ts_df)
+                       if (index %in%  seq.int(1:length(private$ts_df))) {
+                         return(private$ts_df[index])
+                       }
+                       else {
+                         stop(paste(
+                           "Index", index, "not in bounds.",
+                           "It's between 1 and", length(private$ts_df)
+                         )
+                         )
+                       }
                      },
                      
                      get_metadata = function() {
