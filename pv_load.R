@@ -124,7 +124,7 @@ get_test_pv <- function() {
   )
   pv_test <- pv_load$new(
     pv_ts_path = "inputs/solar_nycDC.csv",
-    meta = metadat, rand_copies = 2, rand_factor = 0.05
+    meta = metadat, rand_copies = 4, rand_factor = 0.1
   )
   
   return(pv_test)

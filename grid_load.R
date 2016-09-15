@@ -123,7 +123,7 @@ get_test_grid <- function() {
   )
   grid_test <- grid_load$new(
     grid_ts_path = "inputs/2014pal_combined.csv",
-    meta = metadat, rand_copies = 2, rand_factor = 0.05
+    meta = metadat, rand_copies = 4, rand_factor = 0.1
   )
   
   return(grid_test)
