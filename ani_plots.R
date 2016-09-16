@@ -16,16 +16,16 @@ library("ggplot2")
 
 ### The following three lines are used for loading time-series scripts
 src_list = list.files(pattern = "*load.R", full.names = TRUE)
-# source(src_list[2])
+source(src_list[1])
 # "bldg_load", "grid_load", "pv_load"
 
 ### This is for loading the dispatch curve script
-source("dispatch_curve.R")
+# source("dispatch_curve.R")
 
-# test_bldg <- get_test_bldg()
+test_bldg <- get_test_bldg()
 # test_grid <- get_test_grid()
 # test_pv <- get_test_pv()
-test_disp <- get_test_disp()
+# test_disp <- get_test_disp()
 
 get_ani_bldg <- function(bldg) {
   full_df <- bldg$get_base_ts()
@@ -356,7 +356,7 @@ get_bldg_comp <- function() {
          width = 10, height = 6.25, units = "in")
 }
 
-# bldg_gif <- get_ani_bldg(test_bldg)
+bldg_gif <- get_ani_bldg(test_bldg)
 # grid_gif <- get_ani_grid(test_grid)
 # pv_gif <- get_ani_pv(test_pv)
-disp_gif <- get_ani_disp(test_disp)
+# disp_gif <- get_ani_disp(test_disp)
