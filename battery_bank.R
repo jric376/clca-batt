@@ -3,10 +3,9 @@
 # This object can be called to operate like a battery bank, specified by
 # its chemistry.
 
-rm(list=ls())
 # wd_path = paste(Sys.getenv("USERPROFILE"), "\\OneDrive\\School\\Thesis\\program2", sep = "")
 # setwd(as.character(wd_path))
-setwd("E:\\GitHub\\clca-batt")
+# setwd("E:\\GitHub\\clca-batt")
 library("futile.logger")
 library('R6')
 
@@ -128,9 +127,8 @@ batt_bank <- R6Class("Batteries",
         # and returns the maximum dischargeable amount to meet
         # this demand
         
-        print(paste("Starting capacity is", self$cap))
-        
         usable_frac <- 1
+        old_cap <- self$soc
         old_soc <- self$soc
 
         # NEEDS TO TAKE IN      self$time_int
@@ -151,10 +149,6 @@ batt_bank <- R6Class("Batteries",
         }
         
         new_soc <- old_soc + del_soc
-        
-        print(paste("Old soc is", old_soc))
-        print(paste("Del soc is", del_soc))
-        
         self$change_soc <- del_soc
         
         if (new_soc <= self$min_soc) {
@@ -169,7 +163,6 @@ batt_bank <- R6Class("Batteries",
           }
           else usable_frac <- 0
         }
-        print(paste("Usable frac", usable_frac))
         
         if (kwh_val < 0) {
           self$change_cap <- (kwh_val/self$round_eff)*usable_frac
@@ -179,6 +172,14 @@ batt_bank <- R6Class("Batteries",
         }
         
         self$incr_cyc <- abs(del_soc / (1 - self$min_soc))*(usable_frac / 2)
+
+        flog.info(paste("Starting cap -", round(old_cap, 2), "-",
+                        "Old SoC -", round(old_soc, 2), "-",
+                        "Del SoC -", round(del_soc, 2), "-",
+                        "New SoC -", round(self$soc, 2), "-",
+                        "Usable frac", round(usable_frac, 2), "-",
+                        "Remaining capacity is", round(self$cap, 2))
+  )
         
         return(self)
       },
@@ -191,8 +192,6 @@ batt_bank <- R6Class("Batteries",
         if (self$soc > 1) (self$soc <- 1)
         if (self$soc < self$min_soc) (self$soc <- self$min_soc)
         
-        print(paste("New soc is", self$soc))
-        
         return(self)
       },
       change_cap = function(cap_val) {
@@ -201,8 +200,6 @@ batt_bank <- R6Class("Batteries",
         self$cap <- self$cap + cap_val
         self$del_kwh <- cap_val
         
-        print(paste("Remaining capacity is", self$cap))
-        
         return(self)
       },
       incr_cyc = function(cyc_val) {
@@ -210,9 +207,9 @@ batt_bank <- R6Class("Batteries",
         else self$cyc_eq <- self$cyc_eq + cyc_val
         
         fail_state = (self$cyc_eq >= self$cyc_fail)
-        if (fail_state) print('Battery failed')
-        
-        print(paste("New eq. cycles is", self$cyc_eq))
+        if (fail_state) {
+          flog.error(paste(private$metadata[["name"]], "failed"))
+        }
         
         return(self)
       }

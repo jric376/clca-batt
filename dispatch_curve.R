@@ -3,10 +3,9 @@
 # This object can be called to operate like a dispatch curve, simulating
 # the operation of grid resources in time, based on marginal cost
 
-rm(list=ls())
 # wd_path = paste(Sys.getenv("USERPROFILE"), "\\OneDrive\\School\\Thesis\\program2", sep = "")
 # setwd(as.character(wd_path))
-setwd("E:\\GitHub\\clca-batt")
+# setwd("E:\\GitHub\\clca-batt")
 library("dplyr")
 library("futile.logger")
 library("R6")
