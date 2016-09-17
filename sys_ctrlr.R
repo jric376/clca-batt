@@ -10,23 +10,33 @@
 # it updates the objects and outputs
 # an array of values decribing the next timestep
 
-rm(list=ls())
 # wd_path = paste(Sys.getenv("USERPROFILE"), "\\OneDrive\\School\\Thesis\\program2", sep = "")
 # setwd(as.character(wd_path))
-setwd("E:\\GitHub\\clca-batt")
+# setwd("E:\\GitHub\\clca-batt")
+library("dplyr")
 library("futile.logger")
 library("R6")
 if(!exists("batt_bank", mode = "function")) source("battery_bank.R")
+if(!exists("disp_curv", mode = "function")) source("dispatch_curve.R")
+if(!exists("bldg_load", mode = "function")) source("bldg_load.R")
+if(!exists("grid_load", mode = "function")) source("grid_load.R")
+if(!exists("pv_load", mode = "function")) source("pv_load.R")
 
 sys_ctrlr <- R6Class("System Controller",
                      public = list(
                        initialize = function(
                                              meta = NULL, dmd_targ = NULL,
-                                             batt = NULL, time_int = NULL
+                                             batt = NULL, bldg_ts = NULL,
+                                             dispatch = NULL, grid_ts = NULL,
+                                             pv_ts = NULL
                                              ) {
                          private$dmd_targ = dmd_targ
                          private$batt = batt
-                         private$time_int = time_int
+                         private$bldg_ts = bldg_ts
+                         private$dispatch = dispatch
+                         private$grid_ts = grid_ts
+                         private$pv_ts = pv_ts
+                         # private$time_int = time_int
                          self$add_metadata(meta)
                          
                          log_path = paste(
@@ -36,6 +46,7 @@ sys_ctrlr <- R6Class("System Controller",
                                           ".log", sep = ""
                                           )
                          flog.appender(appender.file(log_path))
+                         flog.error("Time interval variable not initialized in any controller yet.")
                        },
                        
                        add_metadata = function(metadata) {
@@ -154,6 +165,22 @@ sys_ctrlr <- R6Class("System Controller",
                          return(private$batt)
                        },
                        
+                       get_bldg_ts = function() {
+                         return(private$bldg_ts)
+                       },
+                       
+                       get_dispatch = function() {
+                         return(private$dispatch)
+                       },
+                       
+                       get_grid_ts = function() {
+                         return(private$grid_ts)
+                       },
+                       
+                       get_pv_ts = function() {
+                         return(private$pv_ts)
+                       },
+                       
                        get_metadata = function() {
                          return(private$metadata)
                        }
@@ -161,30 +188,29 @@ sys_ctrlr <- R6Class("System Controller",
                      private = list(
                        dmd_targ = NULL,
                        batt = NULL,
+                       bldg_ts = NULL,
+                       dispatch = NULL,
+                       grid_ts = NULL,
+                       pv_ts = NULL,
                        metadata = NULL,
                        time_int = NULL
                      ))
 
-ctrlr_metadat = list(
-  "name" = "Sam the System_Controller",
-  "run_id" = "RUNID",
-  "ctrl_id" = "CTRLID",
-  "run_timestr" = "RUNTIMESTR"
-)
-batt_metadat = list(
-  "name" = "Boris the Battery",
-  "run_id" = "RUNID",
-  "ctrl_id" = "test_ctrlr",
-  "run_timestr" = "RUNTIMESTR"
-)
-
 ctrlr_test <- sys_ctrlr$new(
-                            meta = metadat, dmd_targ = 10,
-                            batt = batt_bank$new(
-                                                  meta = batt_metadat, type = 'li_ion',
-                                                  pwr = 10, nameplt = 10
-                                                )
+                            meta = list(
+                              "name" = "Sam the System_Controller",
+                              "run_id" = "RUNID",
+                              "ctrl_id" = "CTRLID",
+                              "run_timestr" = "RUNTIMESTR"
+                            ),
+                            dmd_targ = 10,
+                            batt = get_test_batt(),
+                            bldg = get_test_bldg()$get_base_ts(),
+                            dispatch = get_test_disp(),
+                            grid = get_test_grid()$get_base_ts(),
+                            pv = get_test_pv()$get_base_ts()
                             )
+
 targ_all_pv <- function (ctrlr = NULL) {
   ctrlr$draw_batt(-1)
   return(ctrlr$operate(bldg_kw = 11, pv_kw = 13))
