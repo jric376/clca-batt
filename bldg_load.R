@@ -61,23 +61,26 @@ bldg_load <- R6Class("Bldg Load",
                        stochastize_ts = function(copies = 1, rand_factor) {
                          ts_df = list()
                          ts_df[[1]] = private$base_ts
-                         cl <- makeCluster(3)
                          
-                         for (i in 1:copies) {
-                          registerDoSNOW(cl)
-                          j = i + 1
-                          new_ts = private$base_ts
-                          
-                          
-                          foreach(x = iter(new_ts, by = 'col'), nm = colnames(new_ts)) %do%
-                            if (is.numeric(x)) {
-                              x = sapply(x, function(y) rnorm(1, mean = y, sd = y*rand_factor))
-                              new_ts[[nm]] = x
-                            }
-                          
-                          ts_df[[j]] = new_ts
+                         if (copies > 0) {
+                           cl <- makeCluster(3)
+                           
+                           for (i in 1:copies) {
+                             registerDoSNOW(cl)
+                             j = i + 1
+                             new_ts = private$base_ts
+                             
+                             
+                             foreach(x = iter(new_ts, by = 'col'), nm = colnames(new_ts)) %do%
+                               if (is.numeric(x)) {
+                                 x = sapply(x, function(y) rnorm(1, mean = y, sd = y*rand_factor))
+                                 new_ts[[nm]] = x
+                               }
+                             
+                             ts_df[[j]] = new_ts
+                           }
+                           stopCluster(cl)
                          }
-                         stopCluster(cl)
                          
                          private$ts_df = ts_df
                        },
@@ -124,7 +127,7 @@ get_test_bldg <- function() {
   )
   bldg_test <- bldg_load$new(
     bldg_ts_path = "inputs/bldg_gasheat.csv",
-    meta = metadat, rand_copies = 9, rand_factor = 0.1
+    meta = metadat, rand_copies = 0, rand_factor = 0.1
   )
   
   return(bldg_test)

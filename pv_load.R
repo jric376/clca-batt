@@ -59,24 +59,27 @@ pv_load <- R6Class("PV Load",
                        
                        stochastize_ts = function(copies = 1, rand_factor) {
                          ts_df = list()
-                         ts_df[[1]] = private$base_ts
-                         cl <- makeCluster(3)
+                         ts_df[[1]] = self$get_base_ts()
                          
-                         for (i in 1:copies) {
-                           registerDoSNOW(cl)
-                           j = i + 1
-                           new_ts = private$base_ts
+                         if (copies > 0) {
+                           cl <- makeCluster(3)
                            
-                           
-                           foreach(x = iter(new_ts, by = 'col'), nm = colnames(new_ts)) %do%
-                             if (is.numeric(x)) {
-                               x = sapply(x, function(y) rnorm(1, mean = y, sd = y*rand_factor))
-                               new_ts[[nm]] = x
-                             }
-                           
-                           ts_df[[j]] = new_ts
+                           for (i in 1:copies) {
+                             registerDoSNOW(cl)
+                             j = i + 1
+                             new_ts = private$base_ts
+                             
+                             
+                             foreach(x = iter(new_ts, by = 'col'), nm = colnames(new_ts)) %do%
+                               if (is.numeric(x)) {
+                                 x = sapply(x, function(y) rnorm(1, mean = y, sd = y*rand_factor))
+                                 new_ts[[nm]] = x
+                               }
+                             
+                             ts_df[[j]] = new_ts
+                           }
+                           stopCluster(cl)
                          }
-                         stopCluster(cl)
                          
                          private$ts_df = ts_df
                        },
@@ -123,7 +126,7 @@ get_test_pv <- function() {
   )
   pv_test <- pv_load$new(
     pv_ts_path = "inputs/solar_nycDC.csv",
-    meta = metadat, rand_copies = 9, rand_factor = 0.1
+    meta = metadat, rand_copies = 0, rand_factor = 0.1
   )
   
   return(pv_test)

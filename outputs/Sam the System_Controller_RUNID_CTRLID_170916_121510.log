@@ -1,5 +1,0 @@
-ERROR [2016-09-17 12:15:10] Time interval variable not initialized in any controller yet.
-WARN [2016-09-17 12:23:13] Still need to verify kW (based on -1 kWh) isn't too high
-INFO [2016-09-17 12:23:13] Starting cap - 1 - Old SoC - 1 - Del SoC - -0.02 - New SoC - 0.98 - Usable frac 1 - Remaining capacity is 63.89
-WARN [2016-09-17 12:23:13] Still need to verify kW (based on 2 kWh) isn't too high
-INFO [2016-09-17 12:23:13] Starting cap - 0.98 - Old SoC - 0.98 - Del SoC - 0.03 - New SoC - 1 - Usable frac 0.62 - Remaining capacity is 65

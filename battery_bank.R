@@ -128,7 +128,7 @@ batt_bank <- R6Class("Batteries",
         # this demand
         
         usable_frac <- 1
-        old_cap <- self$soc
+        old_cap <- self$cap
         old_soc <- self$soc
 
         # NEEDS TO TAKE IN      self$time_int
@@ -179,7 +179,7 @@ batt_bank <- R6Class("Batteries",
                         "New SoC -", round(self$soc, 2), "-",
                         "Usable frac", round(usable_frac, 2), "-",
                         "Remaining capacity is", round(self$cap, 2))
-  )
+        )
         
         return(self)
       },

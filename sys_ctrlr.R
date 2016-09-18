@@ -26,17 +26,18 @@ sys_ctrlr <- R6Class("System Controller",
                      public = list(
                        initialize = function(
                                              meta = NULL, dmd_targ = NULL,
-                                             batt = NULL, bldg_ts = NULL,
-                                             dispatch = NULL, grid_ts = NULL,
-                                             pv_ts = NULL
+                                             batt = NULL, bldg = NULL,
+                                             dispatch = NULL, grid = NULL,
+                                             pv = NULL
                                              ) {
                          private$dmd_targ = dmd_targ
                          private$batt = batt
-                         private$bldg_ts = bldg_ts
+                         private$bldg = bldg
                          private$dispatch = dispatch
-                         private$grid_ts = grid_ts
-                         private$pv_ts = pv_ts
+                         private$grid = grid
+                         private$pv = pv
                          # private$time_int = time_int
+                         #also need to set battery time_int
                          self$add_metadata(meta)
                          
                          log_path = paste(
@@ -61,6 +62,19 @@ sys_ctrlr <- R6Class("System Controller",
                            for (datum_name in names(metadata)) {
                              private$metadata[[datum_name]] <- metadata[[datum_name]]
                            }
+                         }
+                       },
+                       
+                       check_ts_intervals = function() {
+                         intervals = c(
+                                        private$bldg$get_metadata()$time_int,
+                                        private$grid$get_metadata()$time_int,
+                                        private$pv$get_metadata()$time_int)
+                         
+                         if (length(unique(intervals)) > 1) {
+                           flog.error(paste("Time-series have different freqs",
+                                            intervals))
+                           stop("Time-series have different freqs")
                          }
                        },
                        
@@ -149,12 +163,34 @@ sys_ctrlr <- R6Class("System Controller",
                          }
                          
                          next_state = list(
-                           "grid_kw" = grid_kw, "pv_kw" = pv_kw,
-                           "batt_kw" = batt_kw, "unmet_kw" = unmet_kw,
-                           "curtail_kw" = curtail_kw
+                           "bldg_kw" = bldg_kw, "grid_kw" = grid_kw,
+                           "pv_kw" = pv_kw, "batt_kw" = batt_kw, 
+                           "unmet_kw" = unmet_kw, "curtail_kw" = curtail_kw
                          )
                          
                          return(next_state)
+                       },
+
+                       traverse_ts = function() {
+                         # self$check_ts_intervals()
+                         
+                         bldg_kwh = private$bldg$get_base_ts()$kwh[1:9]
+                         pv_kwh = c(8,1,1,1,1,1,1,1,1)
+                         sim_df <- do.call(rbind, lapply(1:length(bldg_kwh), function(i) {
+                           self$operate(bldg_kwh[i], pv_kwh[i]) 
+                         }))
+                         
+                         return(sim_df)
+                         
+                         # sim_df <- do.call(rbind, lapply(1:nrow(private$bldg_ts), function(i) {
+                         #  self$operate(private$bldg_ts, private$pv_ts)
+                         # }
+                         # ))
+
+                       #   write.csv(sim_df, paste("outputs\\df\\test_",
+                       # format(as.POSIXlt(Sys.time()), "%m%d_%H%M%S"),
+                       # ".csv", sep = ""))
+                       #   private$sim_df = sim_df
                        },
                        
                        get_targ = function() {
@@ -165,8 +201,20 @@ sys_ctrlr <- R6Class("System Controller",
                          return(private$batt)
                        },
                        
+                       get_bldg = function() {
+                         return(private$bldg)
+                       },
+                       
+                       get_grid = function() {
+                         return(private$grid)
+                       },
+                       
+                       get_pv = function() {
+                         return(private$pv)
+                       },
+                       
                        get_bldg_ts = function() {
-                         return(private$bldg_ts)
+                         return(private$bldg$get_base_ts())
                        },
                        
                        get_dispatch = function() {
@@ -174,11 +222,11 @@ sys_ctrlr <- R6Class("System Controller",
                        },
                        
                        get_grid_ts = function() {
-                         return(private$grid_ts)
+                         return(private$grid$get_base_ts())
                        },
                        
                        get_pv_ts = function() {
-                         return(private$pv_ts)
+                         return(private$pv$get_base_ts())
                        },
                        
                        get_metadata = function() {
@@ -188,12 +236,13 @@ sys_ctrlr <- R6Class("System Controller",
                      private = list(
                        dmd_targ = NULL,
                        batt = NULL,
-                       bldg_ts = NULL,
+                       bldg = NULL,
                        dispatch = NULL,
-                       grid_ts = NULL,
-                       pv_ts = NULL,
+                       grid = NULL,
+                       pv = NULL,
                        metadata = NULL,
-                       time_int = NULL
+                       time_int = NULL,
+                       sim_df = NULL
                      ))
 
 ctrlr_test <- sys_ctrlr$new(
@@ -203,13 +252,14 @@ ctrlr_test <- sys_ctrlr$new(
                               "ctrl_id" = "CTRLID",
                               "run_timestr" = "RUNTIMESTR"
                             ),
-                            dmd_targ = 10,
+                            dmd_targ = 3,
                             batt = get_test_batt(),
-                            bldg = get_test_bldg()$get_base_ts(),
+                            bldg = get_test_bldg(),
                             dispatch = get_test_disp(),
-                            grid = get_test_grid()$get_base_ts(),
-                            pv = get_test_pv()$get_base_ts()
+                            grid = get_test_grid(),
+                            pv = get_test_pv()
                             )
+ctrlr_test$traverse_ts()
 
 targ_all_pv <- function (ctrlr = NULL) {
   ctrlr$draw_batt(-1)
