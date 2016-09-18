@@ -41,6 +41,15 @@ pv_load <- R6Class("PV Load",
                            base_ts$date_time = strptime(base_ts$time_hr, format="%m/%d/%Y %H:%M")
                            base_ts$time_hr = NULL
                            
+                           new_dt = seq.POSIXt(base_ts$date_time[1],
+                                               base_ts$date_time[length(base_ts$date_time)],
+                                               by = "5 min")
+                           new_dt = data.frame(new_dt[2:length(new_dt)])
+                           colnames(new_dt) <- "date_time"
+                           new_dt$hr = new_dt - as.numeric(format(new_dt, "%M"))*60
+                           new_dt <- merge(new_dt, base_ts, by.x = "hr", by.y = "date_time")
+                           # need to deal with NAs that may emerge
+                           
                            start_pt = sample(1:(length(base_ts$date_time)-1),1)
                            interval = list(
                              "time_int" = abs(as.numeric(
@@ -49,7 +58,7 @@ pv_load <- R6Class("PV Load",
                                          units = "hours"))))
                            )
                            # base_ts$date_time = strftime(base_ts$date_time, format="%m/%d %H:%M:%S")
-                           base_ts$kW = base_ts$PVinv_W*0.001*(1-0.1408) # loss factor taken from SAM
+                           base_ts$kw = base_ts$PVinv_W*0.001*(1-0.1408) # loss factor taken from SAM
                            base_ts$PVinv_W = NULL
                            
                            private$metadata = append(private$metadata, interval)
