@@ -218,6 +218,8 @@ disp_curv <- R6Class("Dispatch",
         private$disp_frame$fuel_type[private$disp_frame$plprmfl %in% biomass] <- "Biomass"
         private$disp_frame$fuel_type[private$disp_frame$plprmfl %in% petroleum] <- "Petro-fuels"
         private$disp_frame$fuel_type[private$disp_frame$plprmfl %in% coal] <- "Coal-based"
+        
+        # ADD LEVELS c(...) and then reassign fuel_type with factor(fuel_type, LEVELS)
       }
     ),
     private = list(
