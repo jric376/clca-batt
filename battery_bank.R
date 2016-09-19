@@ -106,7 +106,6 @@ batt_bank <- R6Class("Batteries",
         # 1) delta kWh, 2) state-of-charge, 3) equivalent cycles
         
         state_params = list(
-          
           chem = self$chem,
           cap = self$cap,
           del_kwh = self$del_kwh,

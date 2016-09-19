@@ -38,6 +38,7 @@ bldg_load <- R6Class("Bldg Load",
                          }
                          else {
                            base_ts$date_time = strptime(base_ts$time_5min, format="%m/%d %H:%M:%S")
+                           base_ts$date_time = as.POSIXct(base_ts$date_time)
                            base_ts$time_5min = NULL
                            base_ts$kwh = base_ts$elec.J*(2.778E-7) # J to kWh
                            base_ts$elec.J = NULL
@@ -126,7 +127,7 @@ get_test_bldg <- function() {
     "run_timestr" = "RUNTIMESTR"
   )
   bldg_test <- bldg_load$new(
-    bldg_ts_path = "inputs/bldg_gasheat.csv",
+    bldg_ts_path = "inputs\\bldg_gasheat.csv",
     meta = metadat, rand_copies = 0, rand_factor = 0.1
   )
   

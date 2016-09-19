@@ -40,6 +40,7 @@ grid_load <- R6Class("Grid Load",
                        }
                        else {
                          base_ts$date_time = strptime(base_ts$time_5min, format="%m/%d/%Y %H:%M")
+                         base_ts$date_time = as.POSIXct(base_ts$date_time)
                          base_ts$time_5min = NULL
                          
                          start_pt = sample(1:(length(base_ts$date_time)-1),1)
@@ -124,7 +125,7 @@ get_test_grid <- function() {
     "run_timestr" = "RUNTIMESTR"
   )
   grid_test <- grid_load$new(
-    grid_ts_path = "inputs/2014pal_combined.csv",
+    grid_ts_path = "inputs\\2014pal_combined.csv",
     meta = metadat, rand_copies = 0, rand_factor = 0.1
   )
   
