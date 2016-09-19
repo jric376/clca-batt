@@ -17,9 +17,9 @@ pv_load <- R6Class("PV Load",
                          meta = NA, pv_ts_path = NA,
                          rand_copies = NA, rand_factor = NA
                        ) {
-                         self$add_metadata(meta)
                          self$add_base_ts(read.csv(pv_ts_path, head = T, stringsAsFactors = F))
-                         # self$stochastize_ts(rand_copies, rand_factor)
+                         self$add_metadata(meta)
+                         self$stochastize_ts(rand_copies, rand_factor)
                        },
                        
                        add_metadata = function(metadata) {
@@ -39,30 +39,40 @@ pv_load <- R6Class("PV Load",
                          }
                          else {
                            base_ts$date_time = strptime(base_ts$time_hr, format="%m/%d/%Y %H:%M")
+                           base_ts$date_time$year <- base_ts$date_time$year + 2
                            base_ts$time_hr = NULL
                            
-                           new_dt = seq.POSIXt(base_ts$date_time[1],
-                                               base_ts$date_time[length(base_ts$date_time)],
-                                               by = "5 min")
-                           new_dt = data.frame(new_dt[2:length(new_dt)])
-                           colnames(new_dt) <- "date_time"
-                           new_dt$hr = new_dt - as.numeric(format(new_dt, "%M"))*60
-                           new_dt <- merge(new_dt, base_ts, by.x = "hr", by.y = "date_time")
-                           # need to deal with NAs that may emerge
+                           new_dt = as.POSIXlt(seq.POSIXt(base_ts$date_time[1],
+                                                          base_ts$date_time[length(base_ts$date_time)],
+                                                          by = "5 min"))
+                           new_dt = new_dt[2:length(new_dt)]
+                           new_dt = data.frame(new_dt,
+                                               new_dt - as.numeric(format(new_dt, "%M"))*60)
+                           colnames(new_dt) = c("dt", "date_time")
+                           new_dt$dt = as.POSIXlt(new_dt$dt)
+                           new_dt$date_time = as.POSIXlt(new_dt$date_time)
+                           new_dt = merge(x = new_dt, y = base_ts,
+                                          by = "date_time", all.y = TRUE)
+                           new_dt$dt = as.POSIXct(new_dt$dt)
+                           new_dt$date_time = as.POSIXct(new_dt$date_time)
+                           new_dt = arrange(new_dt, dt)
+                           new_dt$date_time = NULL
+                           colnames(new_dt) = c("date_time", "PVinv_w")
                            
-                           start_pt = sample(1:(length(base_ts$date_time)-1),1)
+                           start_pt = sample(1:(length(new_dt$date_time)-1),1)
                            interval = list(
                              "time_int" = abs(as.numeric(
-                               (difftime(base_ts$date_time[start_pt],
-                                         base_ts$date_time[start_pt + 1],
+                               (difftime(new_dt$date_time[start_pt],
+                                         new_dt$date_time[start_pt + 1],
                                          units = "hours"))))
                            )
-                           # base_ts$date_time = strftime(base_ts$date_time, format="%m/%d %H:%M:%S")
-                           base_ts$kw = base_ts$PVinv_W*0.001*(1-0.1408) # loss factor taken from SAM
-                           base_ts$PVinv_W = NULL
+                           
+                           new_dt$kw = new_dt$PVinv_w*0.001*(1-0.1408) # loss factor taken from SAM
+                           new_dt$PVinv_w = NULL
+                           new_dt = na.omit(new_dt)
                            
                            private$metadata = append(private$metadata, interval)
-                           private$base_ts = base_ts
+                           private$base_ts = new_dt
                          }
                        },
                        
@@ -134,7 +144,7 @@ get_test_pv <- function() {
     "run_timestr" = "RUNTIMESTR"
   )
   pv_test <- pv_load$new(
-    pv_ts_path = "inputs/solar_nycDC.csv",
+    pv_ts_path = "inputs\\solar_nycDC.csv",
     meta = metadat, rand_copies = 0, rand_factor = 0.1
   )
   
