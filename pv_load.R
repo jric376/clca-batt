@@ -66,12 +66,13 @@ pv_load <- R6Class("PV Load",
                                          new_dt$date_time[start_pt + 1],
                                          units = "hours"))))
                            )
+                           private$metadata = append(private$metadata, interval)
                            
                            new_dt$kw = new_dt$PVinv_w*0.001*(1-0.1408) # loss factor taken from SAM
+                           new_dt$kwh = new_dt$kw*private$metadata$time_int
                            new_dt$PVinv_w = NULL
                            new_dt = na.omit(new_dt)
                            
-                           private$metadata = append(private$metadata, interval)
                            private$base_ts = new_dt
                          }
                        },

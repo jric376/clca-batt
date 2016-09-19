@@ -54,7 +54,7 @@ bldg_load <- R6Class("Bldg Load",
                            # base_ts$date_time = strftime(base_ts$date_time, format="%m/%d %H:%M:%S")
                            
                            private$metadata = append(private$metadata, interval)
-                           base_ts$kw = base_ts$kwh*private$metadata$time_int
+                           base_ts$kw = base_ts$kwh/private$metadata$time_int
                            private$base_ts = base_ts
                          }
                        },
