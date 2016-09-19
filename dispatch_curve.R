@@ -231,8 +231,8 @@ disp_curv <- R6Class("Dispatch",
 )
 
 get_test_disp <- function() {
-  mc_input = "inputs/marg_costs.csv"
-  plants_input = "inputs/plants_all.csv"
+  mc_input = "inputs\\marg_costs.csv"
+  plants_input = "inputs\\plants_all.csv"
   iso_terr = "NYISO"
   
   metadat = list(

@@ -6,6 +6,7 @@
 # wd_path = paste(Sys.getenv("USERPROFILE"), "\\OneDrive\\School\\Thesis\\program2", sep = "")
 # setwd(as.character(wd_path))
 # setwd("E:\\GitHub\\clca-batt")
+library("dplyr")
 library("futile.logger")
 library('R6')
 
@@ -27,20 +28,16 @@ batt_bank <- R6Class("Batteries",
       soc = 0.0,
       cyc_eq = 0.0,
       co2eq_rt = 0.0,
-      time_int = 0.0,
       
       initialize = function(
-                            meta = NULL, type = NULL,
-                            pwr = NULL, nameplt = NULL,
-                            time_int = NULL
+                            meta = NULL, type = NULL, nameplt = NULL
                             ) {
         self$add_metadata(meta)
-        self$pwr_rt = pwr
         self$nameplate = nameplt
-        self$cap = nameplt
+        self$pwr_rt = nameplt*20  # limits (dis)charge to 20C / hr in each timestep
+        self$cap = nameplt        # C refers to nameplate (full) capacity
         self$soc = 1
         self$add_type(type)
-        self$time_int = time_int
         
         log_path = paste(
                           "outputs/", meta[["name"]], "_",
@@ -100,10 +97,6 @@ batt_bank <- R6Class("Batteries",
         }
       },
       
-      set_time_int = function(interval) {
-        self$time_int = interval
-      },
-      
       get_state = function() {
         # This function returns the most recent state
         # information about the battery
@@ -124,67 +117,57 @@ batt_bank <- R6Class("Batteries",
       }
     ),
     active = list(
-      draw = function(kwh_val) {
+      draw = function(kw_val) {
         # This function takes a kwh request for (dis)charge
         # and returns the maximum dischargeable amount to meet
         # this demand
         
-        usable_frac <- 1
-        old_cap <- self$cap
-        old_soc <- self$soc
-
-        if (abs(kwh_val/self$time_int) > self$pwr_rt) {
-          usable_frac <- self$pwr_rt / abs(kwh_val/self$time_int)
-          
-          flog.warn(
-            paste(
-              kwh_val, "kWh requires too high a power draw (",
-              abs(kwh_val/self$time_int), "kW)",
-              "and was scaled down by a factor of",
-              usable_frac
-            )
-          )
-          
-        }
+        pwr_frac <- 1
+        cap_frac <- 1
         
-        if (kwh_val < 0) {
-          del_soc <- kwh_val / (self$round_eff*self$nameplate)
+        if (kw_val < 0) {
+          kw_val <- kw_val / self$round_eff
         }
         else {
-          del_soc <- (kwh_val*self$round_eff) / self$nameplate
+          kw_val <- kw_val*self$round_eff
         }
+        if (abs(kw_val) > self$pwr_rt) {
+          pwr_frac <- self$pwr_rt / abs(kw_val)
+          kw_val <- kw_val*pwr_frac
+        }
+        
+        kwh_val <- kw_val*as.numeric(private$metadata[["time_int"]])
+        del_soc <- kwh_val / self$nameplate
+        old_cap <- self$cap
+        old_soc <- self$soc
         
         new_soc <- old_soc + del_soc
         self$change_soc <- del_soc
         
         if (new_soc <= self$min_soc) {
           if (old_soc > self$min_soc) {
-            usable_frac <- usable_frac*(old_soc - self$min_soc) / (old_soc - new_soc)
+            cap_frac <- (old_soc - self$min_soc) / (old_soc - new_soc)
           }
-          else usable_frac <- 0
+          else cap_frac <- 0
         }
         if (new_soc >= 1) {
           if (old_soc < 1) {
-            usable_frac <- usable_frac*(1 - old_soc) / (new_soc - old_soc)
+            cap_frac <- (1 - old_soc) / (new_soc - old_soc)
           }
-          else usable_frac <- 0
+          else cap_frac <- 0
         }
         
-        if (kwh_val < 0) {
-          self$change_cap <- (kwh_val/self$round_eff)*usable_frac
-        }
-        else {
-          self$change_cap <- kwh_val*self$round_eff*usable_frac
-        }
-        
-        self$incr_cyc <- abs(del_soc / (1 - self$min_soc))*(usable_frac / 2)
+        self$change_cap <- kwh_val*cap_frac
+        self$incr_cyc <- abs(del_soc / (1 - self$min_soc))*(cap_frac / 2)
 
         flog.info(paste("Starting cap -", round(old_cap, 2), "-",
                         "Old SoC -", round(old_soc, 2), "-",
                         "Del SoC -", round(del_soc, 2), "-",
                         "New SoC -", round(self$soc, 2), "-",
-                        "Usable frac", round(usable_frac, 2), "-",
-                        "Remaining capacity is", round(self$cap, 2))
+                        "Pwr frac", round(pwr_frac, 2), "-",
+                        "Cap frac", round(cap_frac, 2), "-",
+                        "Remaining capacity is", round(self$cap, 2)),
+                  name = "ctrlr"
         )
         
         return(self)
@@ -225,16 +208,17 @@ batt_bank <- R6Class("Batteries",
     )
 )
 
-get_test_batt <- function() {
+get_test_batt <- function(interval) {
   metadat = list(
     "name" = "Boris the Battery",
     "run_id" = "RUNID",
     "ctrl_id" = "CTRLID",
-    "run_timestr" = "RUNTIMESTR"
+    "run_timestr" = "RUNTIMESTR",
+    "time_int" = interval
   )
+  interval <- as.numeric(interval)
   bank <- batt_bank$new(
-    meta = metadat, type = 'li_ion',
-    pwr = 50, nameplt = 65
+    meta = metadat, type = 'li_ion', nameplt = 5
   )
   
   return(bank)
