@@ -100,13 +100,16 @@ batt_bank <- R6Class("Batteries",
         }
       },
       
+      set_time_int = function(interval) {
+        self$time_int = interval
+      },
+      
       get_state = function() {
         # This function returns the most recent state
         # information about the battery
         # 1) delta kWh, 2) state-of-charge, 3) equivalent cycles
         
         state_params = list(
-          chem = self$chem,
           cap = self$cap,
           del_kwh = self$del_kwh,
           soc = self$soc,
@@ -130,15 +133,19 @@ batt_bank <- R6Class("Batteries",
         old_cap <- self$cap
         old_soc <- self$soc
 
-        # NEEDS TO TAKE IN      self$time_int
-        # CALC KW AND COMPARE TO PWR_RT AND SCALE KWH_VAL IF NEC.
-        flog.warn(
-                  paste(
-                        "Still need to verify kW (based on",
-                        kwh_val,
-                        "kWh) isn't too high"
-                  )
-        )
+        if (abs(kwh_val/self$time_int) > self$pwr_rt) {
+          usable_frac <- self$pwr_rt / abs(kwh_val/self$time_int)
+          
+          flog.warn(
+            paste(
+              kwh_val, "kWh requires too high a power draw (",
+              abs(kwh_val/self$time_int), "kW)",
+              "and was scaled down by a factor of",
+              usable_frac
+            )
+          )
+          
+        }
         
         if (kwh_val < 0) {
           del_soc <- kwh_val / (self$round_eff*self$nameplate)
@@ -152,13 +159,13 @@ batt_bank <- R6Class("Batteries",
         
         if (new_soc <= self$min_soc) {
           if (old_soc > self$min_soc) {
-            usable_frac <- (old_soc - self$min_soc) / (old_soc - new_soc)
+            usable_frac <- usable_frac*(old_soc - self$min_soc) / (old_soc - new_soc)
           }
           else usable_frac <- 0
         }
         if (new_soc >= 1) {
           if (old_soc < 1) {
-            usable_frac <- (1 - old_soc) / (new_soc - old_soc)
+            usable_frac <- usable_frac*(1 - old_soc) / (new_soc - old_soc)
           }
           else usable_frac <- 0
         }
