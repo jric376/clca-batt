@@ -36,9 +36,8 @@ sys_ctrlr <- R6Class("System Controller",
                          private$dispatch = dispatch
                          private$grid = grid
                          private$pv = pv
-                         # private$time_int = time_int
-                         #also need to set battery time_int
                          self$add_metadata(meta)
+                         self$check_ts_intervals()
                          
                          log_path = paste(
                                           "outputs/", meta[["name"]], "_",
@@ -70,12 +69,19 @@ sys_ctrlr <- R6Class("System Controller",
                                         private$bldg$get_metadata()$time_int,
                                         private$grid$get_metadata()$time_int,
                                         private$pv$get_metadata()$time_int)
-                         
+
                          if (length(unique(intervals)) > 1) {
                            flog.error(paste("Time-series have different freqs",
                                             intervals))
                            stop("Time-series have different freqs")
                          }
+
+                         private$batt$set_time_int(intervals[1])
+
+                         interval = list(
+                           "time_int" = as.difftime(intervals[1], units = "hours")
+                         )
+                         private$metadata = append(private$metadata, interval)
                        },
                        
                        draw_batt = function(kwh_val) {
@@ -167,15 +173,14 @@ sys_ctrlr <- R6Class("System Controller",
                            "pv_kw" = pv_kw, "batt_kw" = batt_kw, 
                            "unmet_kw" = unmet_kw, "curtail_kw" = curtail_kw
                          )
+                         next_state <- append(next_state, private$batt$get_state())
                          
                          return(next_state)
                        },
 
                        traverse_ts = function() {
-                         # self$check_ts_intervals()
-                         
                          bldg_kwh = private$bldg$get_base_ts()$kwh[1:9]
-                         pv_kwh = c(8,1,1,1,1,1,1,1,1)
+                         pv_kwh = private$pv$get_base_ts()$kwh[1:9]
                          sim_df <- do.call(rbind, lapply(1:length(bldg_kwh), function(i) {
                            self$operate(bldg_kwh[i], pv_kwh[i]) 
                          }))
@@ -241,7 +246,6 @@ sys_ctrlr <- R6Class("System Controller",
                        grid = NULL,
                        pv = NULL,
                        metadata = NULL,
-                       time_int = NULL,
                        sim_df = NULL
                      ))
 
@@ -252,7 +256,7 @@ ctrlr_test <- sys_ctrlr$new(
                               "ctrl_id" = "CTRLID",
                               "run_timestr" = "RUNTIMESTR"
                             ),
-                            dmd_targ = 3,
+                            dmd_targ = 10,
                             batt = get_test_batt(),
                             bldg = get_test_bldg(),
                             dispatch = get_test_disp(),
