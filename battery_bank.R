@@ -208,7 +208,10 @@ batt_bank <- R6Class("Batteries",
     )
 )
 
-get_test_batt <- function(interval) {
+get_batt <- function(chem = NULL, kwh = NULL, interval = 1/12) {
+  if (is.null(chem) | !is.numeric(kwh)) {
+    return()
+  }
   metadat = list(
     "name" = "Boris the Battery",
     "run_id" = "RUNID",
@@ -218,8 +221,10 @@ get_test_batt <- function(interval) {
   )
   interval <- as.numeric(interval)
   bank <- batt_bank$new(
-    meta = metadat, type = 'li_ion', nameplt = 5
-  )
+                        meta = metadat,
+                        type = chem,
+                        nameplt = kwh
+                        )
   
   return(bank)
 }

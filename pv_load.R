@@ -137,7 +137,7 @@ pv_load <- R6Class("PV Load",
                      )
 )
 
-get_test_pv <- function() {
+get_pv <- function(copies = 0, factor = 0.1) {
   metadat = list(
     "name" = "Penelope the PV_TS",
     "run_id" = "RUNID",
@@ -146,7 +146,7 @@ get_test_pv <- function() {
   )
   pv_test <- pv_load$new(
     pv_ts_path = "inputs\\solar_nycDC.csv",
-    meta = metadat, rand_copies = 0, rand_factor = 0.1
+    meta = metadat, rand_copies = copies, rand_factor = factor
   )
   
   return(pv_test)

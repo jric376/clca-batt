@@ -117,7 +117,7 @@ grid_load <- R6Class("Grid Load",
                      )
 )
 
-get_test_grid <- function() {
+get_grid <- function(copies = 0, factor = 0.1) {
   metadat = list(
     "name" = "Gary the Grid_TS",
     "run_id" = "RUNID",
@@ -126,7 +126,7 @@ get_test_grid <- function() {
   )
   grid_test <- grid_load$new(
     grid_ts_path = "inputs\\2014pal_combined.csv",
-    meta = metadat, rand_copies = 0, rand_factor = 0.1
+    meta = metadat, rand_copies = copies, rand_factor = factor
   )
   
   return(grid_test)

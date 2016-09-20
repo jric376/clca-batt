@@ -22,10 +22,10 @@ source(src_list[1])
 ### This is for loading the dispatch curve script
 # source("dispatch_curve.R")
 
-test_bldg <- get_test_bldg()
-# test_grid <- get_test_grid()
-# test_pv <- get_test_pv()
-# test_disp <- get_test_disp()
+test_bldg <- get_bldg()
+# test_grid <- get_grid()
+# test_pv <- get_pv()
+# test_disp <- get_disp()
 
 get_ani_bldg <- function(bldg) {
   full_df <- bldg$get_base_ts()
