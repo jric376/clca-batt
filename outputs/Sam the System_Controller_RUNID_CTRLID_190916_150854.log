@@ -1,9 +1,0 @@
-INFO [2016-09-19 15:08:54] Starting cap - 5 - Old SoC - 1 - Del SoC - -0.17 - New SoC - 0.83 - Pwr frac 1 - Cap frac 1 - Remaining capacity is 4.16
-INFO [2016-09-19 15:08:54] Starting cap - 4.16 - Old SoC - 0.83 - Del SoC - -0.16 - New SoC - 0.67 - Pwr frac 1 - Cap frac 1 - Remaining capacity is 3.35
-INFO [2016-09-19 15:08:54] Starting cap - 3.35 - Old SoC - 0.67 - Del SoC - -0.15 - New SoC - 0.52 - Pwr frac 1 - Cap frac 1 - Remaining capacity is 2.58
-INFO [2016-09-19 15:08:54] Starting cap - 2.58 - Old SoC - 0.52 - Del SoC - -0.15 - New SoC - 0.37 - Pwr frac 1 - Cap frac 1 - Remaining capacity is 1.83
-INFO [2016-09-19 15:08:54] Starting cap - 1.83 - Old SoC - 0.37 - Del SoC - -0.14 - New SoC - 0.22 - Pwr frac 1 - Cap frac 1 - Remaining capacity is 1.11
-INFO [2016-09-19 15:08:54] Starting cap - 1.11 - Old SoC - 0.22 - Del SoC - -0.14 - New SoC - 0.2 - Pwr frac 1 - Cap frac 0.17 - Remaining capacity is 1
-INFO [2016-09-19 15:08:54] Starting cap - 1 - Old SoC - 0.2 - Del SoC - -0.14 - New SoC - 0.2 - Pwr frac 1 - Cap frac 0 - Remaining capacity is 1
-INFO [2016-09-19 15:08:54] Starting cap - 1 - Old SoC - 0.2 - Del SoC - -0.14 - New SoC - 0.2 - Pwr frac 1 - Cap frac 0 - Remaining capacity is 1
-INFO [2016-09-19 15:08:54] Starting cap - 1 - Old SoC - 0.2 - Del SoC - -0.14 - New SoC - 0.2 - Pwr frac 1 - Cap frac 0 - Remaining capacity is 1
