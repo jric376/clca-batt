@@ -1,0 +1,30 @@
+INFO [2016-09-21 19:04:29] Max kW happens at 2016-01-12 03:05:00
+INFO [2016-09-21 19:04:40] Unmet kWh is at - 129.39 kWh
+INFO [2016-09-21 19:04:40] -- Threshold is 113.09 kWh -- Demand target is 1848.23 kW -- Increment is 0.05 -- Test Capacity is 12 kwh
+INFO [2016-09-21 19:04:44] Unmet kWh is at - 95.51 kWh
+INFO [2016-09-21 19:04:44] -- Threshold is 113.09 kWh -- Demand target is 1848.23 kW -- Increment is 0.025 -- Test Capacity is 12 kwh
+INFO [2016-09-21 19:04:47] Unmet kWh is at - 111.79 kWh
+INFO [2016-09-21 19:04:47] -- Threshold is 113.09 kWh -- Demand target is 1848.23 kW -- Increment is 0.0125 -- Test Capacity is 12 kwh
+INFO [2016-09-21 19:04:50] Unmet kWh is at - 120.59 kWh
+INFO [2016-09-21 19:04:50] -- Threshold is 113.09 kWh -- Demand target is 1848.23 kW -- Increment is 0.0125 -- Test Capacity is 14.75 kwh
+INFO [2016-09-21 19:04:54] Unmet kWh is at - 111.79 kWh
+INFO [2016-09-21 19:04:54] -- Threshold is 113.09 kWh -- Demand target is 1848.23 kW -- Increment is 0.00625 -- Test Capacity is 14.75 kwh
+INFO [2016-09-21 19:04:57] Unmet kWh is at - 116.19 kWh
+INFO [2016-09-21 19:04:57] -- Threshold is 113.09 kWh -- Demand target is 1848.23 kW -- Increment is 0.00625 -- Test Capacity is 16.13 kwh
+INFO [2016-09-21 19:05:00] Unmet kWh is at - 111.79 kWh
+INFO [2016-09-21 19:05:00] -- Threshold is 113.09 kWh -- Demand target is 1848.23 kW -- Increment is 0.003125 -- Test Capacity is 16.13 kwh
+INFO [2016-09-21 19:05:03] Unmet kWh is at - 113.99 kWh
+INFO [2016-09-21 19:05:03] -- Threshold is 113.09 kWh -- Demand target is 1848.23 kW -- Increment is 0.003125 -- Test Capacity is 16.81 kwh
+INFO [2016-09-21 19:05:06] Unmet kWh is at - 111.79 kWh
+INFO [2016-09-21 19:05:06] -- Threshold is 113.09 kWh -- Demand target is 1848.23 kW -- Increment is 0.0015625 -- Test Capacity is 16.81 kwh
+INFO [2016-09-21 19:05:09] Unmet kWh is at - 112.89 kWh
+INFO [2016-09-21 19:05:09] -- Threshold is 113.09 kWh -- Demand target is 1848.23 kW -- Increment is 0.00078125 -- Test Capacity is 16.81 kwh
+INFO [2016-09-21 19:05:13] Unmet kWh is at - 113.44 kWh
+INFO [2016-09-21 19:05:13] -- Threshold is 113.09 kWh -- Demand target is 1848.23 kW -- Increment is 0.00078125 -- Test Capacity is 16.99 kwh
+INFO [2016-09-21 19:05:16] Unmet kWh is at - 112.89 kWh
+INFO [2016-09-21 19:05:16] -- Threshold is 113.09 kWh -- Demand target is 1848.23 kW -- Increment is 0.000390625 -- Test Capacity is 16.99 kwh
+INFO [2016-09-21 19:05:19] Unmet kWh is at - 113.16 kWh
+INFO [2016-09-21 19:05:19] -- Threshold is 113.09 kWh -- Demand target is 1848.23 kW -- Increment is 0.000390625 -- Test Capacity is 17.07 kwh
+INFO [2016-09-21 19:05:23] Unmet kWh is at - 112.89 kWh
+INFO [2016-09-21 19:05:23] -- Threshold is 113.09 kWh -- Demand target is 1848.23 kW -- Increment is 0.000390625 -- Test Capacity is 17.16 kwh
+INFO [2016-09-21 19:05:23] Final capacity is 17.1582210529809 kwh

@@ -44,6 +44,7 @@ sys_ctrlr <- R6Class("System Controller",
                                           ".log", sep = ""
                                           )
                          flog.appender(appender.file(log_path), name = "ctrlr")
+                         flog.threshold(ERROR, name = "ctrlr")
                        },
                        
                        add_metadata = function(metadata) {
@@ -80,6 +81,9 @@ sys_ctrlr <- R6Class("System Controller",
                          # from where the system will draw power to meet
                          # the bldg demand and shave peak demand
                          
+                         if (is.null(timestep)) {
+                           stop("No timestep for batt to operate on")
+                         }
                          grid_kw = NA
                          batt_kw = NA
                          curtail_kw = NA
@@ -168,19 +172,23 @@ sys_ctrlr <- R6Class("System Controller",
                        },
 
                        traverse_ts = function() {
-                         timesteps = private$bldg_ts$date_time[1:9]
-                         bldg_kwh = private$bldg_ts$kwh[1:9]
-                         pv_kwh = private$pv_ts$kwh[1:9]
+                         timesteps = private$bldg_ts$date_time
+                         bldg_kw = private$bldg_ts$kw
+                         pv_kw = private$pv_ts$kw
                          
-                         sim_df <- bind_rows(lapply(1:length(bldg_kwh), function(i) {
-                           self$operate(timesteps[i], bldg_kwh[i], pv_kwh[i])
+                         sim_df <- bind_rows(lapply(1:length(bldg_kw), function(i) {
+                           self$operate(timesteps[i], bldg_kw[i], pv_kw[i])
                          }))
                          private$sim_df = sim_df
                          
-                         if (!dir.exists(file.path("outputs\\df"))) {
-                                dir.create(file.path("outputs\\df"))
+                         targ_abrv <- 10 - round(private$dmd_targ/max(bldg_kw), 1)*10
+                         sim_path <- paste("outputs\\df\\", targ_abrv)
+                         if (!dir.exists(file.path(sim_path))) {
+                                dir.create(file.path(sim_path))
                          }
-                         write.csv(sim_df, paste("outputs\\df\\test_",
+                         nameplt_abrv <- round(private$batt$nameplate, 2)
+                         write.csv(sim_df, paste(sim_path, "\\",
+                                                 private$batt$chem, nameplt_abrv, "_",
                                                  format(as.POSIXlt(Sys.time()), "%m%d_%H%M%S"),
                                                  ".csv", sep = ""))
                        },
@@ -192,6 +200,7 @@ sys_ctrlr <- R6Class("System Controller",
                        get_batt = function() {
                          return(private$batt)
                        },
+                       
                        get_bldg_ts = function() {
                          return(private$bldg_ts)
                        },
