@@ -45,7 +45,8 @@ batt_bank <- R6Class("Batteries",
                           strftime(Sys.time(), format = "%d%m%y_%H%M%S"),
                           ".log", sep = ""
                         )
-        flog.appender(appender.file(log_path))
+        flog.appender(appender.file(log_path), name = "batt")
+        flog.threshold(ERROR, name = "batt")
       },
       
       add_metadata = function(metadata) {
@@ -53,7 +54,8 @@ batt_bank <- R6Class("Batteries",
           flog.error(
             paste("Empty metadata in battery with ", self$chem,
                   " and size ", self$nameplate
-            )
+            ),
+            name = "batt"
           )
         }
         else {
@@ -69,7 +71,8 @@ batt_bank <- R6Class("Batteries",
                       paste("Empty battery type ",
                             private$metadata[["run_id"]],
                             private$metadata[["ctrl_id"]]
-                            )
+                            ),
+                      name = "batt"
           )
           stop("Empty battery type")
         }
@@ -103,10 +106,10 @@ batt_bank <- R6Class("Batteries",
         # 1) delta kWh, 2) state-of-charge, 3) equivalent cycles
         
         state_params = list(
-          cap = self$cap,
-          del_kwh = self$del_kwh,
-          soc = self$soc,
-          cyc_eq = self$cyc_eq
+          "cap" = self$cap,
+          "del_kwh" = self$del_kwh,
+          "soc" = self$soc,
+          "cyc_eq" = self$cyc_eq
           )
         
         return(state_params)
@@ -173,7 +176,6 @@ batt_bank <- R6Class("Batteries",
         return(self)
       },
       change_soc = function(soc_val) {
-        if (abs(soc_val) > 1) (return())
         
         if (missing(soc_val)) return(self$soc)
         else self$soc <- self$soc + soc_val
@@ -197,7 +199,8 @@ batt_bank <- R6Class("Batteries",
         
         fail_state = (self$cyc_eq >= self$cyc_fail)
         if (fail_state) {
-          flog.error(paste(private$metadata[["name"]], "failed"))
+          flog.error(paste(private$metadata[["name"]], "failed"),
+                     name = "batt")
         }
         
         return(self)
