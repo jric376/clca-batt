@@ -38,18 +38,20 @@ batt_sizer <- function(bldg_ts = NULL, dmd_frac = NULL, batt_type = NULL,
   
   log.path = paste(
     "outputs/batt_sizer_", batt_type,
-    # meta[["run_id"]], "_", meta[["ctrl_id"]], "_", 
+    # meta[["run_id"]], meta[["ctrl_id"]],
     strftime(Sys.time(), format = "%d%m%y_%H%M%S"),
-    ".log", sep = ""
+    ".log", sep = "_"
   )
   flog.appender(appender.file(log.path), name = "sizer")
   
   max_step <- bldg_ts[which(bldg_ts$kw == max(bldg_ts$kw)),]
   flog.info(max_step$date_time, name = "sizer")
-  # size_ts <- filter(bldg_ts, as.POSIXlt(date_time)$mo == as.POSIXlt(max_step$date_time)$mo)
+  size_ts <- filter(bldg_ts, as.POSIXlt(date_time)$mo == as.POSIXlt(max_step$date_time)$mo)
+  pv_ts <- filter(get_pv()$get_base_ts(), as.POSIXlt(date_time)$mo == as.POSIXlt(max_step$date_time)$mo)
+  grid_ts <- filter(get_grid()$get_base_ts(), as.POSIXlt(date_time)$mo == as.POSIXlt(max_step$date_time)$mo)
   unmet_kwh <- sum(bldg_ts$kwh)
   unmet_thresh <- 0.001*sum(bldg_ts$kwh)      # max unmet_kwh to trigger adequate size
-  dmd_targ <- max(max_step$kw)*(1 - dmd_frac) # fraction of peak demand to be shaved
+  targ_kw <- max(max_step$kw)*(1 - dmd_frac) # fraction of peak demand to be shaved
   test_capacity <- 0.05*max(bldg_ts$kwh)       # intentionally low batt kwh sizing
   
   while (unmet_kwh > unmet_thresh) {
@@ -60,7 +62,7 @@ batt_sizer <- function(bldg_ts = NULL, dmd_frac = NULL, batt_type = NULL,
               name = "sizer")
     unmet_kwh <- (1 - 0.1)*unmet_kwh
     test_capacity <- test_capacity + 0.1*max(bldg_ts$kwh)
-    temp_meta <- list(
+    batt_meta <- list(
                       "name" = "Boris the Battery",
                       "run_id" = "RUNID",
                       "ctrl_id" = "CTRLID",
@@ -72,6 +74,23 @@ batt_sizer <- function(bldg_ts = NULL, dmd_frac = NULL, batt_type = NULL,
                               type = batt_type,
                               nameplt = test_capacity
                               )
+    ctrlr_meta <- list(
+                        "name" = "Sam the System_Controller",
+                        "run_id" = "RUNID",
+                        "ctrl_id" = "CTRLID",
+                        "run_timestr" = "RUNTIMESTR",
+                        "time_int" = interval
+                      )
+    temp_ctrlr <- sys_ctrlr$new(
+                                meta = ctrlr_meta,
+                                dmd_targ = targ_kw,
+                                batt = get_batt(interval),
+                                bldg = size_ts,
+                                dispatch = get_disp(),
+                                grid = grid_ts,
+                                pv = pv_ts
+                                )
+    temp_ctrlr$traverse_ts()
   }
 }
 
@@ -87,7 +106,7 @@ ctrlr_test <- sys_ctrlr$new(
                               "time_int" = 0.083
                             ),
                             dmd_targ = 2,
-                            batt = get_batt(0.083),
+                            batt = get_batt(chem = "li_ion", kwh = 100),
                             bldg = get_bldg()$get_base_ts(),
                             dispatch = get_disp(),
                             grid = get_grid()$get_base_ts(),

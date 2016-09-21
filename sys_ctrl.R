@@ -20,11 +20,6 @@
 library("dplyr")
 library("futile.logger")
 library("R6")
-if(!exists("batt_bank", mode = "function")) source("battery_bank.R")
-if(!exists("disp_curv", mode = "function")) source("dispatch_curve.R")
-if(!exists("bldg_load", mode = "function")) source("bldg_load.R")
-if(!exists("grid_load", mode = "function")) source("grid_load.R")
-if(!exists("pv_load", mode = "function")) source("pv_load.R")
 
 sys_ctrlr <- R6Class("System Controller",
                      public = list(
@@ -175,20 +170,14 @@ sys_ctrlr <- R6Class("System Controller",
                          bldg_kwh = private$bldg_ts$kwh[1:9]
                          pv_kwh = private$pv_ts$kwh[1:9]
                          sim_df <- do.call(rbind, lapply(1:length(bldg_kwh), function(i) {
-                           self$operate(bldg_kwh[i], pv_kwh[i]) 
+                           self$operate(bldg_kwh[i], pv_kwh[i])
                          }))
+                         # sim_df <- ldpl HOPING TO USE DPLYR LLPLY & LDPLY HERE
                          
-                         return(sim_df)
-                         
-                         # sim_df <- do.call(rbind, lapply(1:nrow(private$bldg_ts), function(i) {
-                         #  self$operate(private$bldg_ts, private$pv_ts)
-                         # }
-                         # ))
-
-                       #   write.csv(sim_df, paste("outputs\\df\\test_",
-                       # format(as.POSIXlt(Sys.time()), "%m%d_%H%M%S"),
-                       # ".csv", sep = ""))
-                       #   private$sim_df = sim_df
+                         write.csv(sim_df, paste("outputs\\df\\test_",
+                                                 format(as.POSIXlt(Sys.time()), "%m%d_%H%M%S"),
+                                                 ".csv", sep = ""))
+                         private$sim_df = sim_df
                        },
                        
                        get_targ = function() {
