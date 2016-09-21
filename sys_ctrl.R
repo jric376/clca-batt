@@ -17,9 +17,9 @@
 # wd_path = paste(Sys.getenv("USERPROFILE"), "\\OneDrive\\School\\Thesis\\program2", sep = "")
 # setwd(as.character(wd_path))
 # setwd("E:\\GitHub\\clca-batt")
-library("dplyr")
-library("futile.logger")
-library("R6")
+library(plyr); library(dplyr)
+library(futile.logger)
+library(R6)
 
 sys_ctrlr <- R6Class("System Controller",
                      public = list(
@@ -167,13 +167,20 @@ sys_ctrlr <- R6Class("System Controller",
                        },
 
                        traverse_ts = function() {
+                         date_time = private$bldg_ts[1:9,1]
                          bldg_kwh = private$bldg_ts$kwh[1:9]
                          pv_kwh = private$pv_ts$kwh[1:9]
                          sim_df <- do.call(rbind, lapply(1:length(bldg_kwh), function(i) {
                            self$operate(bldg_kwh[i], pv_kwh[i])
                          }))
-                         # sim_df <- ldpl HOPING TO USE DPLYR LLPLY & LDPLY HERE
+                         sim_df <- cbind(date_time, sim_df)
                          
+                         # sim_df <- ldply(llply(1:length(bldg_kwh), self$operate(bldg_kwh, pv_kwh)),
+                         #                 rbind)
+                         
+                         if (!dir.exists(file.path("outputs\\df"))) {
+                                dir.create(file.path("outputs\\df"))
+                         }
                          write.csv(sim_df, paste("outputs\\df\\test_",
                                                  format(as.POSIXlt(Sys.time()), "%m%d_%H%M%S"),
                                                  ".csv", sep = ""))

@@ -21,6 +21,9 @@ source(src_list[1])
 
 ### This is for loading the dispatch curve script
 # source("dispatch_curve.R")
+if (!dir.exists(file.path("outputs\\plots"))) {
+  dir.create(file.path("outputs\\plots"))
+}
 
 test_bldg <- get_bldg()
 # test_grid <- get_grid()

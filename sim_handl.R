@@ -45,10 +45,12 @@ batt_sizer <- function(bldg_ts = NULL, dmd_frac = NULL, batt_type = NULL,
   flog.appender(appender.file(log.path), name = "sizer")
   
   max_step <- bldg_ts[which(bldg_ts$kw == max(bldg_ts$kw)),]
-  flog.info(max_step$date_time, name = "sizer")
+  flog.info(paste("Max kW happens at", max_step$date_time), name = "sizer")
+  
   size_ts <- filter(bldg_ts, as.POSIXlt(date_time)$mo == as.POSIXlt(max_step$date_time)$mo)
   pv_ts <- filter(get_pv()$get_base_ts(), as.POSIXlt(date_time)$mo == as.POSIXlt(max_step$date_time)$mo)
   grid_ts <- filter(get_grid()$get_base_ts(), as.POSIXlt(date_time)$mo == as.POSIXlt(max_step$date_time)$mo)
+  
   unmet_kwh <- sum(bldg_ts$kwh)
   unmet_thresh <- 0.001*sum(bldg_ts$kwh)      # max unmet_kwh to trigger adequate size
   targ_kw <- max(max_step$kw)*(1 - dmd_frac) # fraction of peak demand to be shaved
