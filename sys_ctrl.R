@@ -27,7 +27,7 @@ sys_ctrlr <- R6Class("System Controller",
                                              meta = NULL, dmd_targ = NULL,
                                              batt = NULL, bldg_ts = NULL,
                                              dispatch = NULL, grid_ts = NULL,
-                                             pv_ts = NULL, time_int = NULL
+                                             pv_ts = NULL
                                              ) {
                          private$dmd_targ = dmd_targ
                          private$batt = batt

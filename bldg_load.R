@@ -71,7 +71,6 @@ bldg_load <- R6Class("Bldg Load",
                              j = i + 1
                              new_ts = private$base_ts
                              
-                             
                              foreach(x = iter(new_ts, by = 'col'), nm = colnames(new_ts)) %do%
                                if (is.numeric(x)) {
                                  x = sapply(x, function(y) rnorm(1, mean = y, sd = y*rand_factor))
@@ -121,10 +120,10 @@ bldg_load <- R6Class("Bldg Load",
 
 get_bldg <- function(copies = 0, factor = 0.1) {
   metadat = list(
-    "name" = "Bob the Building_TS",
+    "bldg" = "office",
     "run_id" = "RUNID",
-    "ctrl_id" = "CTRLID",
-    "run_timestr" = "RUNTIMESTR"
+    "copies" = copies,
+    "factor" = factor
   )
   bldg_test <- bldg_load$new(
     bldg_ts_path = "inputs\\bldg_gasheat.csv",

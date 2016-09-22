@@ -119,10 +119,10 @@ grid_load <- R6Class("Grid Load",
 
 get_grid <- function(copies = 0, factor = 0.1) {
   metadat = list(
-    "name" = "Gary the Grid_TS",
+    "territory" = "nyiso",
     "run_id" = "RUNID",
-    "ctrl_id" = "CTRLID",
-    "run_timestr" = "RUNTIMESTR"
+    "copies" = copies,
+    "factor" = factor
   )
   grid_test <- grid_load$new(
     grid_ts_path = "inputs\\2014pal_combined.csv",

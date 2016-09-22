@@ -139,10 +139,11 @@ pv_load <- R6Class("PV Load",
 
 get_pv <- function(copies = 0, factor = 0.1) {
   metadat = list(
-    "name" = "Penelope the PV_TS",
+    "bldg" = "office",
+    "kw" = 86,
     "run_id" = "RUNID",
-    "ctrl_id" = "CTRLID",
-    "run_timestr" = "RUNTIMESTR"
+    "copies" = copies,
+    "factor" = factor
   )
   pv_test <- pv_load$new(
     pv_ts_path = "inputs\\solar_nycDC.csv",
