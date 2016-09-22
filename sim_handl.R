@@ -15,34 +15,54 @@ if(!exists("sys_ctrl.R", mode = "function")) source("sys_ctrl.R")
 
 test_bldg <- get_bldg()
 
-# 
-# 
-# check_ts_intervals = function() {
-#   intervals = c(
-#     private$bldg$get_metadata()$time_int,
-#     private$grid$get_metadata()$time_int,
-#     private$pv$get_metadata()$time_int)
-#   
-#   if (length(unique(intervals)) > 1) {
-#     flog.error(paste("Time-series have different freqs",
-#                      intervals))
-#     stop("Time-series have different freqs")
-#   }
-#   
-#   interval = list(
-#     "time_int" = as.difftime(intervals[1], units = "hours")
-#   )
-#   private$metadata = append(private$metadata, interval)
-# }
+check_ts_intervals = function(run_id = NULL) {
+  
+  if (is.null(run_id)) {
+    flog.error("No run_id in check_ts_intervals")
+  }
+    
+  log.path = paste(
+                  "outputs\\", run_id, "_",
+                  strftime(Sys.time(), format = "%d%m%y_%H%M%S"),
+                  ".log", sep = ""
+  )
+  
+  intervals = c(
+    get_bldg()$get_metadata()$time_int,
+    get_grid()$get_metadata()$time_int,
+    get_pv()$get_metadata()$time_int)
+  
+  if (length(unique(intervals)) > 1) {
+    flog.error(paste("Time-series have different freqs",
+                     intervals),
+               name = "ts_check")
+    stop("Time-series have different freqs")
+  }
+  
+  interval = list(
+    "time_int" = as.difftime(intervals[1], units = "hours")
+  )
+  
+  return(interval)
+}
 
-batt_sizer <- function(bldg_ts = NULL, dmd_frac = NULL, batt_type = NULL,
-                       interval = 1/12) {
-
+batt_sizer <- function(run_id = NULL, bldg_ts = NULL, dmd_frac = NULL, batt_type = NULL) {
+  
+  if (is.null(run_id)) {
+    flog.appender(appender.file("outputs\\NO_ID_batt_sizer.log"),
+                  name = "no_run_id")
+    flog.warn(paste("No explicit run_id in batt_sizer. \n",
+                    "Hopefully this is just to check_ts_intervals. \n",
+                    "run_id is temporarily 'ts_check'"),
+              name = "no_run_id")
+    run_id = paste("ts_check",
+                   strftime(Sys.time(), format = "%d%m%y_%H%M%S"),
+                   sep = "_")
+  }
+  interval = as.numeric(check_ts_intervals(run_id = "ts_check")[["time_int"]])
   log.path = paste(
                   "outputs\\batt_sizer_", batt_type,
-                  "_", dmd_frac, "_",
-                  # "_", meta[["run_id"]], "_",
-                  # meta[["ctrl_id"]], "_",
+                  "_", dmd_frac, "_", run_id, "_",
                   strftime(Sys.time(), format = "%d%m%y_%H%M%S"),
                   ".log", sep = ""
   )
@@ -51,10 +71,12 @@ batt_sizer <- function(bldg_ts = NULL, dmd_frac = NULL, batt_type = NULL,
   max_step <- bldg_ts[which(bldg_ts$kw == max(bldg_ts$kw)),]
   flog.info(paste("Max kW happens at", max_step$date_time), name = "sizer")
 
-  size_ts <- filter(bldg_ts, as.POSIXlt(date_time)$mo == as.POSIXlt(max_step$date_time)$mo)
-  # hist(size_ts$kw)
-  pv_ts <- filter(get_pv()$get_base_ts(), as.POSIXlt(date_time)$mo == as.POSIXlt(max_step$date_time)$mo)
-  grid_ts <- filter(get_grid()$get_base_ts(), as.POSIXlt(date_time)$mo == as.POSIXlt(max_step$date_time)$mo)
+  size_ts <- filter(bldg_ts,
+                    as.POSIXlt(date_time)$mo == as.POSIXlt(max_step$date_time)$mo)
+  pv_ts <- filter(get_pv()$get_base_ts(),
+                  as.POSIXlt(date_time)$mo == as.POSIXlt(max_step$date_time)$mo)
+  grid_ts <- filter(get_grid()$get_base_ts(),
+                    as.POSIXlt(date_time)$mo == as.POSIXlt(max_step$date_time)$mo)
 
   unmet_kwh <- sum(bldg_ts$kwh)
   unmet_thresh <- 0.0001*sum(bldg_ts$kwh)       # max unmet_kwh to trigger adequate size
@@ -63,10 +85,13 @@ batt_sizer <- function(bldg_ts = NULL, dmd_frac = NULL, batt_type = NULL,
   incr <- 0.05
 
   while ((unmet_kwh > unmet_thresh) & (incr > 0)) {
+    
+    # SET RUN and CTRL IDs HERE
+    
     test_capacity <- test_capacity + incr*max(bldg_ts$kwh)
     batt_meta <- list(
                       "name" = "Boris the Battery",
-                      "run_id" = "RUNID",
+                      "run_id" = run_id,
                       "ctrl_id" = "CTRLID",
                       "run_timestr" = "RUNTIMESTR",
                       "time_int" = interval
@@ -111,13 +136,10 @@ batt_sizer <- function(bldg_ts = NULL, dmd_frac = NULL, batt_type = NULL,
   flog.info(paste("Final capacity is", test_capacity, "kwh"),
             name = "sizer")
   
-  out_vec <- list("sized_cap" = test_capacity, "unmet_kWh" = unmet_kwh)
+  out_vec <- list("bank_kwh" = test_capacity, "unmet_kWh" = unmet_kwh)
   return(out_vec)
 }
-batt_sizer(test_bldg$get_base_ts(), 0.3, "li_ion")
-batt_sizer(test_bldg$get_base_ts(), 0.3, "pb_a")
-batt_sizer(test_bldg$get_base_ts(), 0.5, "li_ion")
-batt_sizer(test_bldg$get_base_ts(), 0.5, "pb_a")
+batt_sizer(bldg_ts = test_bldg$get_base_ts(), dmd_frac = 0.3, batt_type = "li_ion")
 
 # time_int will be specified by check_ts_intervals output
 # and HAS TO BE INCLUDED IN ALL BATTERY METADATA!!!
@@ -128,10 +150,11 @@ ctrlr_test <- sys_ctrlr$new(
                               "run_id" = "RUNID",
                               "ctrl_id" = "CTRLID",
                               "run_timestr" = "RUNTIMESTR",
-                              "time_int" = 0.083
+                              "time_int" = 1/12
                             ),
                             dmd_targ = 2,
-                            batt = get_batt(chem = "li_ion", kwh = 100),
+                            batt = get_batt(chem = "li_ion", kwh = 100,
+                                            interval = 1/12),
                             bldg_ts = get_bldg()$get_base_ts(),
                             dispatch = get_disp(),
                             grid_ts = get_grid()$get_base_ts(),
