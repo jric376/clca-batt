@@ -26,12 +26,12 @@ disp_curv <- R6Class("Dispatch",
         # units:
         # heat_rt Btu/kWh, FC $/MMBtu, VOM $/kWh
         log_path = paste(
-                          "outputs/", meta[["name"]], "_",
-                          meta[["run_id"]], "_", meta[["ctrl_id"]], "_", 
+                          "outputs\\", meta[["run_id"]], "\\",
+                          meta[["name"]], "_", meta[["ctrl_id"]], "_",  
                           strftime(Sys.time(), format = "%d%m%y_%H%M%S"),
                           ".log", sep = ""
         )
-        flog.appender(appender.file(log_path))
+        flog.appender(appender.file(log_path), name = "disp")
         self$marg_costs = read.csv(mc_path, head = T, stringsAsFactors = F)[,2:3]
         self$set_mc_stats()
         self$all_plants = read.csv(plts_path, head = T, stringsAsFactors = F)
@@ -44,7 +44,8 @@ disp_curv <- R6Class("Dispatch",
         if (length(metadata) < 1) {
           print(length(metadata))
           flog.error(
-            paste("Empty metadata in dispatch curve with ", self$iso_terr)
+            paste("Empty metadata in dispatch curve with ", self$iso_terr),
+            name = "disp"
           )
         }
         else {
@@ -66,7 +67,8 @@ disp_curv <- R6Class("Dispatch",
                             "Fuels without marginal cost statistics in dispatch",
                             private$metadata[["name"]], private$metadata[["run_id"]],
                             private$metadata[["ctrl_id"]]
-                            )
+                            ),
+                      name = "disp"
           )
         }
         self$stochastize_costs()
@@ -98,8 +100,8 @@ disp_curv <- R6Class("Dispatch",
         
         new_mc <- rnorm(1, mean=mean_val, sd=sd_val)
         if (is.na(new_mc)) {
-          print(fuel)
-          print('This fuel type is throwing an error when stochastizing its price')
+          flog.error(paste(fuel, "(fuel type is throwing an error when stochastizing its price"),
+                     name = "disp")
         }
         
         return(new_mc)
@@ -119,7 +121,8 @@ disp_curv <- R6Class("Dispatch",
                       paste(
                             "No ISO territory in", private$metadata[["name"]], 
                             private$metadata[["run_id"]], private$metadata[["ctrl_id"]]
-                            )
+                            ),
+                      name = "disp"
           )
         }
         else {
@@ -130,7 +133,8 @@ disp_curv <- R6Class("Dispatch",
                               "No plants in", private$metadata[["name"]],
                               "in ISO territory", self$iso_terr,
                               private$metadata[["run_id"]], private$metadata[["ctrl_id"]]
-                              )
+                              ),
+                        name = "disp"
             )
           }
           private$iso_plants = subset(self$all_plants, self$all_plants$isorto == self$iso_terr)
@@ -162,7 +166,8 @@ disp_curv <- R6Class("Dispatch",
                             "NAs in the emissions rates for some plants in",
                             self$iso_terr, "in", private$metadata[["name"]],
                             private$metadata[["run_id"]], private$metadata[["ctrl_id"]]
-                            )
+                            ),
+                      name = "disp"
             )
         }
         disp_frame$wtd_plc2erta = disp_frame$namepcap*disp_frame$plc2erta

@@ -29,6 +29,16 @@ sys_ctrlr <- R6Class("System Controller",
                                              dispatch = NULL, grid_ts = NULL,
                                              pv_ts = NULL
                                              ) {
+                         
+                         log_path = paste(
+                           "outputs\\", meta[["run_id"]], "\\",
+                           meta[["name"]], "_", meta[["ctrl_id"]], "_", 
+                           strftime(Sys.time(), format = "%d%m%y_%H%M%S"),
+                           ".log", sep = ""
+                         )
+                         flog.appender(appender.file(log_path), name = "ctrlr")
+                         flog.threshold(ERROR, name = "ctrlr")
+                         
                          private$dmd_targ = dmd_targ
                          private$batt = batt
                          private$bldg_ts = bldg_ts
@@ -36,15 +46,6 @@ sys_ctrlr <- R6Class("System Controller",
                          private$grid_ts = grid_ts
                          private$pv_ts = pv_ts
                          self$add_metadata(meta)
-                         
-                         log_path = paste(
-                                          "outputs/", meta[["name"]], "_",
-                                          meta[["run_id"]], "_", meta[["ctrl_id"]], "_", 
-                                          strftime(Sys.time(), format = "%d%m%y_%H%M%S"),
-                                          ".log", sep = ""
-                                          )
-                         flog.appender(appender.file(log_path), name = "ctrlr")
-                         flog.threshold(ERROR, name = "ctrlr")
                        },
                        
                        add_metadata = function(metadata) {
@@ -172,6 +173,8 @@ sys_ctrlr <- R6Class("System Controller",
                        },
 
                        traverse_ts = function() {
+                         # NEEDS TO DISABLE SIM_DF SAVING IF JUST SIZING BATT
+                         
                          timesteps = private$bldg_ts$date_time
                          bldg_kw = private$bldg_ts$kw
                          pv_kw = private$pv_ts$kw
@@ -181,15 +184,20 @@ sys_ctrlr <- R6Class("System Controller",
                          }))
                          private$sim_df = sim_df
                          
-                         targ_abrv <- 10 - round(private$dmd_targ/max(bldg_kw), 1)*10
-                         sim_path <- paste("outputs\\df\\", targ_abrv)
-                         if (!dir.exists(file.path(sim_path))) {
-                                dir.create(file.path(sim_path))
+                         sim_path <- list(paste("outputs\\", private$metadata[["run_id"]],
+                                           sep = ""),
+                                          "\\df")
+                         for (i in 1:length(sim_path)) {
+                           curr_path = paste(sim_path[1:i], collapse ="")
+                           if(!dir.exists(file.path(curr_path))) {
+                             dir.create(file.path(curr_path))
+                           }
                          }
                          nameplt_abrv <- round(private$batt$nameplate, 2)
-                         write.csv(sim_df, paste(sim_path, "\\",
-                                                 private$batt$chem, nameplt_abrv, "_",
-                                                 format(as.POSIXlt(Sys.time()), "%m%d_%H%M%S"),
+                         targ_abrv <- 10 - round(private$dmd_targ/max(bldg_kw), 1)*10
+                         write.csv(sim_df, paste(curr_path, "\\",
+                                                 private$batt$chem, nameplt_abrv, "_", targ_abrv,
+                                                 "_", format(as.POSIXlt(Sys.time()), "%m%d_%H%M%S"),
                                                  ".csv", sep = ""))
                        },
                        

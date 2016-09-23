@@ -40,8 +40,8 @@ batt_bank <- R6Class("Batteries",
         self$add_type(type)
         
         log_path = paste(
-                          "outputs/", meta[["name"]], "_",
-                          meta[["run_id"]], "_", meta[["ctrl_id"]], "_", 
+                          "outputs\\", meta[["run_id"]], "\\",
+                          meta[["name"]], "_", meta[["ctrl_id"]], "_",  
                           strftime(Sys.time(), format = "%d%m%y_%H%M%S"),
                           ".log", sep = ""
                         )

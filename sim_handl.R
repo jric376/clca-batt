@@ -21,11 +21,12 @@ check_ts_intervals = function(run_id = NULL) {
     flog.error("No run_id in check_ts_intervals")
   }
     
-  log.path = paste(
-                  "outputs\\", run_id, "_",
+  log_path = paste(
+                  "outputs\\", run_id, "\\ts_check_",
                   strftime(Sys.time(), format = "%d%m%y_%H%M%S"),
                   ".log", sep = ""
   )
+  flog.appender(appender.file(log_path), name = "ts_check")
   
   intervals = c(
     get_bldg()$get_metadata()$time_int,
@@ -55,18 +56,34 @@ batt_sizer <- function(run_id = NULL, bldg_ts = NULL, dmd_frac = NULL, batt_type
                     "Hopefully this is just to check_ts_intervals. \n",
                     "run_id is temporarily 'ts_check'"),
               name = "no_run_id")
-    run_id = paste("ts_check",
-                   strftime(Sys.time(), format = "%d%m%y_%H%M%S"),
-                   sep = "_")
+    run_id = "ts_check"
   }
   interval = as.numeric(check_ts_intervals(run_id = "ts_check")[["time_int"]])
-  log.path = paste(
-                  "outputs\\batt_sizer_", batt_type,
+  
+  try_path = paste("outputs\\", run_id, sep = "")
+  if (dir.exists(file.path(try_path))) {
+    copy_val = 1
+    copy_txt = paste("_copy_",copy_val, sep = "")
+    new_path = paste(try_path, copy_txt, sep = "")
+    new_id = paste(run_id, copy_txt)
+    while (dir.exists(file.path(new_path))) {
+      copy_val = copy_val + 1
+      copy_txt = paste("_copy_",copy_val, sep = "")
+      new_path = paste(try_path, copy_txt, sep = "")
+      new_id = paste(run_id, copy_txt)
+    }
+  }
+  else {
+    new_path = try_path
+  }
+  dir.create(file.path(new_path))
+  log_path = paste(
+                  new_path, "\\batt_sizer_", batt_type,
                   "_", dmd_frac, "_", run_id, "_",
                   strftime(Sys.time(), format = "%d%m%y_%H%M%S"),
                   ".log", sep = ""
   )
-  flog.appender(appender.file(log.path), name = "sizer")
+  flog.appender(appender.file(log_path), name = "sizer")
 
   max_step <- bldg_ts[which(bldg_ts$kw == max(bldg_ts$kw)),]
   flog.info(paste("Max kW happens at", max_step$date_time), name = "sizer")
@@ -93,7 +110,6 @@ batt_sizer <- function(run_id = NULL, bldg_ts = NULL, dmd_frac = NULL, batt_type
                       "name" = "Boris the Battery",
                       "run_id" = run_id,
                       "ctrl_id" = "CTRLID",
-                      "run_timestr" = "RUNTIMESTR",
                       "time_int" = interval
                       )
     temp_batt <- batt_bank$new(
@@ -103,9 +119,8 @@ batt_sizer <- function(run_id = NULL, bldg_ts = NULL, dmd_frac = NULL, batt_type
                               )
     ctrlr_meta <- list(
                         "name" = "Sam the System_Controller",
-                        "run_id" = "RUNID",
+                        "run_id" = run_id,
                         "ctrl_id" = "CTRLID",
-                        "run_timestr" = "RUNTIMESTR",
                         "time_int" = interval
                       )
     temp_ctrlr <- sys_ctrlr$new(
@@ -113,7 +128,7 @@ batt_sizer <- function(run_id = NULL, bldg_ts = NULL, dmd_frac = NULL, batt_type
                                 dmd_targ = targ_kw,
                                 batt = temp_batt,
                                 bldg_ts = size_ts,
-                                dispatch = get_disp(),
+                                # dispatch = get_disp(),
                                 grid_ts = grid_ts,
                                 pv_ts = pv_ts
                                 )
@@ -127,11 +142,14 @@ batt_sizer <- function(run_id = NULL, bldg_ts = NULL, dmd_frac = NULL, batt_type
       test_capacity <- test_capacity - incr*max(bldg_ts$kwh)
       incr <- incr*0.5
     }
-    flog.info(paste("-- Threshold is", round(unmet_thresh, 2), "kWh",
-                    "-- Demand target is", round(targ_kw, 2), "kW",
-                    "-- Increment is", incr,
-                    "-- Test Capacity is", round(test_capacity, 2), "kwh"),
-              name = "sizer")
+    incr_sci <- format(incr, digits = 2, scientific = T)
+    log_state = paste("Unmet kWh is at -", round(unmet_kwh, 2), "kWh",
+                      "- Threshold is", round(unmet_thresh, 2), "kWh",
+                      "- Dmnd targ is", round(targ_kw, 2), "kW",
+                      "- Incrmt is", incr_sci,
+                      "- Test Cap. is", round(test_capacity, 2), "kwh")
+    flog.info(log_state, name = "sizer")
+    noquote(print(log_state))
   }
   flog.info(paste("Final capacity is", test_capacity, "kwh"),
             name = "sizer")
@@ -139,25 +157,4 @@ batt_sizer <- function(run_id = NULL, bldg_ts = NULL, dmd_frac = NULL, batt_type
   out_vec <- list("bank_kwh" = test_capacity, "unmet_kWh" = unmet_kwh)
   return(out_vec)
 }
-batt_sizer(bldg_ts = test_bldg$get_base_ts(), dmd_frac = 0.3, batt_type = "li_ion")
-
-# time_int will be specified by check_ts_intervals output
-# and HAS TO BE INCLUDED IN ALL BATTERY METADATA!!!
-# WHETHER THAT HAPPENS HERE OR IN sys_ctrl.R
-ctrlr_test <- sys_ctrlr$new(
-                            meta = list(
-                              "name" = "Sam the System_Controller",
-                              "run_id" = "RUNID",
-                              "ctrl_id" = "CTRLID",
-                              "run_timestr" = "RUNTIMESTR",
-                              "time_int" = 1/12
-                            ),
-                            dmd_targ = 2,
-                            batt = get_batt(chem = "li_ion", kwh = 100,
-                                            interval = 1/12),
-                            bldg_ts = get_bldg()$get_base_ts(),
-                            dispatch = get_disp(),
-                            grid_ts = get_grid()$get_base_ts(),
-                            pv_ts = get_pv()$get_base_ts()
-)
-ctrlr_test$traverse_ts()
+batt_sizer(run_id = "test_folder", bldg_ts = test_bldg$get_base_ts(), dmd_frac = 0.3, batt_type = "li_ion")
