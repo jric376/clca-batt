@@ -117,10 +117,10 @@ grid_load <- R6Class("Grid Load",
                      )
 )
 
-get_grid <- function(copies = 0, factor = 0.1) {
+get_grid <- function(run_id, copies = 0, factor = 0.1) {
   metadat = list(
     "territory" = "nyiso",
-    "run_id" = "RUNID",
+    "run_id" = run_id,
     "copies" = copies,
     "factor" = factor
   )

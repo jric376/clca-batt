@@ -46,7 +46,6 @@ check_ts_intervals = function(run_id = NULL) {
   
   return(interval)
 }
-
 batt_sizer <- function(run_id = NULL, bldg_ts = NULL, dmd_frac = NULL, batt_type = NULL) {
   
   if (is.null(run_id)) {
@@ -132,7 +131,7 @@ batt_sizer <- function(run_id = NULL, bldg_ts = NULL, dmd_frac = NULL, batt_type
                                 grid_ts = grid_ts,
                                 pv_ts = pv_ts
                                 )
-    temp_ctrlr$traverse_ts()
+    temp_ctrlr$traverse_ts(save_df = FALSE)
     unmet_kwh <- sum(temp_ctrlr$get_sim_df()$unmet_kw)*interval
     flog.info(paste("Unmet kWh is at -", round(unmet_kwh, 2), "kWh"),
               name = "sizer")

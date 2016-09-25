@@ -172,8 +172,8 @@ sys_ctrlr <- R6Class("System Controller",
                          return(next_state)
                        },
 
-                       traverse_ts = function() {
-                         # NEEDS TO DISABLE SIM_DF SAVING IF JUST SIZING BATT
+                       traverse_ts = function(save_df) {# Boolean controlling whether
+                                                        # each simulation is saved as csv
                          
                          timesteps = private$bldg_ts$date_time
                          bldg_kw = private$bldg_ts$kw
@@ -184,21 +184,23 @@ sys_ctrlr <- R6Class("System Controller",
                          }))
                          private$sim_df = sim_df
                          
-                         sim_path <- list(paste("outputs\\", private$metadata[["run_id"]],
-                                           sep = ""),
-                                          "\\df")
-                         for (i in 1:length(sim_path)) {
-                           curr_path = paste(sim_path[1:i], collapse ="")
-                           if(!dir.exists(file.path(curr_path))) {
-                             dir.create(file.path(curr_path))
+                         if (save_df) {
+                           sim_path <- list(paste("outputs\\", private$metadata[["run_id"]],
+                                             sep = ""),
+                                            "\\df")
+                           for (i in 1:length(sim_path)) {
+                             curr_path = paste(sim_path[1:i], collapse ="")
+                             if(!dir.exists(file.path(curr_path))) {
+                               dir.create(file.path(curr_path))
+                             }
                            }
+                           nameplt_abrv <- round(private$batt$nameplate, 2)
+                           targ_abrv <- 10 - round(private$dmd_targ/max(bldg_kw), 1)*10
+                           write.csv(sim_df, paste(curr_path, "\\",
+                                                   private$batt$chem, nameplt_abrv, "_", targ_abrv,
+                                                   "_", format(as.POSIXlt(Sys.time()), "%m%d_%H%M%S"),
+                                                   ".csv", sep = ""))
                          }
-                         nameplt_abrv <- round(private$batt$nameplate, 2)
-                         targ_abrv <- 10 - round(private$dmd_targ/max(bldg_kw), 1)*10
-                         write.csv(sim_df, paste(curr_path, "\\",
-                                                 private$batt$chem, nameplt_abrv, "_", targ_abrv,
-                                                 "_", format(as.POSIXlt(Sys.time()), "%m%d_%H%M%S"),
-                                                 ".csv", sep = ""))
                        },
                        
                        get_targ = function() {

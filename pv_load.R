@@ -137,11 +137,11 @@ pv_load <- R6Class("PV Load",
                      )
 )
 
-get_pv <- function(copies = 0, factor = 0.1) {
+get_pv <- function(run_id, copies = 0, factor = 0.1) {
   metadat = list(
     "bldg" = "office",
     "kw" = 86,
-    "run_id" = "RUNID",
+    "run_id" = run_id,
     "copies" = copies,
     "factor" = factor
   )

@@ -118,10 +118,10 @@ bldg_load <- R6Class("Bldg Load",
                      )
 )
 
-get_bldg <- function(copies = 0, factor = 0.1) {
+get_bldg <- function(run_id, copies = 0, factor = 0.1) {
   metadat = list(
     "bldg" = "office",
-    "run_id" = "RUNID",
+    "run_id" = run_id,
     "copies" = copies,
     "factor" = factor
   )
