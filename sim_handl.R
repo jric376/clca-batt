@@ -13,7 +13,8 @@ if(!exists("grid_load", mode = "function")) source("grid_load.R")
 if(!exists("pv_load", mode = "function")) source("pv_load.R")
 if(!exists("sys_ctrl.R", mode = "function")) source("sys_ctrl.R")
 
-test_bldg <- get_bldg()
+test_bldg <- get_bldg(run_id = "testing")
+test_ldc <- test_bldg$make_ldc()
 
 check_ts_intervals = function(run_id = NULL) {
   
@@ -97,7 +98,7 @@ batt_sizer <- function(run_id = NULL, bldg_ts = NULL, dmd_frac = NULL, batt_type
   unmet_kwh <- sum(bldg_ts$kwh)
   unmet_thresh <- 0.0001*sum(bldg_ts$kwh)       # max unmet_kwh to trigger adequate size
   targ_kw <- max(max_step$kw)*(1 - dmd_frac)    # fraction of peak demand to be shaved
-  test_capacity <- 1                            # intentionally low initial batt kwh size
+  test_capacity <- 0.5                            # intentionally low initial batt kwh size
   incr <- 0.05
 
   while ((unmet_kwh > unmet_thresh) & (incr > 0)) {
@@ -156,4 +157,4 @@ batt_sizer <- function(run_id = NULL, bldg_ts = NULL, dmd_frac = NULL, batt_type
   out_vec <- list("bank_kwh" = test_capacity, "unmet_kWh" = unmet_kwh)
   return(out_vec)
 }
-batt_sizer(run_id = "test_folder", bldg_ts = test_bldg$get_base_ts(), dmd_frac = 0.3, batt_type = "li_ion")
+batt_sizer(run_id = "test_folder", bldg_ts = test_bldg$get_base_ts(), dmd_frac = 0.8, batt_type = "li_ion")

@@ -59,6 +59,25 @@ bldg_load <- R6Class("Bldg Load",
                          }
                        },
                        
+                       make_ldc = function() {
+                         hrly_kw = aggregate(private$base_ts$kw,
+                                             list(hour = cut(private$base_ts$date_time,
+                                                             breaks = "hour")),
+                                             mean, na.rm = TRUE)
+                         hrly_hist = hist(hrly_kw$x, 50, plot = FALSE)
+                         hist_df = data.frame(c(0,hrly_hist$counts),
+                                                rev(hrly_hist$breaks))
+                         colnames(hist_df) = c("hrs", "kw")
+                         hist_df$cumul_hrs = cumsum(hist_df$hrs)
+                         hist_df$rel_kw = hist_df$kw / max(hist_df$kw)
+                         hist_df$hrs_diff = c(0, diff(hist_df$hrs))
+                         
+                         # demand fractions to target given by 1 - (rel_kw)
+                         # select range based on hrs_diff column
+                         
+                         return(hist_df)
+                       },
+                       
                        stochastize_ts = function(copies = 1, rand_factor) {
                          ts_df = list()
                          ts_df[[1]] = private$base_ts
