@@ -137,15 +137,19 @@ bldg_load <- R6Class("Bldg Load",
                      )
 )
 
-get_bldg <- function(run_id, copies = 0, factor = 0.1) {
+get_bldg <- function(run_id, type, copies = 0, factor = 0.1) {
+  if (type == "office") {
+    path = "inputs\\bldg_gasheat.csv"
+  }
+  
   metadat = list(
-    "bldg" = "office",
+    "bldg" = type,
     "run_id" = run_id,
     "copies" = copies,
     "factor" = factor
   )
   bldg_test <- bldg_load$new(
-    bldg_ts_path = "inputs\\bldg_gasheat.csv",
+    bldg_ts_path =  path,
     meta = metadat, rand_copies = copies, rand_factor = factor
   )
   
