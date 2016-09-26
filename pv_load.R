@@ -137,16 +137,22 @@ pv_load <- R6Class("PV Load",
                      )
 )
 
-get_pv <- function(run_id, copies = 0, factor = 0.1) {
+get_pv <- function(run_id, type, copies = 0, factor = 0.1) {
+  if (type == "office") {
+    path = "inputs\\solar_nycDC.csv"
+    kw = 86
+  }
+  
   metadat = list(
-    "bldg" = "office",
-    "kw" = 86,
+    "bldg" = type,
+    "kw" = kw,
     "run_id" = run_id,
     "copies" = copies,
     "factor" = factor
   )
+  
   pv_test <- pv_load$new(
-    pv_ts_path = "inputs\\solar_nycDC.csv",
+    pv_ts_path = path,
     meta = metadat, rand_copies = copies, rand_factor = factor
   )
   

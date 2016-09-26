@@ -128,7 +128,6 @@ batt_sizer <- function(run_id = NULL, bldg_ts = NULL, dmd_frac = NULL, batt_type
                                 dmd_targ = targ_kw,
                                 batt = temp_batt,
                                 bldg_ts = size_ts,
-                                # dispatch = get_disp(),
                                 grid_ts = grid_ts,
                                 pv_ts = pv_ts
                                 )
@@ -157,4 +156,15 @@ batt_sizer <- function(run_id = NULL, bldg_ts = NULL, dmd_frac = NULL, batt_type
   out_vec <- list("bank_kwh" = test_capacity, "unmet_kWh" = unmet_kwh)
   return(out_vec)
 }
-batt_sizer(run_id = "test_folder", bldg_ts = test_bldg$get_base_ts(), dmd_frac = 0.8, batt_type = "li_ion")
+# batt_sizer(run_id = "test_folder", bldg_ts = test_bldg$get_base_ts(), dmd_frac = 0.8, batt_type = "li_ion")
+
+sim_1yr <- function(run_id, bldg = NULL, batt_type = NULL, rand_factors = NULL, dispatch = NULL) {
+  
+  # figure out what demand_frac range to use
+  # size for each demand_frac in this range
+  # foreach ts in bldg$get_ts_df()
+  # traverse ts
+  
+}
+
+
