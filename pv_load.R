@@ -90,7 +90,7 @@ pv_load <- R6Class("PV Load",
                              new_ts = private$base_ts
                              
                              
-                             foreach(x = iter(new_ts, by = 'col'), nm = colnames(new_ts)) %do%
+                             foreach(x = iter(new_ts, by = 'col'), nm = colnames(new_ts)) %dopar%
                                if (is.numeric(x)) {
                                  x = sapply(x, function(y) rnorm(1, mean = y, sd = y*rand_factor))
                                  new_ts[[nm]] = x

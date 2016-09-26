@@ -235,16 +235,16 @@ disp_curv <- R6Class("Dispatch",
     )
 )
 
-get_disp <- function() {
-  mc_input = "inputs\\marg_costs.csv"
-  plants_input = "inputs\\plants_all.csv"
-  iso_terr = "NYISO"
-  
+get_disp <- function(run_id, ctrl_id, terr) {
+  if (terr == "nyiso") {
+    mc_input = "inputs\\marg_costs.csv"
+    plants_input = "inputs\\plants_all.csv"
+    iso_terr = toupper(terr)
+  }
   metadat = list(
     "name" = "Doris the Dispatch",
-    "run_id" = "RUNID",
-    "ctrl_id" = "CTRLID",
-    "run_timestr" = "RUNTIMESTR"
+    "run_id" = run_id,
+    "ctrl_id" = ctrl_id
   )
   dispatch <- disp_curv$new(
     meta = metadat, mc_path = mc_input, 

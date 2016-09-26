@@ -70,7 +70,7 @@ grid_load <- R6Class("Grid Load",
                            new_ts = private$base_ts
                            
                            
-                           foreach(x = iter(new_ts, by = 'col'), nm = colnames(new_ts)) %do%
+                           foreach(x = iter(new_ts, by = 'col'), nm = colnames(new_ts)) %dopar%
                              if (is.numeric(x)) {
                                x = sapply(x, function(y) rnorm(1, mean = y, sd = y*rand_factor))
                                new_ts[[nm]] = x
@@ -117,15 +117,19 @@ grid_load <- R6Class("Grid Load",
                      )
 )
 
-get_grid <- function(run_id, copies = 0, factor = 0.1) {
+get_grid <- function(run_id, terr, copies = 0, factor = 0.1) {
   metadat = list(
-    "territory" = "nyiso",
+    "territory" = terr,
     "run_id" = run_id,
     "copies" = copies,
     "factor" = factor
   )
+  if (terr == "nyiso") {
+    path = "inputs\\2014pal_combined.csv"
+  }
+    
   grid_test <- grid_load$new(
-    grid_ts_path = "inputs\\2014pal_combined.csv",
+    grid_ts_path = path,
     meta = metadat, rand_copies = copies, rand_factor = factor
   )
   
