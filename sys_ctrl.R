@@ -247,30 +247,30 @@ sys_ctrlr <- R6Class("System Controller",
                      )
 )
 
-targ_all_pv <- function (ctrlr = NULL) {
-  ctrlr$draw_batt(-1)
-  return(ctrlr$operate(bldg_kw = 11, pv_kw = 13))
-}
-targ_some_pv_disch <- function (ctrlr = NULL) {
-  ctrlr$draw_batt(-7)
-  return(ctrlr$operate(bldg_kw = 15, pv_kw = 1))
-}
-targ_some_pv_ch <- function (ctrlr = NULL) {
-  ctrlr$draw_batt(-3)
-  return(ctrlr$operate(bldg_kw = 12, pv_kw = 7))
-}
-targ_no_pv <- function (ctrlr = NULL) {
-  ctrlr$draw_batt(-7)
-  return(ctrlr$operate(bldg_kw = 11, pv_kw = 0))
-}
-notarg_pv_grid <- function(ctrlr = NULL) {
-  ctrlr$draw_batt(-0.5)
-  return(ctrlr$operate(bldg_kw = 8, pv_kw = 5))
-}
-notarg_curtail <- function(ctrlr = NULL) {
-  ctrlr$draw_batt(-0.5)
-  return(ctrlr$operate(bldg_kw = 1, pv_kw = 15))
-}
-notarg <- function(ctrlr = NULL) {
-  return(ctrlr$operate(bldg_kw = 8, pv_kw = 0))
-}
+# targ_all_pv <- function (ctrlr = NULL) {
+#   ctrlr$draw_batt(-1)
+#   return(ctrlr$operate(bldg_kw = 11, pv_kw = 13))
+# }
+# targ_some_pv_disch <- function (ctrlr = NULL) {
+#   ctrlr$draw_batt(-7)
+#   return(ctrlr$operate(bldg_kw = 15, pv_kw = 1))
+# }
+# targ_some_pv_ch <- function (ctrlr = NULL) {
+#   ctrlr$draw_batt(-3)
+#   return(ctrlr$operate(bldg_kw = 12, pv_kw = 7))
+# }
+# targ_no_pv <- function (ctrlr = NULL) {
+#   ctrlr$draw_batt(-7)
+#   return(ctrlr$operate(bldg_kw = 11, pv_kw = 0))
+# }
+# notarg_pv_grid <- function(ctrlr = NULL) {
+#   ctrlr$draw_batt(-0.5)
+#   return(ctrlr$operate(bldg_kw = 8, pv_kw = 5))
+# }
+# notarg_curtail <- function(ctrlr = NULL) {
+#   ctrlr$draw_batt(-0.5)
+#   return(ctrlr$operate(bldg_kw = 1, pv_kw = 15))
+# }
+# notarg <- function(ctrlr = NULL) {
+#   return(ctrlr$operate(bldg_kw = 8, pv_kw = 0))
+# }
