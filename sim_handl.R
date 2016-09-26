@@ -184,27 +184,31 @@ sim_sizer <- function(run_id, bldg = NULL, batt_type = NULL, dispatch = NULL) {
       pkgs_to_pass = c("dplyr", "futile.logger")
       
       dmd_df = foreach(j = 1:(bldg$get_ts_count()), .combine = "rbind",
-                       .export = funs_to_pass, .packages = pkgs_to_pass) %dopar% {
+                       .export = funs_to_pass, .packages = pkgs_to_pass,
+                       .verbose = TRUE) %dopar% {
                   if(!exists("batt_bank", mode = "function")) source("battery_bank.R")
                   if(!exists("disp_curv", mode = "function")) source("dispatch_curve.R")
                   if(!exists("bldg_load", mode = "function")) source("bldg_load.R")
                   if(!exists("grid_load", mode = "function")) source("grid_load.R")
                   if(!exists("pv_load", mode = "function")) source("pv_load.R")
                   if(!exists("sys_ctrl.R", mode = "function")) source("sys_ctrl.R")       
-                         
-                  bldg_ts = bldg$get_ts_df()[[j]]
-                  pv_ts = pv$get_ts_df()[[j]]
-                  batt_kwh = batt_sizer(run_id = run_id, bldg_ts = bldg_ts,
-                                                pv_ts = pv_ts,
-                                                dmd_frac = test_dmd,
-                                                batt_type = batt_type)$batt_kwh
-                  
-                  sim_1 = list("run_id" = run_id, bldg = bldg$get_metadata()[["bldg"]],
-                                                   pv_kw = pv$get_metadata()[["kw"]],
-                                                   dmd_frac = test_dmd,
-                                                   ts_num = j,
-                                                   batt_type = batt_type,
-                                                   batt_kwh = batt_kwh)
+                  tryCatch({       
+                    bldg_ts = bldg$get_ts_df()[[j]]
+                    pv_ts = pv$get_ts_df()[[j]]
+                    batt_kwh = batt_sizer(run_id = run_id, bldg_ts = bldg_ts,
+                                                  pv_ts = pv_ts,
+                                                  dmd_frac = test_dmd,
+                                                  batt_type = batt_type)$batt_kwh
+                    
+                    sim_1 = list("run_id" = run_id, bldg = bldg$get_metadata()[["bldg"]],
+                                                     pv_kw = pv$get_metadata()[["kw"]],
+                                                     dmd_frac = test_dmd,
+                                                     ts_num = j,
+                                                     batt_type = batt_type,
+                                                     batt_kwh = batt_kwh)},
+                    error = function(e) return(paste0("Ts_df index at", j,
+                                                      "and dmd_targ at", dmd_fracs[i],
+                                                      "throw error:", e)))
       }
       stopCluster(cl)
       
