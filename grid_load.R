@@ -62,10 +62,8 @@ grid_load <- R6Class("Grid Load",
                        ts_df[[1]] = private$base_ts
                        
                        if (copies > 0) {
-                         cl <- makeCluster(3)
                          
                          for (i in 1:copies) {
-                           registerDoSNOW(cl)
                            j = i + 1
                            new_ts = private$base_ts
                            
@@ -78,7 +76,6 @@ grid_load <- R6Class("Grid Load",
                            
                            ts_df[[j]] = new_ts
                          }
-                         stopCluster(cl)
                        }
                        
                        private$ts_df = ts_df
@@ -95,7 +92,7 @@ grid_load <- R6Class("Grid Load",
                      get_ts_df = function(index) {
                        if (missing(index)) return(private$ts_df)
                        if (index %in%  seq.int(1:length(private$ts_df))) {
-                         return(private$ts_df[index])
+                         return(private$ts_df[[index]])
                        }
                        else {
                          stop(paste(
