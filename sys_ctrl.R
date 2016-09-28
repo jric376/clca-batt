@@ -194,11 +194,10 @@ sys_ctrlr <- R6Class("System Controller",
                                dir.create(file.path(curr_path))
                              }
                            }
-                           nameplt_abrv <- round(private$batt$nameplate, 2)
+                           nameplt_abrv <- paste(round(private$batt$nameplate, 2)*1000, "W", sep = "")
                            targ_abrv <- 10 - round(private$dmd_targ/max(bldg_kw), 1)*10
-                           write.csv(sim_df, paste(curr_path, "\\",
-                                                   private$batt$chem, nameplt_abrv, "_", targ_abrv,
-                                                   "_", format(as.POSIXlt(Sys.time()), "%m%d_%H%M%S"),
+                           write.csv(sim_df, paste(curr_path, "\\", private$metadata[["ctrl_id"]],
+                                                   "_", private$batt$chem, nameplt_abrv, "_", targ_abrv,
                                                    ".csv", sep = ""))
                          }
                        },
