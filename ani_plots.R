@@ -317,6 +317,7 @@ get_bldg_comp <- function() {
   bldg_df <- read.csv("inputs\\bldg_summ.csv",
                       stringsAsFactors = FALSE)
   bldg_df$ci <- bldg_df$kwh*0.05
+  stop("Need to account for different cats that show in hospital validation")
   bldg_lvls <- c("Heating", "Cooling",
                  "Int. Lighting", "Ext. Lighting",
                  "Int. Equipment", "Fans")

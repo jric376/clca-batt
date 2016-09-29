@@ -1,49 +1,59 @@
-use_cat,bldg_type,src,kwh
-Heating,Apt,DOE,0
-Cooling,Apt,DOE,0
-Int. Lighting,Apt,DOE,0
-Ext. Lighting,Apt,DOE,0
-Int. Equipment,Apt,DOE,0
-Fans,Apt,DOE,0
-Heating,Apt,model,0
-Cooling,Apt,model,0
-Int. Lighting,Apt,model,0
-Ext. Lighting,Apt,model,0
-Int. Equipment,Apt,model,0
-Fans,Apt,model,0
-Heating,Hospital,DOE,0
-Cooling,Hospital,DOE,0
-Int. Lighting,Hospital,DOE,0
-Ext. Lighting,Hospital,DOE,0
-Int. Equipment,Hospital,DOE,0
-Fans,Hospital,DOE,0
-Heating,Hospital,model,0
-Cooling,Hospital,model,0
-Int. Lighting,Hospital,model,0
-Ext. Lighting,Hospital,model,0
-Int. Equipment,Hospital,model,0
-Fans,Hospital,model,0
-Heating,Office,DOE,156075
-Cooling,Office,DOE,126166.66667
-Int. Lighting,Office,DOE,264338.88889
-Ext. Lighting,Office,DOE,77702.77778
-Int. Equipment,Office,DOE,296255.55556
-Fans,Office,DOE,20722.22222
-Heating,Office,model,156076.763
-Cooling,Office,model,131595.69
-Int. Lighting,Office,model,263320.03
-Ext. Lighting,Office,model,77948.92
-Int. Equipment,Office,model,297007.22
-Fans,Office,model,55124.31
-Heating,Supermarket,DOE,0
-Cooling,Supermarket,DOE,0
-Int. Lighting,Supermarket,DOE,0
-Ext. Lighting,Supermarket,DOE,0
-Int. Equipment,Supermarket,DOE,0
-Fans,Supermarket,DOE,0
-Heating,Supermarket,model,0
-Cooling,Supermarket,model,0
-Int. Lighting,Supermarket,model,0
-Ext. Lighting,Supermarket,model,0
-Int. Equipment,Supermarket,model,0
-Fans,Supermarket,model,0
+use_cat,bldg_type,src,kwh,gj
+Heating,Apt,DOE,672.22222,2.42
+Cooling,Apt,DOE,37647.22,135.53
+Int. Lighting,Apt,DOE,63638.89,229.1
+Ext. Lighting,Apt,DOE,28080.56,101.09
+Int. Equipment,Apt,DOE,124500.00,448.2
+Fans,Apt,DOE,19291.67,69.45
+Heating,Apt,model,0,0
+Cooling,Apt,model,0,0
+Int. Lighting,Apt,model,0,0
+Ext. Lighting,Apt,model,0,0
+Int. Equipment,Apt,model,0,0
+Fans,Apt,model,0,0
+Heating,Hospital,DOE,0,0
+Cooling,Hospital,DOE,0,20316.91
+Int. Lighting,Hospital,DOE,0,8375.01
+Ext. Lighting,Hospital,DOE,0,327.34
+Int. Equipment,Hospital,DOE,0,6541.81
+Ext. Equipment,Hospital,DOE,0,2499.45
+Fans,Hospital,DOE,0,3551.8
+Pumps,Hospital,DOE,0,1563.02
+Heat Rejection,Hospital,DOE,0,1089.74
+Humidification,Hospital,DOE,0,1305.46
+Rerigeration,Hospital,DOE,0,185.15
+Heating,Hospital,model,0,0
+Cooling,Hospital,model,0,0
+Int. Lighting,Hospital,model,0,0
+Ext. Lighting,Hospital,model,0,0
+Int. Equipment,Hospital,model,0,0
+Ext. Equipment,Hospital,model,0,0
+Fans,Hospital,model,0,0
+Pumps,Hospital,model,0,0
+Heat Rejection,Hospital,model,0,0
+Humidification,Hospital,model,0,0
+Rerigeration,Hospital,model,0,0
+Heating,Office,DOE,156750,564.3
+Cooling,Office,DOE,126166.67,454.20001
+Int. Lighting,Office,DOE,264338.89,951.62
+Ext. Lighting,Office,DOE,77702.78,279.73001
+Int. Equipment,Office,DOE,296255.56,1066.52002
+Fans,Office,DOE,20722.22,74.59999
+Heating,Office,model,154222,555.1992
+Cooling,Office,model,129811,467.3196
+Int. Lighting,Office,model,263319,947.9484
+Ext. Lighting,Office,model,77958,280.6488
+Int. Equipment,Office,model,297008,1069.2288
+Fans,Office,model,48778,175.6008
+Heating,Supermarket,DOE,0,0
+Cooling,Supermarket,DOE,49730.56,179.03
+Int. Lighting,Supermarket,DOE,420180.56,1512.65
+Ext. Lighting,Supermarket,DOE,71602.78,257.77
+Int. Equipment,Supermarket,DOE,218247.22,785.69
+Fans,Supermarket,DOE,293622.22,1057.04
+Heating,Supermarket,model,0,0
+Cooling,Supermarket,model,0,0
+Int. Lighting,Supermarket,model,0,0
+Ext. Lighting,Supermarket,model,0,0
+Int. Equipment,Supermarket,model,0,0
+Fans,Supermarket,model,0,0
