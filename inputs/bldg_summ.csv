@@ -33,7 +33,7 @@ Pumps,Hospital,model,0,0
 Heat Rejection,Hospital,model,0,0
 Humidification,Hospital,model,0,0
 Rerigeration,Hospital,model,0,0
-Heating,Office,DOE,156750,564.3
+Heating,Office,DOE,156750,561.87
 Cooling,Office,DOE,126166.67,454.20001
 Int. Lighting,Office,DOE,264338.89,951.62
 Ext. Lighting,Office,DOE,77702.78,279.73001
