@@ -149,6 +149,11 @@ sys_ctrlr <- R6Class("System Controller",
                              }
                            }
                            else {
+                             
+                             # THIS IS WHERE BATT WOULD CHARGE FROM GRID
+                             # GIVEN TEMPORAL AND OTHER CONSTRAINTS
+                             # i.e. using timestep and maybe SoC
+                             
                              grid_kw = bldg_kw
                              batt_kw = 0
                              curtail_kw = 0
@@ -182,6 +187,9 @@ sys_ctrlr <- R6Class("System Controller",
                          sim_df <- bind_rows(lapply(1:length(bldg_kw), function(i) {
                            self$operate(timesteps[i], bldg_kw[i], pv_kw[i])
                          }))
+                         
+                         # emissions and cost columns could be added to sim_df here
+                         
                          private$sim_df = sim_df
                          
                          if (save_df) {
