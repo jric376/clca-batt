@@ -77,7 +77,8 @@ sys_ctrlr <- R6Class("System Controller",
                          return(del_kw)
                        },
                        
-                       operate = function(timestep = NULL, bldg_kw = NULL, pv_kw = NULL) {
+                       operate = function(timestep = NULL, bldg_kw = NULL,
+                                          pv_kw = NULL, iso_mw = NULL) {
                          # this is the main function for deciding how and
                          # from where the system will draw power to meet
                          # the bldg demand and shave peak demand
@@ -167,7 +168,8 @@ sys_ctrlr <- R6Class("System Controller",
                          }
                          
                          # emissions will get added here
-                         # using (bldg_kw - grid_kw)*private$metadata[["time_int"]] 
+                         # using (bldg_kw - grid_kw)*private$metadata[["time_int"]]
+                         # and iso_mw, passed along to dispatch curve function
                          
                          next_state = list(
                            "date_time" = timestep,
@@ -186,9 +188,10 @@ sys_ctrlr <- R6Class("System Controller",
                          timesteps = private$bldg_ts$date_time
                          bldg_kw = private$bldg_ts$kw
                          pv_kw = private$pv_ts$kw
+                         iso_mw = private$grid_ts$mw
                          
                          sim_df <- bind_rows(lapply(1:length(bldg_kw), function(i) {
-                           self$operate(timesteps[i], bldg_kw[i], pv_kw[i])
+                           self$operate(timesteps[i], bldg_kw[i], pv_kw[i], iso_mw[i])
                          }))
                          
                          private$sim_df = sim_df

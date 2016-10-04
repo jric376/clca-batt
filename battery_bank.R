@@ -34,7 +34,7 @@ batt_bank <- R6Class("Batteries",
                             ) {
         self$add_metadata(meta)
         self$nameplate = nameplt
-        self$pwr_rt = nameplt*20  # limits (dis)charge to 20C / hr in each timestep
+        self$pwr_rt = nameplt*10  # limits (dis)charge to 10C / hr in each timestep
         self$cap = nameplt        # C refers to nameplate (full) capacity
         self$soc = 1
         self$add_type(type)
