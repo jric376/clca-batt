@@ -188,7 +188,7 @@ sys_ctrlr <- R6Class("System Controller",
                            self$operate(timesteps[i], bldg_kw[i], pv_kw[i])
                          }))
                          
-                         # emissions and cost columns could be added to sim_df here
+                         # emissions will get added here into sim_df
                          
                          private$sim_df = sim_df
                          
