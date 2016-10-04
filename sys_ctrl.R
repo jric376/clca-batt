@@ -191,11 +191,6 @@ sys_ctrlr <- R6Class("System Controller",
                            self$operate(timesteps[i], bldg_kw[i], pv_kw[i])
                          }))
                          
-<<<<<<< HEAD
-=======
-                         # emissions will get added here into sim_df
-                         
->>>>>>> b103aca88b6f76a067636bbc9606450587bed306
                          private$sim_df = sim_df
                          
                          if (save_df) {
