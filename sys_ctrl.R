@@ -166,6 +166,9 @@ sys_ctrlr <- R6Class("System Controller",
                            if (pv_kw < 0) pv_kw = 0
                          }
                          
+                         # emissions will get added here
+                         # using (bldg_kw - grid_kw)*private$metadata[["time_int"]] 
+                         
                          next_state = list(
                            "date_time" = timestep,
                            "bldg_kw" = bldg_kw, "grid_kw" = grid_kw,
@@ -187,8 +190,6 @@ sys_ctrlr <- R6Class("System Controller",
                          sim_df <- bind_rows(lapply(1:length(bldg_kw), function(i) {
                            self$operate(timesteps[i], bldg_kw[i], pv_kw[i])
                          }))
-                         
-                         # emissions and cost columns could be added to sim_df here
                          
                          private$sim_df = sim_df
                          

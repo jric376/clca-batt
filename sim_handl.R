@@ -7,6 +7,7 @@ library("dplyr")
 library("futile.logger")
 library("R6")
 if(!exists("batt_bank", mode = "function")) source("battery_bank.R")
+if(!exists("bill_calc", mode = "function")) source("costs_emish_calc.R")
 if(!exists("disp_curv", mode = "function")) source("dispatch_curve.R")
 if(!exists("bldg_load", mode = "function")) source("bldg_load.R")
 if(!exists("grid_load", mode = "function")) source("grid_load.R")
@@ -202,7 +203,12 @@ run_one_sim <- function(run_id, ctrl_id, bldg_ts = NULL, pv_ts = NULL,
   batt_kw.max <- max(sim_df$batt_kw)
   batt_kw.min <- min(sim_df$batt_kw)
   batt_cyceq <- max(sim_df$cyc_eq)
+  # costs will be appended here
+  # using custom functions where max/min/sum are used
+  # for batt and consumption stats
   
+  # emissions will be summarized
+  # calling max/min/sum on sim_df
   
   out_vec <- list("unmet_kwh" = unmet_kwh, "curtail_kwh" = curtail_kwh,
                   "batt_kw.max" = batt_kw.max, "batt_kw.min" = batt_kw.min,
