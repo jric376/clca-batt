@@ -9,28 +9,23 @@ rm(list=ls())
 setwd("E:\\GitHub\\clca-batt")
 library("animation")
 library("cowplot")
+library("data.table")
 library("dplyr")
 library("futile.logger")
 library("gganimate")
 library("ggplot2")
+library("ggrepel")
+library("tidyr")
 
-### The following three lines are used for loading time-series scripts
-src_list = list.files(pattern = "*load.R", full.names = TRUE)
-source(src_list[1])
-# "bldg_load", "grid_load", "pv_load"
-
-### This is for loading the dispatch curve script
-# source("dispatch_curve.R")
 if (!dir.exists(file.path("outputs\\plots"))) {
   dir.create(file.path("outputs\\plots"))
 }
+cbb_qual <- c("#999999", "#CC79A7","#E69F00", "#009E73", "#F0E442",
+              "#000000", "#0072B2", "#D55E00", "#56B4E9")
 
-test_bldg <- get_bldg()
-# test_grid <- get_grid()
-# test_pv <- get_pv()
-# test_disp <- get_disp()
-
-get_ani_bldg <- function(bldg) {
+get_ani_bldg <- function(cop) {
+  source("bldg_load.R")
+  bldg <- get_bldg(run_id = "plot", copies = cop, type = "office")
   full_df <- bldg$get_base_ts()
   full_df$run<- 1
   full_df$week <- format(full_df$date_time, "%U")
@@ -75,7 +70,10 @@ get_ani_bldg <- function(bldg) {
   ani.options(outdir = getwd(), ani.width = 960, ani.height = 600)
   ani_jul_plt <- gg_animate(ani_jul_plt, "outputs\\plots\\bldg_load.gif")
 }
-get_ani_grid <- function(grid) {full_df <- grid$get_base_ts()
+get_ani_grid <- function(copies) {
+  source("grid_load.R")
+  get_grid(run_id = "plot", copies = cop, terr = "nyiso")
+  full_df <- grid$get_base_ts()
   full_df$run<- 1
   full_df$week <- format(full_df$date_time, "%U")
   
@@ -119,14 +117,16 @@ get_ani_grid <- function(grid) {full_df <- grid$get_base_ts()
   
   ani.options(outdir = getwd(), ani.width = 960, ani.height = 600)
   ani_jul_plt <- gg_animate(ani_jul_plt, "outputs\\plots\\grid_load.gif")}
-get_ani_pv <- function(pv) {
-  full_df <- bldg$get_base_ts()
+get_ani_pv <- function(cop) {
+  source("pv_load.R")
+  pv <- get_pv(run_id = "plot", copies = cop, type = "office")
+  full_df <- pv$get_base_ts()
   full_df$run<- 1
   full_df$week <- format(full_df$date_time, "%U")
   
-  for (i in seq.int(2,bldg$get_ts_count())) {
-    # kwh <- as.vector(bldg$get_ts_df(i))$kwh
-    rand_kw <- as.data.frame(bldg$get_ts_df(i))
+  for (i in seq.int(2,pv$get_ts_count())) {
+    # kwh <- as.vector(pv$get_ts_df(i))$kwh
+    rand_kw <- as.data.frame(pv$get_ts_df(i))
     rand_kw$run <- i
     rand_kw$week <- format(rand_kw$date_time, "%U")
     full_df <- rbind(full_df, rand_kw)
@@ -167,7 +167,9 @@ get_ani_pv <- function(pv) {
   ani.options(outdir = getwd(), ani.width = 960, ani.height = 600)
   ani_jul_plt <- gg_animate(ani_jul_plt, "outputs\\plots\\pv_load.gif")
 }
-get_ani_disp <- function(disp, runs = 20) {
+get_ani_disp <- function(runs = 20) {
+  source("dispatch_curve.R")
+  disp <- get_disp("plot","plot","nyiso")
   full_df <- disp$get_dispatch()
   full_df$run<- 1
   
@@ -187,7 +189,7 @@ get_ani_disp <- function(disp, runs = 20) {
                                 axis.text.x = element_text(size = 14),
                                 axis.text.y = element_text(size = 14)) +
                           theme(legend.position = c(0.30, 0.70), legend.box = "horizontal",
-                                legend.background = element_rect(fill = "white", colour = "gray75")) +
+                                legend.background = element_rect(fill = "white", colour = "gray75"))# +
                           background_grid(major = "xy", minor = "none",
                                           size.major = 0.5, colour.major = "gray85")
 
@@ -213,8 +215,8 @@ get_ani_disp <- function(disp, runs = 20) {
                                             name = "Capacity (MW)",
                                             breaks = c(250,500,1000,2000),
                                             range = c(3,15)) +
-                                scale_fill_brewer(
-                                                  name = "Fuel", type = "div", palette = "Set1",
+                                scale_fill_manual(
+                                                  name = "Fuel", values = cbb_qual,
                                                   guide = guide_legend(override.aes = list(alpha = 1, size = 5)))
   
   disp_emish <- disp_plt.bare + labs(
@@ -232,24 +234,22 @@ get_ani_disp <- function(disp, runs = 20) {
                                             name = "lb CO2eq / h",
                                             breaks = c(0,5E5,2E6,8E6),
                                             range = c(3,15)) +
-                                scale_fill_brewer(guide = "none", palette = "Set1")
-                                                  # name = "Fuel", type = "div", palette = "Set1",      
-                                                  # guide_legend(override.aes = list(alpha = 1, size = 5)))
+                                scale_fill_manual(guide = "none", values = cbb_qual)
                               
   disp_plt <- plot_grid(disp_cost, disp_emish,
                         labels = c("A","B"),
                         nrow = 2, align = "v")
   
   ### For saving combined plot
-  # save_plot(filename = "outputs\\plots\\disp_nyiso_combined.png",
-  #           disp_plt, ncol = 1, nrow = 2,
-  #           base_height = 6.25, base_width = 10)
+  save_plot(filename = "outputs\\plots\\disp_nyiso_combined.png",
+            disp_plt, ncol = 1, nrow = 2,
+            base_height = 6.25, base_width = 10)
   
   ### For saving individual ggplot objects
-  # ggsave(disp_cost, filename = "outputs\\plots\\disp_nyiso.png",
-  #        width = 10, height = 6.25, units = "in")
-  # ggsave(disp_emish, filename = "outputs\\plots\\disp_nyiso_emish.png",
-  #        width = 10, height = 6.25, units = "in")
+  ggsave(disp_cost, filename = "outputs\\plots\\disp_nyiso.png",
+         width = 10, height = 6.25, units = "in")
+  ggsave(disp_emish, filename = "outputs\\plots\\disp_nyiso_emish.png",
+         width = 10, height = 6.25, units = "in")
 
   ani_disp_cost <- disp_plt.bare + labs(
                                         y = "Marg Cost ($ / kWh)",
@@ -272,8 +272,8 @@ get_ani_disp <- function(disp, runs = 20) {
                                                 name = "Capacity (MW)",
                                                 breaks = c(250,500,1000,2000),
                                                 range = c(3,15)) +
-                                    scale_fill_brewer(
-                                      name = "Fuel", type = "div", palette = "Set1",
+                                    scale_fill_manual(
+                                      name = "Fuel", values = cbb_qual,
                                       guide = guide_legend(override.aes = list(alpha = 1, size = 5))) +
                                     theme(
                                       legend.position = c(0.30, 0.70), legend.box = "horizontal",
@@ -299,8 +299,8 @@ get_ani_disp <- function(disp, runs = 20) {
                                             name = "lb CO2eq / h",
                                             breaks = c(0,5E5,2E6,8E6),
                                             range = c(3,15)) +
-                                scale_fill_brewer(
-                                          name = "Fuel", type = "div", palette = "Set1",
+                                scale_fill_manual(
+                                          name = "Fuel", values = cbb_qual,
                                           guide = guide_legend(override.aes = list(alpha = 1, size = 5))) +
                                 theme(
                                       legend.position = c(0.30, 0.70), legend.box = "horizontal",
@@ -308,8 +308,8 @@ get_ani_disp <- function(disp, runs = 20) {
 
 
   ani.options(outdir = getwd(), ani.width = 960, ani.height = 600)
-  # gg_animate(ani_disp_cost, "outputs\\plots\\disp_nyiso_cost.gif")
-  # gg_animate(ani_disp_emish, "outputs\\plots\\disp_nyiso_emish.gif")
+  gg_animate(ani_disp_cost, "outputs\\plots\\disp_nyiso_cost.gif")
+  gg_animate(ani_disp_emish, "outputs\\plots\\disp_nyiso_emish.gif")
   
   return(full_df)
 }
@@ -359,8 +359,46 @@ get_bldg_comp <- function() {
   ggsave(filename = "outputs\\plots\\office_compare.png",
          width = 10, height = 6.25, units = "in")
 }
+get_kt_dist <- function() {
+  solar_df = read.csv("inputs\\solar_nsrdb_slim.csv") %>% select(-X)
+  sample_days = sample_n(group_by(solar_df, weather), 3)
+  ggplot(solar_df, aes(x = kt.bar, y = kt.til)) +
+    geom_point(aes(fill = weather, alpha = 1/3),
+               colour = "gray35", shape = 21) +
+    geom_point(data = sample_days, colour = "black") +
+    geom_text_repel(data = sample_days,
+                    aes(label= strftime(date_time, format = "%Y-%m-%d")),
+                    colour = "black", fontface = "bold", size = 4,
+                    box.padding = unit(0.8, "lines"),
+                    point.padding = unit(1.2, "lines"), segment.size = 1.25,
+                    arrow = arrow(length = unit(0.01, "npc")),
+                    force = 2,
+                    max.iter = 30,
+                    nudge_y = ifelse(sample_days$kt.bar > 0.8,
+                                     -0.125, 0.25),
+                    nudge_x = -0.1) +
+    scale_fill_manual(name = NULL, values = cbb_qual,
+                      guide = guide_legend(override.aes = list(size = 5))) +
+    scale_size(guide = "none") +
+    scale_alpha(guide = "none") +
+    labs(
+      x = bquote("Daily mean of hourly avg" ~k[t]),
+      y = bquote("Daily variation of hourly avg" ~k[t])
+    ) +
+    theme(panel.background = element_rect(colour = "gray75", fill = "gray80")) +
+    theme(panel.grid.major = element_line(colour = "gray85")) +
+    theme(panel.grid.minor = element_line(colour = "gray85")) +
+    theme(text = element_text(size = 16),
+          axis.text.x = element_text(size = 14),
+          axis.text.y = element_text(size = 14)) +
+    theme(legend.position = c(0.5, 0.8), legend.box = "horizontal",
+          legend.background = element_rect(fill = "white", colour = "gray75"))
+  
+  ggsave(filename = "outputs\\plots\\kt_dist.png",
+         width = 10, height = 6.25, units = "in")
+}
 
-bldg_gif <- get_ani_bldg(test_bldg)
-# grid_gif <- get_ani_grid(test_grid)
-# pv_gif <- get_ani_pv(test_pv)
-# disp_gif <- get_ani_disp(test_disp)
+# bldg_gif <- get_ani_bldg(20)
+# grid_gif <- get_ani_grid(20)
+# pv_gif <- get_ani_pv(20)
+# disp_gif <- get_ani_disp()
