@@ -12,10 +12,12 @@ sample.df <- function(df, n) df[sample(nrow(df), n), , drop = FALSE]
 
 #used for generating aggregate statistics from 2005-2014 solar data
 {
-# files = list.files("inputs\\solar", pattern = "*.csv", full.names = TRUE)
+# files = list.files("inputs\\solar_raw", pattern = "*.csv", full.names = TRUE)
 # solar_df = rbindlist(lapply(files, fread))
 # colnames(solar_df) = c("year","mo","day","hr","min","dhi","dni","ghi",
 #                        "clr_dhi", "clr_dni", "clr_ghi", "tempC", "pressure")
+# solar_df = write.csv(solar_df, "inputs\\solar_nsrdb.csv")
+  
 # solar_df = read.csv("inputs\\solar_nsrdb.csv") %>%
 #   mutate(date_time = as.POSIXct(strptime(paste(year,"-",mo,"-",day," ",
 #                                                hr,":",0, sep = ""),
