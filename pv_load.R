@@ -55,7 +55,7 @@ pv_load <- R6Class("PV Load",
                                           by = "date_time", all.y = TRUE)
                            new_dt$dt = as.POSIXct(new_dt$dt)
                            new_dt$date_time = as.POSIXct(new_dt$date_time)
-                           new_dt = arrange(new_dt, dt)
+                           new_dt = plyr::arrange(new_dt, dt)
                            new_dt$date_time = NULL
                            colnames(new_dt) = c("date_time", "PVinv_w")
                            

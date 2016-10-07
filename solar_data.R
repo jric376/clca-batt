@@ -58,26 +58,27 @@ sampleDF <- function(df, n) df[sample(nrow(df), n), , drop = FALSE]
 #                                  "Some clouds")))
 # nsrdb_df = left_join(cols_to_add, nsrdb_df)
 # write.csv(nsrdb_df, "inputs\\solar_nsrdb_slim.csv")
+# nsrdb_df.slim = read.csv("inputs\\solar_nsrdb_slim.csv")
 }
 
 ## BSRN 2014 1-min Data
+bsrn_dt = data.frame(seq.POSIXt(as.POSIXct("2014-01-01 00:01"),
+                         as.POSIXct("2014-12-31 23:59"),
+                         by = "1 min"))
+names(bsrn_dt) <- "date_time"
+
+bsrn_dt = bsrn_dt %>%
+            mutate(index = strftime(date_time, format = "%Y-%m-%d"),
+                   day = as.numeric(strftime(date_time, format = "%d")),
+                   day_ind = as.numeric(strftime(date_time, format = "%j")),
+                   mo = as.numeric(strftime(date_time, format = "%m"))) %>%
+            filter((mo == 01 & !(day > 8 & day < 14)) |
+                   (mo == 06 & !(day > 15 & day < 19) & !(day > 20 & day < 23)) |
+                   (mo == 10 & !((day > 16 & day < 22) | (day == 14))) |
+                   (day_ind == 111 | (day_ind > 113 & day_ind < 126))) %>%
+            select(-day,-mo)
 # Combining LARC files, saved as bsrn_df.larc
 {
-  # bsrn_dt = data.frame(seq.POSIXt(as.POSIXct("2014-01-01 00:01"),
-  #                          as.POSIXct("2014-12-31 23:59"),
-  #                          by = "1 min"))
-  # names(bsrn_dt) <- "date_time"
-  # 
-  # bsrn_dt = bsrn_dt %>%
-  #             mutate(index = strftime(date_time, format = "%Y-%m-%d"),
-  #                    day = as.numeric(strftime(date_time, format = "%d")),
-  #                    day_ind = as.numeric(strftime(date_time, format = "%j")),
-  #                    mo = as.numeric(strftime(date_time, format = "%m"))) %>%
-  #             filter((mo == 01 & !(day > 8 & day < 14)) |
-  #                    (mo == 06 & !(day > 15 & day < 19) & !(day > 20 & day < 23)) |
-  #                    (mo == 10 & !((day > 16 & day < 22) | (day == 14))) |
-  #                    (day_ind == 111 | (day_ind > 113 & day_ind < 126))) %>%
-  #             select(-day,-mo)
   # readUrl <- function(url, skip = 3) {
   #   out <- tryCatch(
   #     {
@@ -177,6 +178,13 @@ sampleDF <- function(df, n) df[sample(nrow(df), n), , drop = FALSE]
   #                            by = "day_ind")
   # write.csv(bsrn_df.larc.days, "inputs\\solar_bsrn_larc.csv")
 }
+# Combining COVE dat file, savd as bsrn_df.
+{
+  bsrn_df.cove.days = readLines("inputs\\bsrn_raw\\2014001-2014365_COVEdata.DAT")
+  cove.cols = bsrn_df.cove.days[14]
+  cove.data = strsplit(bsrn_df.cove.days[15:length(bsrn_df.cove.days)], " ")
+}
+# Adding clearsky, weather types to BSRN
 {
   bsrn_df.clearsky = fread("inputs\\bsrn_raw\\1155277_37.01_-76.34_2014.csv")
   colnames(bsrn_df.clearsky) = c("year","mo","day","hr","min","ghi",
