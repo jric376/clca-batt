@@ -183,6 +183,7 @@ bsrn_dt = bsrn_dt %>%
   bsrn_df.cove.days = readLines("inputs\\bsrn_raw\\2014001-2014365_COVEdata.DAT")
   cove.cols = bsrn_df.cove.days[14]
   cove.data = strsplit(bsrn_df.cove.days[15:length(bsrn_df.cove.days)], " ")
+  cove.data = as.data.frame.list(cove.data)
 }
 # Adding clearsky, weather types to BSRN
 {
