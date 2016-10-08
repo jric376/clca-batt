@@ -24,7 +24,7 @@ vignettes/*.pdf
 *.knit.md
 .Rproj.user
 # Large input data
-/inputs/bsrn_raw/
+# /inputs/bsrn_raw/
 /inputs/nsrdb_raw/
 /inputs/solar_nsrdb.csv
 # Simulation csvs
