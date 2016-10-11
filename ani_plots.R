@@ -3,7 +3,6 @@
 # All plots and animations based on custom objects
 # are created here. Objects are imported as needed
 
-rm(list=ls())
 # wd_path = paste(Sys.getenv("USERPROFILE"), "\\OneDrive\\School\\Thesis\\program2", sep = "")
 # setwd(as.character(wd_path))
 setwd("E:\\GitHub\\clca-batt")
@@ -359,24 +358,32 @@ get_bldg_comp <- function() {
   ggsave(filename = "outputs\\plots\\office_compare.png",
          width = 10, height = 6.25, units = "in")
 }
-get_kt_dist <- function() {
-  solar_df = read.csv("inputs\\solar_nsrdb_slim.csv") %>% select(-X)
+get_kt_dist <- function(which_df) {
+  if(which_df == "nyc_nsrdb") {
+    solar_df = read.csv("inputs\\solar_nsrdb_slim.csv") %>% select(-X)
+  }
+  if(which_df == "cove_bsrn") {
+    solar_df = read.csv("inputs\\solar_bsrn_cove.csv")
+  }
+  if(which_df == "larc_bsrn") {
+    solar_df = read.csv("inputs\\solar_bsrn_larc.csv")
+  }
   sample_days = sample_n(group_by(solar_df, weather), 3)
   ggplot(solar_df, aes(x = kt.bar, y = kt.til)) +
     geom_point(aes(fill = weather, alpha = 1/3),
                colour = "gray35", shape = 21) +
     geom_point(data = sample_days, colour = "black") +
-    geom_text_repel(data = sample_days,
-                    aes(label= strftime(date_time, format = "%Y-%m-%d")),
-                    colour = "black", fontface = "bold", size = 4,
-                    box.padding = unit(0.8, "lines"),
-                    point.padding = unit(1.2, "lines"), segment.size = 1.25,
-                    arrow = arrow(length = unit(0.01, "npc")),
-                    force = 2,
-                    max.iter = 30,
-                    nudge_y = ifelse(sample_days$kt.bar > 0.8,
-                                     -0.125, 0.25),
-                    nudge_x = -0.1) +
+    # geom_text_repel(data = sample_days,
+    #                 aes(label= strftime(date_time, format = "%Y-%m-%d")),
+    #                 colour = "black", fontface = "bold", size = 4,
+    #                 box.padding = unit(0.8, "lines"),
+    #                 point.padding = unit(1.2, "lines"), segment.size = 1.25,
+    #                 arrow = arrow(length = unit(0.01, "npc")),
+    #                 force = 2,
+    #                 max.iter = 30,
+    #                 nudge_y = ifelse(sample_days$kt.bar > 0.8,
+    #                                  -0.125, 0.25),
+    #                 nudge_x = -0.1) +
     scale_fill_manual(name = NULL, values = cbb_qual,
                       guide = guide_legend(override.aes = list(size = 5))) +
     scale_size(guide = "none") +
@@ -394,7 +401,7 @@ get_kt_dist <- function() {
     theme(legend.position = c(0.5, 0.8), legend.box = "horizontal",
           legend.background = element_rect(fill = "white", colour = "gray75"))
   
-  ggsave(filename = "outputs\\plots\\kt_dist.png",
+  ggsave(filename = paste0("outputs\\plots\\kt_dist_", which_df, ".png"),
          width = 10, height = 6.25, units = "in")
 }
 
