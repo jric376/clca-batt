@@ -5,7 +5,6 @@
 
 # wd_path = paste(Sys.getenv("USERPROFILE"), "\\OneDrive\\School\\Thesis\\program2", sep = "")
 # setwd(as.character(wd_path))
-setwd("E:\\GitHub\\clca-batt")
 library("animation")
 library("cowplot")
 library("data.table")
@@ -19,7 +18,7 @@ library("tidyr")
 if (!dir.exists(file.path("outputs\\plots"))) {
   dir.create(file.path("outputs\\plots"))
 }
-cbb_qual <- c("#999999", "#CC79A7","#E69F00", "#009E73", "#F0E442",
+cbb_qual <- c("#E69F00", "#999999","#CC79A7", "#009E73", "#F0E442",
               "#000000", "#0072B2", "#D55E00", "#56B4E9")
 
 get_ani_bldg <- function(cop) {
@@ -358,36 +357,56 @@ get_bldg_comp <- function() {
   ggsave(filename = "outputs\\plots\\office_compare.png",
          width = 10, height = 6.25, units = "in")
 }
-get_kt_dist <- function(which_df) {
+get_kt_dist <- function(which_df, save = FALSE) {
   if(which_df == "nyc_nsrdb") {
-    solar_df = read.csv("inputs\\solar_nsrdb_slim.csv") %>% select(-X)
+    solar_df = read.csv("inputs\\solar_nsrdb_slim.csv") %>%
+      mutate(df = "NYC") %>%
+      select(-X)
+    cbb_qual = cbb_qual[2:3]
+    label_scale = 2
+    y_max = 0.75
   }
-  if(which_df == "cove_bsrn") {
-    solar_df = read.csv("inputs\\solar_bsrn_cove.csv")
+  else {
+    cove = read.csv("inputs\\solar_bsrn_cove.csv") %>%
+      mutate(date_time = strftime(as.POSIXct(date_time), format = "%Y-%m-%d"),
+             df = "COVE")
+    larc = read.csv("inputs\\solar_bsrn_larc.csv") %>%
+      mutate(date_time = strftime(as.POSIXct(date_time), format = "%Y-%m-%d"),
+             df = "LARC")
+    solar_df = bind_rows(cove, larc) %>%
+      mutate(date_time = as.factor(date_time)) %>%
+      group_by(dayhr_ind, date_time, weather, df) %>%
+      summarise(kt.bar = mean(kt.bar),
+                kt.til = mean(kt.til))
+    cbb_qual = cbb_qual[1:3]
+    label_scale = 3
+    y_max = 0.4
   }
-  if(which_df == "larc_bsrn") {
-    solar_df = read.csv("inputs\\solar_bsrn_larc.csv")
-  }
-  sample_days = sample_n(group_by(solar_df, weather), 3)
-  ggplot(solar_df, aes(x = kt.bar, y = kt.til)) +
-    geom_point(aes(fill = weather, alpha = 1/3),
-               colour = "gray35", shape = 21) +
-    geom_point(data = sample_days, colour = "black") +
-    # geom_text_repel(data = sample_days,
-    #                 aes(label= strftime(date_time, format = "%Y-%m-%d")),
-    #                 colour = "black", fontface = "bold", size = 4,
-    #                 box.padding = unit(0.8, "lines"),
-    #                 point.padding = unit(1.2, "lines"), segment.size = 1.25,
-    #                 arrow = arrow(length = unit(0.01, "npc")),
-    #                 force = 2,
-    #                 max.iter = 30,
-    #                 nudge_y = ifelse(sample_days$kt.bar > 0.8,
-    #                                  -0.125, 0.25),
-    #                 nudge_x = -0.1) +
-    scale_fill_manual(name = NULL, values = cbb_qual,
-                      guide = guide_legend(override.aes = list(size = 5))) +
-    scale_size(guide = "none") +
-    scale_alpha(guide = "none") +
+  sample_days = sample_n(group_by(solar_df, weather), 2)
+  kt_plot = ggplot(solar_df, aes(x = kt.bar, y = kt.til)) +
+    expand_limits(x = c(0, 1.3),
+                  y = c(0,y_max)) + 
+    geom_point(aes(fill = weather, alpha = 1/3, shape = df),
+               size = 3) +
+    geom_label_repel(data = sample_days,
+                    aes(label = strftime(date_time, format = "%Y-%m-%d"),
+                        alpha = 1/3),
+                    colour = "black", fontface = "bold", size = 4,
+                    box.padding = unit(0.8, "lines"),
+                    point.padding = unit(1, "lines"), segment.size = 1.25,
+                    arrow = arrow(length = unit(0.01, "npc")),
+                    force = 5,
+                    max.iter = 30,
+                    nudge_y = 0.4*sample_days$kt.til*label_scale,
+                    nudge_x = ifelse(sample_days$kt.bar > 0.65,
+                                     -0.1*sample_days$kt.bar,
+                                     -0.2*sample_days$kt.bar)) +
+    scale_fill_manual(name = NULL, values = cbb_qual) +
+    scale_shape_manual(name = NULL, values = c(21,23,19)) +
+    guides(alpha = "none", size = "none",
+           fill = guide_legend(override.aes = list(shape = 19,
+                                                   colour = cbb_qual,
+                                                   size = 4))) +
     labs(
       x = bquote("Daily mean of hourly avg" ~k[t]),
       y = bquote("Daily variation of hourly avg" ~k[t])
@@ -398,11 +417,16 @@ get_kt_dist <- function(which_df) {
     theme(text = element_text(size = 16),
           axis.text.x = element_text(size = 14),
           axis.text.y = element_text(size = 14)) +
-    theme(legend.position = c(0.5, 0.8), legend.box = "horizontal",
+    theme(legend.position = c(0.2, 0.8), legend.box = "vertical",
           legend.background = element_rect(fill = "white", colour = "gray75"))
   
-  ggsave(filename = paste0("outputs\\plots\\kt_dist_", which_df, ".png"),
-         width = 10, height = 6.25, units = "in")
+  if(save) {
+    ggsave(filename = paste0("outputs\\plots\\kt_dist_", which_df, ".png"),
+           kt_plot, 
+           width = 10, height = 6.25, units = "in")
+  }
+  
+  return(kt_plot)
 }
 
 # bldg_gif <- get_ani_bldg(20)

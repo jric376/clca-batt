@@ -10,7 +10,7 @@ library('doSNOW')
 library("futile.logger")
 library("plyr")
 library("dplyr")
-library("dtplyr")
+# library("dtplyr")
 library("ggplot2")
 library("ggrepel")
 library("tidyr")
@@ -84,7 +84,7 @@ bsrn_dt = bsrn_dt %>%
          mo = as.numeric(strftime(date_time, format = "%m"))) %>%
   filter((mo == 01 & !(day > 8 & day < 14)) |
            (mo == 06 & !(day > 15 & day < 19) & !(day > 20 & day < 23)) |
-           (mo == 10 & !((day > 16 & day < 22) | (day == 14))) |
+            (mo == 10 & !((day > 16 & day < 22) | (day == 14))) |
            (day_ind == 111 | (day_ind > 113 & day_ind < 126))) %>%
   select(-day,-mo)
 sample_dt = unique(bsrn_dt$index) # LARC data is limiting factor for days in selected months
@@ -206,7 +206,7 @@ get_bsrn.larc = function(overwrite = FALSE) {
     bsrn_df.larc.days = read.csv("inputs\\solar_bsrn_larc.csv") %>% 
       select(-X) %>%
       mutate_if(is.integer, as.numeric) %>%
-      mutate_if(is.factor, as.POSIXct)
+      mutate(date_time = as.POSIXct(date_time))
   }
   else {
     bsrn_df.larc.days = 0
@@ -249,7 +249,7 @@ get_bsrn.cove = function(overwrite = FALSE) {
     bsrn_df.cove.days = read.csv("inputs\\solar_bsrn_cove.csv") %>% 
       select(-X) %>%
       mutate_if(is.integer, as.numeric) %>%
-      mutate_if(is.factor, as.POSIXct)
+      mutate(date_time = as.POSIXct(date_time))
   }
   else {
     bsrn_df.cove.days = 0
@@ -257,7 +257,7 @@ get_bsrn.cove = function(overwrite = FALSE) {
   return(bsrn_df.cove.days)
 }
 # Adding clearsky, weather types to BSRN
-get_clearsky = function() {
+get_bsrn_clearsky = function() {
   bsrn_df.clearsky = fread("inputs\\bsrn_raw\\1155277_37.01_-76.34_2014.csv")
   colnames(bsrn_df.clearsky) = c("year","mo","day","hr","min","ghi",
                                  "clr_ghi", "tempC")
@@ -282,11 +282,12 @@ get_clearsky = function() {
 }
 add_weather = function(bsrn_df.station, overwrite = FALSE) {
   
-  bsrn_df.clearsky = get_clearsky()
+  bsrn_df.clearsky = get_bsrn_clearsky()
   bsrn_df.station = bsrn_df.station %>%
     mutate(dayhr_ind = round(dayhr_ind, 5)) %>%
     left_join(bsrn_df.clearsky) %>%
-    mutate(kt = ifelse(clr_ghi == 0, 0, ghi/clr_ghi))
+    mutate(kt = ifelse(clr_ghi == 0, 0, ghi/clr_ghi),
+           kt = ifelse(kt > 10, 5, kt))
   sun_hrs.daily = group_by(bsrn_df.station, day_ind, sun_hrs) %>%
     tally() %>%
     mutate(sun_hrs.daily = ifelse(sun_hrs < 1, 0, as.numeric(n))) %>%
@@ -306,11 +307,13 @@ add_weather = function(bsrn_df.station, overwrite = FALSE) {
                                    "Some clouds")))
   bsrn_df.station = left_join(cols_to_add, bsrn_df.station)
 }
+get_tpm = function(df, weather) {
+  
+}
 
-
-bsrn_df.cove = get_bsrn.cove() %>% add_weather()
-bsrn_df.larc = get_bsrn.larc() %>% add_weather()
+bsrn_df.cove = get_bsrn.cove() 
+bsrn_df.larc = get_bsrn.larc()
 nsrdb_df.nyc = get_nyc_solar()
 
 # sample_days = sample_n(group_by(nsrdb_df, weather), 1)
-# need to test frequency of irradiance before doing markov stuff
+# need to test frequency of irradiance, calclate mean variability before doing markov stuff
