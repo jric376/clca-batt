@@ -74,6 +74,20 @@ disp_curv <- R6Class("Dispatch",
         self$stochastize_costs()
       },
       
+      operate = function(dmd_mw) {
+        cumul_plc2erta <- self$get_emish(dmd_mw)
+        self$stochastize_costs()
+        return(cumul_plc2erta)
+      },
+      
+      get_emish = function(dmd_mw) {
+        active_plants <- private$disp_frame %>%
+                        filter(cumul_cap < dmd_mw)
+        cumul_co2eq <- max(active_plants$cumul_plc2erta)
+        
+        return(cumul_co2eq)
+      },
+      
       stochastize_costs = function() {
         # applies stochastizer to all lines in dataframe
         
@@ -146,7 +160,7 @@ disp_curv <- R6Class("Dispatch",
         }
       },
       
-      set_dispatch = function() {
+      set_dispatch = function(disp_frame) {
         disp_frame = data.frame(
                                     private$iso_plants$orispl, private$iso_plants$plprmfl,
                                     private$iso_plants$MC, private$iso_plants$MC_rand,
