@@ -16,9 +16,17 @@ disp_curv <- R6Class("Dispatch",
       all_plants = NULL,
       iso_terr = NULL,
       
-      initialize = function(meta = NULL, mc_path = NULL, plts_path = NULL, iso_terr = NULL) {
+      initialize = function(meta = NULL, terr = NULL) {
         
-        self$iso_terr = iso_terr
+        if (terr == "nyiso") {
+          mc_path = "inputs\\marg_costs.csv"
+          plts_path = "inputs\\plants_all.csv"
+          terr = toupper(terr)
+        }
+        else {
+          stop("No paths given for marginal costs or plants on the grid.")
+        }
+        self$iso_terr = terr
         self$add_metadata(meta)
         # takes paths to marg cost and plants files as strings
         # reads in csvs
@@ -253,16 +261,8 @@ disp_curv <- R6Class("Dispatch",
 )
 
 get_disp <- function(run_id, ctrl_id, terr) {
-  if (terr == "nyiso") {
-    mc_input = "inputs\\marg_costs.csv"
-    plants_input = "inputs\\plants_all.csv"
-    iso_terr = toupper(terr)
-  }
-  metadat = list(
-    "name" = "Doris the Dispatch",
-    "run_id" = run_id,
-    "ctrl_id" = ctrl_id
-  )
+  
+  
   dispatch <- disp_curv$new(
     meta = metadat, mc_path = mc_input, 
     plts_path = plants_input, iso_terr = iso_terr
