@@ -53,7 +53,7 @@ grid_load <- R6Class("Grid Load",
                          # base_ts$date_time = strftime(base_ts$date_time, format="%m/%d %H:%M:%S")
                          
                          private$metadata = append(private$metadata, interval)
-                         private$base_ts = base_ts
+                         private$base_ts = base_ts[2:nrow(base_ts),]
                        }
                      },
                      
@@ -68,7 +68,7 @@ grid_load <- R6Class("Grid Load",
                            new_ts = private$base_ts
                            
                            
-                           foreach(x = iter(new_ts, by = 'col'), nm = colnames(new_ts)) %dopar%
+                           foreach(x = iter(new_ts, by = 'col'), nm = colnames(new_ts)) %do%
                              if (is.numeric(x)) {
                                x = sapply(x, function(y) rnorm(1, mean = y, sd = y*rand_factor))
                                new_ts[[nm]] = x

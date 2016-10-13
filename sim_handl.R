@@ -10,15 +10,12 @@ library('doSNOW')
 library("futile.logger")
 library("R6")
 if(!exists("batt_bank", mode = "function")) source("battery_bank.R")
-if(!exists("bill_calc", mode = "function")) source("costs_emish_calc.R")
-if(!exists("disp_curv", mode = "function")) source("dispatch_curve.R")
 if(!exists("bldg_load", mode = "function")) source("bldg_load.R")
-if(!exists("grid_load", mode = "function")) source("grid_load.R")
 if(!exists("pv_load", mode = "function")) source("pv_load.R")
 if(!exists("sys_ctrl.R", mode = "function")) source("sys_ctrl.R")
 
 test_bldg <- get_bldg(run_id = "testing", copies = 2, type = "office")
-# test_pv <- get_pv(run_id = "testing", copies = 10, type = "office")
+# test_pv <- get_pv(run_id = "testing", copies = 2, type = "office")
 test_ldc <- test_bldg$make_ldc()
 
 make_run_folder = function(run_id) {
@@ -73,11 +70,10 @@ check_ts_intervals = function(run_id = NULL) {
   
   return(interval)
 }
-size_batt <- function(run_id, bldg_ts = NULL, pv_ts = NULL,
-                                dmd_frac = NULL, batt_type = NULL) {
+size_batt <- function(run_id, bldg_nm = NULL, bldg_ts = NULL, pv_ts = NULL,
+                      dmd_frac = NULL, batt_type = NULL, terr = NULL, guess = NULL) {
   
   interval = as.numeric(check_ts_intervals(run_id = "ts_check")[["time_int"]])
-  
   log_path = paste(
                   "outputs\\", run_id, "\\batt_sizer_",
                   batt_type, "_", dmd_frac, # "_",
@@ -95,20 +91,22 @@ size_batt <- function(run_id, bldg_ts = NULL, pv_ts = NULL,
                   as.POSIXlt(date_time)$mo == as.POSIXlt(max_step$date_time)$mo)
 
   unmet_kwh <- sum(bldg_ts$kwh)
-  unmet_thresh <- 0.0001*sum(bldg_ts$kwh)       # max unmet_kwh to trigger adequate size
-  targ_kw <- max(max_step$kw)*(1 - dmd_frac)    # fraction of peak demand to be shaved
-  test_capacity <- 0.5                            # intentionally low initial batt kwh size
+  unmet_thresh <- 0.0001*sum(bldg_ts$kwh)           # max unmet_kwh to trigger adequate size
+  targ_kw <- max(max_step$kw)*(1 - dmd_frac)        # fraction of peak demand to be shaved
+  test_capacity <- ifelse(missing(guess), 1, guess)
   incr <- 0.05
 
   while ((unmet_kwh > unmet_thresh) & (incr > 0)) {
     
-    # SET RUN and CTRL IDs HERE
-    
+    dispatch <- get_disp(run_id = run_id,
+                         ctrl_id = ctrl_id,
+                         terr = terr)
+    stop("check necessity of creating dispatch for batt sizer")
     test_capacity <- test_capacity + incr*max(bldg_ts$kwh)
     batt_meta <- list(
                       "name" = "Boris the Battery",
                       "run_id" = run_id,
-                      "ctrl_id" = "CTRLID",
+                      "ctrl_id" = "batt_sizer",
                       "time_int" = interval
                       )
     temp_batt <- batt_bank$new(
@@ -119,7 +117,8 @@ size_batt <- function(run_id, bldg_ts = NULL, pv_ts = NULL,
     ctrlr_meta <- list(
                         "name" = "Sam the System_Controller",
                         "run_id" = run_id,
-                        "ctrl_id" = "CTRLID",
+                        "ctrl_id" = "batt_sizer",
+                        "bldg_nm" = bldg_nm,
                         "time_int" = interval
                       )
     temp_ctrlr <- sys_ctrlr$new(
@@ -156,8 +155,8 @@ size_batt <- function(run_id, bldg_ts = NULL, pv_ts = NULL,
   return(out_vec)
 }
 
-run_one_sim <- function(run_id, ctrl_id, bldg_ts = NULL, pv_ts = NULL,
-                       dmd_frac = NULL, batt_type = NULL, batt_cap = NULL) {
+run_one_sim <- function(run_id, ctrl_id, bldg_nm = NULL, bldg_ts = NULL, pv_ts = NULL,
+                        grid_ts = NULL, terr = NULL, dmd_frac = NULL, batt_type = NULL, batt_cap = NULL) {
   
   interval = as.numeric(check_ts_intervals(run_id = "ts_check")[["time_int"]])
   
@@ -169,12 +168,14 @@ run_one_sim <- function(run_id, ctrl_id, bldg_ts = NULL, pv_ts = NULL,
   )
   log_name = paste("sim", ctrl_id, sep = "_")
   flog.appender(appender.file(log_path), name = log_name)
-  flog.info(head(bldg_ts), name = log_name)
   
   max_step <- filter(bldg_ts, kw == max(kw))  
   unmet_thresh <- 0.0001*sum(bldg_ts$kwh)       # max unmet_kwh to trigger adequate size
   targ_kw <- max(max_step$kw)*(1 - dmd_frac)    # fraction of peak demand to be shaved
-    
+  
+  dispatch <- get_disp(run_id = run_id,
+                      ctrl_id = ctrl_id,
+                      terr = terr)
   batt_meta <- list(
                     "name" = "Boris the Battery",
                     "run_id" = run_id,
@@ -190,6 +191,7 @@ run_one_sim <- function(run_id, ctrl_id, bldg_ts = NULL, pv_ts = NULL,
                     "name" = "Sam the System_Controller",
                     "run_id" = run_id,
                     "ctrl_id" = ctrl_id,
+                    "bldg_nm" = bldg_nm,
                     "time_int" = interval
   )
   ctrlr <- sys_ctrlr$new(
@@ -197,20 +199,30 @@ run_one_sim <- function(run_id, ctrl_id, bldg_ts = NULL, pv_ts = NULL,
                           dmd_targ = targ_kw,
                           batt = batt,
                           bldg_ts = bldg_ts,
-                          pv_ts = pv_ts
+                          pv_ts = pv_ts,
+                          grid_ts = grid_ts,
+                          disp = dispatch
   )
-  ctrlr$traverse_ts(save_df = TRUE)
+  ctrlr$traverse_ts(log = TRUE, save_df = TRUE)
   sim_df <- ctrlr$get_sim_df()
   unmet_kwh <- sum(sim_df$unmet_kw)*interval
   curtail_kwh <- sum(sim_df$curtail_kw)*interval
   batt_kw.max <- max(sim_df$batt_kw)
   batt_kw.min <- min(sim_df$batt_kw)
   batt_cyceq <- max(sim_df$cyc_eq)
-  # costs will be appended here
-  # using custom functions where max/min/sum are used
-  # for batt and consumption stats
+
+  # annual_bill <- sim_df %>%
+                      # mutate(mo = strftime(date_time, format = "%m"))
+                      # %>% group_by(mo) %>%
+  #   summarize(
+  #     kw = max(max_kw), kw_dr = max(max_dr_kw),
+  #     kwh = sum(bldg_kwh), kwh_dr = sum(grid_kwh),
+  #     kw_cost = sum(kw_cost), kw_dr_cost = sum(kw_dr_cost),
+  #     kwh_cost = sum(kwh_cost), kwh_dr_cost = sum(kwh_dr_cost),
+  #     mtr_cost = sum(mtr_cost),
+  #     before_cost = sum(before_cost), after_cost = sum(after_cost))
   
-  # emissions will be summarized
+  # costs and emissions will be summarized
   # calling max/min/sum on sim_df
   
   out_vec <- list("unmet_kwh" = unmet_kwh, "curtail_kwh" = curtail_kwh,
@@ -219,7 +231,7 @@ run_one_sim <- function(run_id, ctrl_id, bldg_ts = NULL, pv_ts = NULL,
   return(out_vec)
 }
 
-sim_sizer <- function(run_id, bldg = NULL, batt_type = NULL, dispatch = NULL) {
+sim_sizer <- function(run_id, bldg = NULL, batt_type = NULL, terr = NULL, guess = NULL) {
   
   run_id = make_run_folder(run_id)
   log_path = paste("outputs\\", run_id,"\\sim_", bldg$get_metadata()[["bldg"]], "_",
@@ -234,60 +246,95 @@ sim_sizer <- function(run_id, bldg = NULL, batt_type = NULL, dispatch = NULL) {
   dmd_fracs = 0.2 #seq(0.2,0.3,0.1)
   pv = get_pv(run_id, copies = bldg$get_ts_count() - 1,
                       type = bldg$get_metadata()[["bldg"]])
+  grid_df = get_grid(run_id, copies = bldg$get_ts_count() - 1,
+                     terr = terr)
   
-  for (i in 1:length(dmd_fracs)) {
-    cl <- makeCluster(3)
-    registerDoSNOW(cl)
-    
-    test_dmd = dmd_fracs[i]
-    funs_to_pass = c("check_ts_intervals", "run_one_sim", "size_batt")
-    pkgs_to_pass = c("dplyr", "futile.logger")
-    
-    sim_df = foreach(j = 1:(bldg$get_ts_count()),
-                     .combine = "rbind.data.frame",
-                     .multicombine = TRUE,
-                     .errorhandling = "remove",
-                     .export = funs_to_pass, .packages = pkgs_to_pass,
-                     .verbose = TRUE) %dopar% {
-                if(!exists("batt_bank", mode = "function")) source("battery_bank.R")
-                if(!exists("disp_curv", mode = "function")) source("dispatch_curve.R")
-                if(!exists("bldg_load", mode = "function")) source("bldg_load.R")
-                if(!exists("grid_load", mode = "function")) source("grid_load.R")
-                if(!exists("pv_load", mode = "function")) source("pv_load.R")
-                if(!exists("sys_ctrl.R", mode = "function")) source("sys_ctrl.R")       
-                tryCatch({
-                  c_id = paste("ctrlr", j, sep = "_")       
-                  bldg_ts = bldg$get_ts_df(j)
-                  pv_ts = pv$get_ts_df(j)
-                  batt_cap = size_batt(run_id = run_id, bldg_ts = bldg_ts,
-                                                pv_ts = pv_ts,
-                                                dmd_frac = test_dmd,
-                                                batt_type = batt_type)$batt_cap
-                  
-                  one_sim = run_one_sim(run_id = run_id, ctrl_id = c_id,
-                                           bldg_ts = bldg_ts, pv_ts = pv_ts,
-                                           dmd_frac = test_dmd, batt_type = batt_type,
-                                           batt_cap = batt_cap)
-                  
-                  one_output = list("run_id" = run_id, bldg = bldg$get_metadata()[["bldg"]],
-                                                        pv_kw = pv$get_metadata()[["kw"]],
-                                                        dmd_frac = test_dmd, ts_num = j,
-                                                        batt_type = batt_type, batt_cap = batt_cap,
-                                                        unmet_kwh = one_sim[["unmet_kwh"]],
-                                                        curtail_kwh = one_sim[["curtail_kwh"]],
-                                                        batt_kw.max = one_sim[["batt_kw.max"]],
-                                                        batt_kw.min = one_sim[["batt_kw.min"]],
-                                                        batt_cyceq = one_sim[["batt_cyceq"]])},
-                  error = function(e) return(paste("Ts_df index", j,
-                                                    "and dmd_targ at", dmd_fracs[i],
-                                                    "( sample timestamp", bldg_ts[3,1],
-                                                    "kwh", bldg_ts[3,2], "kw", bldg_ts[3,3], ")",
-                                                    "throws error:", e)))
-    }
-    stopCluster(cl)
-    
-  }
+  # for (i in 1:length(dmd_fracs)) {
+  #   cl <- makeCluster(3)
+  #   registerDoSNOW(cl)
+  # 
+  #   test_dmd = dmd_fracs[i]
+  #   funs_to_pass = c("check_ts_intervals", "run_one_sim", "size_batt")
+  #   pkgs_to_pass = c("dplyr", "futile.logger")
+    test_dmd = dmd_fracs # [i]
+    j = 1
+    c_id = paste("ctrlr", j, sep = "_")
+    bldg_ts = bldg$get_ts_df(j)
+    pv_ts = pv$get_ts_df(j)
+    grid_ts = grid_df$get_ts_df(j) %>%
+                group_by(date_time) %>%
+                summarize(mw = mean(mw)) %>%
+                filter(date_time %in% bldg$date_time)
+    stop("need to make grid_ts match all same time intervals as bldg and pv")
+    sim_df = c(nrow(bldg_ts),nrow(pv_ts),nrow(grid_ts))
+    # batt_cap = size_batt(run_id = run_id,
+    #                      bldg_nm = bldg$get_metadata()[["bldg"]],
+    #                      bldg_ts = bldg_ts,
+    #                      pv_ts = pv_ts,
+    #                      dmd_frac = test_dmd,
+    #                      batt_type = batt_type,
+    #                      terr = terr,
+    #                      guess = guess)$batt_cap
+    # batt_cap = 3.15
+    # one_sim = run_one_sim(run_id = run_id, ctrl_id = c_id,
+    #                          bldg_nm = bldg$get_metadata()[["bldg"]],
+    #                          bldg_ts = bldg_ts, pv_ts = pv_ts,
+    #                          grid_ts = grid_ts, terr = terr,
+    #                          dmd_frac = test_dmd, batt_type = batt_type,
+    #                          batt_cap = batt_cap)
+    # sim_df = one_sim
+
+    # sim_df = foreach(j = 1:(bldg$get_ts_count()),
+    #                  .combine = "rbind.data.frame",
+    #                  .multicombine = TRUE,
+    #                  .errorhandling = "remove",
+    #                  .export = funs_to_pass, .packages = pkgs_to_pass,
+    #                  .verbose = TRUE) %dopar% {
+    #             if(!exists("batt_bank", mode = "function")) source("battery_bank.R")
+    #             if(!exists("disp_curv", mode = "function")) source("dispatch_curve.R")
+    #             if(!exists("bldg_load", mode = "function")) source("bldg_load.R")
+    #             if(!exists("grid_load", mode = "function")) source("grid_load.R")
+    #             if(!exists("pv_load", mode = "function")) source("pv_load.R")
+    #             if(!exists("sys_ctrl.R", mode = "function")) source("sys_ctrl.R")
+    #             tryCatch({
+    #               c_id = paste("ctrlr", j, sep = "_")
+    #               bldg_ts = bldg$get_ts_df(j)
+    #               pv_ts = pv$get_ts_df(j)
+    #               grid_ts = grid_df$get_ts_df(j)
+    #               batt_cap = size_batt(run_id = run_id,
+    #                                    bldg_nm = bldg$get_metadata()[["bldg"]],
+    #                                    bldg_ts = bldg_ts,
+    #                                    pv_ts = pv_ts,
+    #                                    dmd_frac = test_dmd,
+    #                                    batt_type = batt_type,
+    #                                    guess = guess)$batt_cap
+
+  #                 one_sim = run_one_sim(run_id = run_id, ctrl_id = c_id,
+  #                                          bldg_nm = bldg$get_metadata()[["bldg"]],
+  #                                          bldg_ts = bldg_ts, pv_ts = pv_ts,
+  #                                          grid_ts = grid_ts, terr = terr,
+  #                                          dmd_frac = test_dmd, batt_type = batt_type,
+  #                                          batt_cap = batt_cap)
+  # 
+  #                 one_output = list("run_id" = run_id, bldg = bldg$get_metadata()[["bldg"]],
+  #                                                       pv_kw = pv$get_metadata()[["kw"]],
+  #                                                       dmd_frac = test_dmd, ts_num = j,
+  #                                                       batt_type = batt_type, batt_cap = batt_cap,
+  #                                                       unmet_kwh = one_sim[["unmet_kwh"]],
+  #                                                       curtail_kwh = one_sim[["curtail_kwh"]],
+  #                                                       batt_kw.max = one_sim[["batt_kw.max"]],
+  #                                                       batt_kw.min = one_sim[["batt_kw.min"]],
+  #                                                       batt_cyceq = one_sim[["batt_cyceq"]])},
+  #                 error = function(e) return(paste("Ts_df index", j,
+  #                                                   "and dmd_targ at", dmd_fracs[i],
+  #                                                   "( sample timestamp", bldg_ts[3,1],
+  #                                                   "kwh", bldg_ts[3,2], "kw", bldg_ts[3,3], ")",
+  #                                                   "throws error:", e)))
+  #                      }
+  #   stopCluster(cl)
+  # }
   return(sim_df)
 }
-test_results <- sim_sizer("testing_1yr", bldg = test_bldg, batt_type = "li_ion")
+
+test_results <- sim_sizer("add_emish_sizecheck", bldg = test_bldg, batt_type = "li_ion", terr = "nyiso", guess = 2.5)
 

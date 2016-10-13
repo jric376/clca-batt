@@ -20,29 +20,31 @@
 library(dplyr)
 library(futile.logger)
 library(R6)
+if(!exists("bill_calc", mode = "function")) source("costs_calc.R")
+if(!exists("disp_curv", mode = "function")) source("dispatch_curve.R")
 
 sys_ctrlr <- R6Class("System Controller",
                      public = list(
                        initialize = function(
                                              meta = NULL, dmd_targ = NULL,
                                              batt = NULL, bldg_ts = NULL,
-                                             dispatch = NULL, grid_ts = NULL,
+                                             disp = NULL, grid_ts = NULL,
                                              pv_ts = NULL
                                              ) {
                          
                          log_path = paste(
                            "outputs\\", meta[["run_id"]], "\\",
-                           meta[["name"]], "_", meta[["ctrl_id"]], "_", 
+                           meta[["ctrl_id"]], "_", 
                            strftime(Sys.time(), format = "%d%m%y_%H%M%S"),
                            ".log", sep = ""
                          )
                          flog.appender(appender.file(log_path), name = "ctrlr")
-                         flog.threshold(ERROR, name = "ctrlr")
+                         # flog.threshold(ERROR, name = "ctrlr")
                          
                          private$dmd_targ = dmd_targ
                          private$batt = batt
                          private$bldg_ts = bldg_ts
-                         private$dispatch = dispatch
+                         private$disp = disp
                          private$grid_ts = grid_ts
                          private$pv_ts = pv_ts
                          self$add_metadata(meta)
@@ -167,23 +169,39 @@ sys_ctrlr <- R6Class("System Controller",
                            if (pv_kw < 0) pv_kw = 0
                          }
                          
-                         # emissions will get added here
-                         # using (bldg_kw - grid_kw)*private$metadata[["time_int"]]
-                         # and iso_mw, passed along to dispatch curve function
+                         costs <- get_cost(private$metadata[["bldg_nm"]],
+                                           timestep,
+                                           as.numeric(private$metadata[["time_int"]]),
+                                           bldg_kw, grid_kw)
                          
+                         if(private$metadata[["ctrl_id"]] == "batt_sizer") {
+                           bldg_plc2erta <- 0
+                           grid_plc2erta <- 0
+                         }
+                         else{
+                           bldg_plc2erta <- (bldg_kw*0.001)*as.numeric(private$metadata[["time_int"]])* 
+                                                private$disp$operate(iso_mw)
+                           grid_plc2erta <- (grid_kw*0.001)*as.numeric(private$metadata[["time_int"]])* 
+                                                private$disp$operate(iso_mw)
+                         }
+                           
                          next_state = list(
                            "date_time" = timestep,
                            "bldg_kw" = bldg_kw, "grid_kw" = grid_kw,
                            "pv_kw" = pv_kw, "batt_kw" = batt_kw, 
-                           "unmet_kw" = unmet_kw, "curtail_kw" = curtail_kw
+                           "unmet_kw" = unmet_kw, "curtail_kw" = curtail_kw,
+                           "bldg_plc2erta" = bldg_plc2erta, "grid_plc2erta" = grid_plc2erta
                          )
                          next_state <- append(next_state, private$batt$get_state())
+                         next_state <- append(next_state, costs)
+                         
                          
                          return(next_state)
                        },
 
-                       traverse_ts = function(save_df) {# Boolean controlling whether
-                                                        # each simulation is saved as csv
+                       traverse_ts = function(log = FALSE, save_df) { # Booleans controlling whether
+                                                              # traversing gets logged to console
+                                                              # each simulation is saved as csv
                          
                          timesteps = private$bldg_ts$date_time
                          bldg_kw = private$bldg_ts$kw
@@ -191,6 +209,7 @@ sys_ctrlr <- R6Class("System Controller",
                          iso_mw = private$grid_ts$mw
                          
                          sim_df <- bind_rows(lapply(1:length(bldg_kw), function(i) {
+                           if(log) flog.info(timesteps[i], name = "ctrlr")
                            self$operate(timesteps[i], bldg_kw[i], pv_kw[i], iso_mw[i])
                          }))
                          
@@ -227,7 +246,7 @@ sys_ctrlr <- R6Class("System Controller",
                        },
                        
                        get_dispatch = function() {
-                         return(private$dispatch)
+                         return(private$disp)
                        },
                        
                        get_grid_ts = function() {
@@ -250,7 +269,7 @@ sys_ctrlr <- R6Class("System Controller",
                        dmd_targ = NULL,
                        batt = NULL,
                        bldg_ts = NULL,
-                       dispatch = NULL,
+                       disp = NULL,
                        grid_ts = NULL,
                        pv_ts = NULL,
                        metadata = NULL,
