@@ -260,14 +260,4 @@ disp_curv <- R6Class("Dispatch",
     )
 )
 
-get_disp <- function(run_id, ctrl_id, terr) {
-  
-  
-  dispatch <- disp_curv$new(
-    meta = metadat, mc_path = mc_input, 
-    plts_path = plants_input, iso_terr = iso_terr
-  )
-  
-  return(dispatch)
-}
 
