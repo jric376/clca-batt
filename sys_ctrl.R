@@ -169,7 +169,7 @@ sys_ctrlr <- R6Class("System Controller",
                            if (pv_kw < 0) pv_kw = 0
                          }
                          
-                         costs <- get_cost(private$metadata[["bldg_nm"]],
+                         bill_costs <- get_bill_cost(private$metadata[["bldg_nm"]],
                                            timestep,
                                            as.numeric(private$metadata[["time_int"]]),
                                            bldg_kw, grid_kw)
@@ -188,13 +188,14 @@ sys_ctrlr <- R6Class("System Controller",
                            
                          next_state = list(
                            "date_time" = timestep,
+                           "iso_mw" = iso_mw,
                            "bldg_kw" = bldg_kw, "grid_kw" = grid_kw,
                            "pv_kw" = pv_kw, "batt_kw" = batt_kw, 
                            "unmet_kw" = unmet_kw, "curtail_kw" = curtail_kw,
                            "bldg_plc2erta" = bldg_plc2erta, "grid_plc2erta" = grid_plc2erta
                          )
                          next_state <- append(next_state, private$batt$get_state())
-                         next_state <- append(next_state, costs)
+                         next_state <- append(next_state, bill_costs)
                          
                          
                          return(next_state)

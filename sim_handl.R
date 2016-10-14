@@ -13,14 +13,11 @@ library('doSNOW')
 library("futile.logger")
 library("R6")
 if(!exists("batt_bank", mode = "function")) source("battery_bank.R")
+if(!exists("bill_calc", mode = "function")) source("costs_calc.R")
 if(!exists("bldg_load", mode = "function")) source("bldg_load.R")
 if(!exists("grid_load", mode = "function")) source("grid_load.R")
 if(!exists("pv_load", mode = "function")) source("pv_load.R")
 if(!exists("sys_ctrl.R", mode = "function")) source("sys_ctrl.R")
-
-test_bldg <- get_bldg(run_id = "testing", copies = 2, type = "office")
-# test_pv <- get_pv(run_id = "testing", copies = 2, type = "office")
-test_ldc <- test_bldg$make_ldc()
 
 make_run_folder = function(run_id) {
   try_path = paste("outputs\\", run_id, sep = "")
@@ -43,10 +40,10 @@ make_run_folder = function(run_id) {
   dir.create(file.path(new_path))
   return(new_id)
 }
-check_ts_intervals = function(run_id = NULL) {
+get_ts_intervals = function(run_id = NULL) {
   
   if (is.null(run_id)) {
-    flog.error("No run_id in check_ts_intervals")
+    flog.error("No run_id in get_ts_intervals")
   }
     
   log_path = paste(
@@ -57,15 +54,15 @@ check_ts_intervals = function(run_id = NULL) {
   flog.appender(appender.file(log_path), name = "ts_check")
   
   intervals = c(
-    get_bldg(run_id = "check_ts", type = "office")$get_metadata()$time_int,
-    get_pv(run_id = "check_ts", type = "office")$get_metadata()$time_int,
-    get_grid(run_id = "check_ts", terr = "nyiso")$get_metadata()$time_int)
+    get_bldg(run_id = "get_ts", type = "office")$get_metadata()$time_int,
+    get_pv(run_id = "get_ts", type = "office")$get_metadata()$time_int,
+    get_grid(run_id = "get_ts", terr = "nyiso")$get_metadata()$time_int)
   
   if (length(unique(intervals)) > 1) {
     flog.error(paste("Time-series have different freqs",
                      intervals),
                name = "ts_check")
-    stop("Time-series have different freqs")
+    warning(paste("Time series have different intervals,", intervals))
   }
   
   interval = list(
@@ -77,7 +74,7 @@ check_ts_intervals = function(run_id = NULL) {
 size_batt <- function(run_id, bldg_nm = NULL, bldg_ts = NULL, pv_ts = NULL,
                       dmd_frac = NULL, batt_type = NULL, terr = NULL, guess = NULL) {
   
-  interval = as.numeric(check_ts_intervals(run_id = "ts_check")[["time_int"]])
+  interval = as.numeric(get_ts_intervals(run_id = "ts_check")[["time_int"]])
   log_path = paste(
                   "outputs\\", run_id, "\\batt_sizer_",
                   batt_type, "_", dmd_frac, # "_",
@@ -156,9 +153,10 @@ size_batt <- function(run_id, bldg_nm = NULL, bldg_ts = NULL, pv_ts = NULL,
 }
 
 run_one_sim <- function(run_id, ctrl_id, bldg_nm = NULL, bldg_ts = NULL, pv_ts = NULL,
-                        grid_ts = NULL, terr = NULL, dmd_frac = NULL, batt_type = NULL, batt_cap = NULL) {
+                        grid_ts = NULL, terr = NULL, dmd_frac = NULL, batt_type = NULL, batt_cap = NULL,
+                        rate = NULL) {
   
-  interval = as.numeric(check_ts_intervals(run_id = "ts_check")[["time_int"]])
+  interval = as.numeric(get_ts_intervals(run_id = "ts_check")[["time_int"]])
   
   log_path = paste(
     "outputs\\", run_id, "\\sim_", ctrl_id, "_",
@@ -207,36 +205,55 @@ run_one_sim <- function(run_id, ctrl_id, bldg_nm = NULL, bldg_ts = NULL, pv_ts =
                           grid_ts = grid_ts,
                           disp = disp
   )
-  ctrlr$traverse_ts(n = 1000, log = TRUE, save_df = TRUE)
+  ctrlr$traverse_ts(n = 5000, log = TRUE, save_df = TRUE)
   sim_df <- ctrlr$get_sim_df()
   unmet_kwh <- sum(sim_df$unmet_kw)*interval
   curtail_kwh <- sum(sim_df$curtail_kw)*interval
   batt_kw.max <- max(sim_df$batt_kw)
   batt_kw.min <- min(sim_df$batt_kw)
   batt_cyceq <- max(sim_df$cyc_eq)
+  control_plc2erta <- sum(sim_df$bldg_plc2erta)
+  dr_plc2erta <- sum(sim_df$grid_plc2erta)
+  r <- rate
   
-  #  NEED TO ADD: iso_mw, interest rate, batt_lsc
+  annual_bill <- sim_df %>%
+                  mutate(mo = strftime(date_time, format = "%m"),
+                         bldg_kwh = bldg_kw*interval,
+                         grid_kwh = grid_kw*interval) %>%
+                  group_by(mo) %>%
+                  summarize(kw = max(bldg_kw), kw_dr = max(grid_kw),
+                            kwh = sum(bldg_kwh), kwh_dr = sum(grid_kwh),
+                            kw_cost = sum(bldg_kw.cost), kw_dr_cost = sum(grid_kw.cost),
+                            kwh_cost = sum(bldg_kwh.cost), kwh_dr_cost = sum(grid_kwh.cost),
+                            control_cost = kw_cost + kwh_cost,
+                            dr_cost = kw_dr_cost + kwh_dr_cost) %>%
+                  mutate(mtr_cost = 34.74,
+                         control_cost = control_cost + mtr_cost,
+                         dr_cost = dr_cost + mtr_cost) %>%
+                  summarize_if(is.numeric, sum) %>%
+                  as.list()
   
-  # annual_bill <- sim_df %>%
-                      # mutate(mo = strftime(date_time, format = "%m"))
-                      # %>% group_by(mo) %>%
-  #   summarize(
-  #     kw = max(max_kw), kw_dr = max(max_dr_kw),
-  #     kwh = sum(bldg_kwh), kwh_dr = sum(grid_kwh),
-  #     kw_cost = sum(kw_cost), kw_dr_cost = sum(kw_dr_cost),
-  #     kwh_cost = sum(kwh_cost), kwh_dr_cost = sum(kwh_dr_cost),
-  #     mtr_cost = sum(mtr_cost),
-  #     before_cost = sum(before_cost), after_cost = sum(after_cost))
+  # batt_lsc <- get_batt_lsc(batt, 0.05)
+  # tac <- batt_lsc + annual_bill[["control_cost"]]
+  # prof <- annual_bill[["dr_cost"]] - tac
   
   out_vec <- list("unmet_kwh" = unmet_kwh, "curtail_kwh" = curtail_kwh,
                   "batt_kw.max" = batt_kw.max, "batt_kw.min" = batt_kw.min,
-                  "batt_cyceq" = batt_cyceq)  
+                  "batt_cyceq" = batt_cyceq, "control_plc2erta" = control_plc2erta,
+                  "dr_plc2erta" = dr_plc2erta, "interest" = r)
+  out_vec <- append(out_vec, annual_bill)
+  
   return(out_vec)
 }
 
-sim_sizer <- function(run_id, bldg = NULL, batt_type = NULL, terr = NULL, guess = NULL) {
+sim_sizer <- function(run_id, bldg = NULL, cop = 1, batt_type = NULL, terr = NULL, guess = NULL) {
   
   run_id = make_run_folder(run_id)
+  
+  # figure out what demand_frac range to use based on LDC
+  dmd_fracs = 0.2 #seq(0.2,0.3,0.1)
+  rates = 0.05
+  bldg <- get_bldg(run_id = run_id, copies = cop, type = bldg)
   log_path = paste("outputs\\", run_id,"\\sim_", bldg$get_metadata()[["bldg"]], "_",
                    batt_type, "_", 
                    # rand_factors[["bldg"]], "_",rand_factor[["pv"]], "_", rand_factors[["grid"]], "_",
@@ -245,8 +262,6 @@ sim_sizer <- function(run_id, bldg = NULL, batt_type = NULL, terr = NULL, guess 
   )
   flog.appender(appender.file(log_path), name = "sim_1yr")
   
-  # figure out what demand_frac range to use
-  dmd_fracs = 0.2 #seq(0.2,0.3,0.1)
   pv = get_pv(run_id, copies = bldg$get_ts_count() - 1,
                       type = bldg$get_metadata()[["bldg"]])
   grid_df = get_grid(run_id, copies = bldg$get_ts_count() - 1,
@@ -257,10 +272,11 @@ sim_sizer <- function(run_id, bldg = NULL, batt_type = NULL, terr = NULL, guess 
   #   registerDoSNOW(cl)
   # 
   #   test_dmd = dmd_fracs[i]
-  #   funs_to_pass = c("check_ts_intervals", "run_one_sim", "size_batt")
+  #   funs_to_pass = c("get_ts_intervals", "run_one_sim", "size_batt")
   #   pkgs_to_pass = c("dplyr", "futile.logger")
     test_dmd = dmd_fracs # [i]
-    j = 1
+    test_rt = rates # [i]
+    j = 2
     c_id = paste("ctrlr", j, sep = "_")
     pv_ts = pv$get_ts_df(j)
     bldg_ts = bldg$get_ts_df(j)
@@ -286,17 +302,12 @@ sim_sizer <- function(run_id, bldg = NULL, batt_type = NULL, terr = NULL, guess 
                              bldg_ts = bldg_ts, pv_ts = pv_ts,
                              grid_ts = grid_ts, terr = terr,
                              dmd_frac = test_dmd, batt_type = batt_type,
-                             batt_cap = batt_cap)
+                             batt_cap = batt_cap, rate = test_rt)
     one_output = list("run_id" = run_id, bldg = bldg$get_metadata()[["bldg"]],
                       pv_kw = pv$get_metadata()[["kw"]],
                       dmd_frac = test_dmd, ts_num = j,
                       batt_type = batt_type, batt_cap = batt_cap)
     one_output = append(one_output, one_sim)
-                      # unmet_kwh = one_sim[["unmet_kwh"]],
-                      # curtail_kwh = one_sim[["curtail_kwh"]],
-                      # batt_kw.max = one_sim[["batt_kw.max"]],
-                      # batt_kw.min = one_sim[["batt_kw.min"]],
-                      # batt_cyceq = one_sim[["batt_cyceq"]])
     sim_df = one_output
     
   #   iterations <- length(bldg$get_ts_count())
@@ -358,5 +369,7 @@ sim_sizer <- function(run_id, bldg = NULL, batt_type = NULL, terr = NULL, guess 
   return(sim_df)
 }
 
-test_results <- sim_sizer("add_emish_1sim", bldg = test_bldg, batt_type = "li_ion", terr = "nyiso", guess = 2.5)
-# system.time(sim_sizer("add_emish_sizecheck", bldg = test_bldg, batt_type = "li_ion", terr = "nyiso", guess = 2.5))
+test_results <- sim_sizer("add_emish_1sim", bldg = "office", cop = 2,
+                          batt_type = "li_ion", terr = "nyiso", guess = 2.5)
+# system.time(sim_sizer("add_emish_sizecheck", bldg = test_bldg, cop = 2,
+#                       batt_type = "li_ion", terr = "nyiso", guess = 2.5))

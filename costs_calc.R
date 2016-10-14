@@ -12,7 +12,7 @@ library("R6")
 # slim_df <- select(test_df, date_time:curtail_kw) %>%
 #             mutate(mo = as.POSIXlt(date_time)$mo + 1)
 
-get_cost = function(bldg_nm, timestep, interval, before_kw, after_kw) {
+get_bill_cost = function(bldg_nm, timestep, interval, before_kw, after_kw) {
   
   # rate schedules
   {
@@ -53,4 +53,13 @@ get_cost = function(bldg_nm, timestep, interval, before_kw, after_kw) {
                 "grid_kw.cost" = grid_kw.cost, "grid_kwh.cost" = grid_kwh.cost
   )
   return(output)
+}
+
+get_batt_lsc = function(batt, interest_rt) {
+  
+  
+  # calculate batt lifetime based on cyc_eq (otherwise max 20 yr)
+  # add up purchase, installation, and any replacement costs (cite Zheng2 and Lazard's)
+  # calculate lsc based on Zheng eq. 2
+  
 }
