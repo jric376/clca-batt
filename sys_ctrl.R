@@ -39,7 +39,7 @@ sys_ctrlr <- R6Class("System Controller",
                            ".log", sep = ""
                          )
                          flog.appender(appender.file(log_path), name = "ctrlr")
-                         # flog.threshold(ERROR, name = "ctrlr")
+                         flog.threshold(ERROR, name = "ctrlr")
                          
                          private$dmd_targ = dmd_targ
                          private$batt = batt
@@ -209,7 +209,9 @@ sys_ctrlr <- R6Class("System Controller",
                          iso_mw = private$grid_ts$mw
                          
                          sim_df <- bind_rows(lapply(1:length(bldg_kw), function(i) {
-                           if(log) flog.info(timesteps[i], name = "ctrlr")
+                           if(log) {
+                             flog.error(paste(timesteps[i], private$metadata[["ctrl_id"]]))
+                           }
                            self$operate(timesteps[i], bldg_kw[i], pv_kw[i], iso_mw[i])
                          }))
                          

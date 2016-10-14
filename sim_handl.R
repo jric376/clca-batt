@@ -3,14 +3,17 @@
 # wd_path = paste(Sys.getenv("USERPROFILE"), "\\OneDrive\\School\\Thesis\\program2", sep = "")
 # setwd(as.character(wd_path))
 # setwd("E:\\GitHub\\clca-batt")
+library("plyr")
 library("dplyr")
 library('foreach')
+library("imputeTS")
 library('iterators')
 library('doSNOW')
 library("futile.logger")
 library("R6")
 if(!exists("batt_bank", mode = "function")) source("battery_bank.R")
 if(!exists("bldg_load", mode = "function")) source("bldg_load.R")
+if(!exists("grid_load", mode = "function")) source("grid_load.R")
 if(!exists("pv_load", mode = "function")) source("pv_load.R")
 if(!exists("sys_ctrl.R", mode = "function")) source("sys_ctrl.R")
 
@@ -98,10 +101,6 @@ size_batt <- function(run_id, bldg_nm = NULL, bldg_ts = NULL, pv_ts = NULL,
 
   while ((unmet_kwh > unmet_thresh) & (incr > 0)) {
     
-    dispatch <- get_disp(run_id = run_id,
-                         ctrl_id = ctrl_id,
-                         terr = terr)
-    stop("check necessity of creating dispatch for batt sizer")
     test_capacity <- test_capacity + incr*max(bldg_ts$kwh)
     batt_meta <- list(
                       "name" = "Boris the Battery",
@@ -173,9 +172,6 @@ run_one_sim <- function(run_id, ctrl_id, bldg_nm = NULL, bldg_ts = NULL, pv_ts =
   unmet_thresh <- 0.0001*sum(bldg_ts$kwh)       # max unmet_kwh to trigger adequate size
   targ_kw <- max(max_step$kw)*(1 - dmd_frac)    # fraction of peak demand to be shaved
   
-  dispatch <- get_disp(run_id = run_id,
-                      ctrl_id = ctrl_id,
-                      terr = terr)
   batt_meta <- list(
                     "name" = "Boris the Battery",
                     "run_id" = run_id,
@@ -187,6 +183,13 @@ run_one_sim <- function(run_id, ctrl_id, bldg_nm = NULL, bldg_ts = NULL, pv_ts =
                         type = batt_type,
                         nameplt = batt_cap
   )
+  disp_meta = list(
+                  "name" = "Doris the Dispatch",
+                  "run_id" = run_id,
+                  "ctrl_id" = ctrl_id
+  )
+  disp <- disp_curv$new(meta = disp_meta,
+                        terr = terr)
   ctrlr_meta <- list(
                     "name" = "Sam the System_Controller",
                     "run_id" = run_id,
@@ -201,7 +204,7 @@ run_one_sim <- function(run_id, ctrl_id, bldg_nm = NULL, bldg_ts = NULL, pv_ts =
                           bldg_ts = bldg_ts,
                           pv_ts = pv_ts,
                           grid_ts = grid_ts,
-                          disp = dispatch
+                          disp = disp
   )
   ctrlr$traverse_ts(log = TRUE, save_df = TRUE)
   sim_df <- ctrlr$get_sim_df()
@@ -259,14 +262,16 @@ sim_sizer <- function(run_id, bldg = NULL, batt_type = NULL, terr = NULL, guess 
     test_dmd = dmd_fracs # [i]
     j = 1
     c_id = paste("ctrlr", j, sep = "_")
-    bldg_ts = bldg$get_ts_df(j)
     pv_ts = pv$get_ts_df(j)
+    bldg_ts = bldg$get_ts_df(j)
+    bldg_ts$date_time = pv_ts$date_time
     grid_ts = grid_df$get_ts_df(j) %>%
+                filter(date_time %in% bldg_ts$date_time) %>% 
                 group_by(date_time) %>%
-                summarize(mw = mean(mw)) %>%
-                filter(date_time %in% bldg$date_time)
-    stop("need to make grid_ts match all same time intervals as bldg and pv")
-    sim_df = c(nrow(bldg_ts),nrow(pv_ts),nrow(grid_ts))
+                summarise_if(is.numeric, "mean") %>%
+                full_join(select(bldg_ts, date_time), by = "date_time") %>%
+                mutate(mw = na.ma(mw, k = 4))
+    
     # batt_cap = size_batt(run_id = run_id,
     #                      bldg_nm = bldg$get_metadata()[["bldg"]],
     #                      bldg_ts = bldg_ts,
@@ -275,15 +280,29 @@ sim_sizer <- function(run_id, bldg = NULL, batt_type = NULL, terr = NULL, guess 
     #                      batt_type = batt_type,
     #                      terr = terr,
     #                      guess = guess)$batt_cap
-    # batt_cap = 3.15
-    # one_sim = run_one_sim(run_id = run_id, ctrl_id = c_id,
-    #                          bldg_nm = bldg$get_metadata()[["bldg"]],
-    #                          bldg_ts = bldg_ts, pv_ts = pv_ts,
-    #                          grid_ts = grid_ts, terr = terr,
-    #                          dmd_frac = test_dmd, batt_type = batt_type,
-    #                          batt_cap = batt_cap)
-    # sim_df = one_sim
-
+    batt_cap = 2.529
+    one_sim = run_one_sim(run_id = run_id, ctrl_id = c_id,
+                             bldg_nm = bldg$get_metadata()[["bldg"]],
+                             bldg_ts = bldg_ts, pv_ts = pv_ts,
+                             grid_ts = grid_ts, terr = terr,
+                             dmd_frac = test_dmd, batt_type = batt_type,
+                             batt_cap = batt_cap)
+    one_output = list("run_id" = run_id, bldg = bldg$get_metadata()[["bldg"]],
+                      pv_kw = pv$get_metadata()[["kw"]],
+                      dmd_frac = test_dmd, ts_num = j,
+                      batt_type = batt_type, batt_cap = batt_cap,
+                      unmet_kwh = one_sim[["unmet_kwh"]],
+                      curtail_kwh = one_sim[["curtail_kwh"]],
+                      batt_kw.max = one_sim[["batt_kw.max"]],
+                      batt_kw.min = one_sim[["batt_kw.min"]],
+                      batt_cyceq = one_sim[["batt_cyceq"]])
+    sim_df = one_output
+    
+  #   iterations <- length(bldg$get_ts_count())
+  #   pb <- txtProgressBar(max = iterations, style = 3)
+  #   progress <- function(n) setTxtProgressBar(pb, n)
+  #   opts <- list(progress = progress)
+    
     # sim_df = foreach(j = 1:(bldg$get_ts_count()),
     #                  .combine = "rbind.data.frame",
     #                  .multicombine = TRUE,
@@ -333,8 +352,8 @@ sim_sizer <- function(run_id, bldg = NULL, batt_type = NULL, terr = NULL, guess 
   #                      }
   #   stopCluster(cl)
   # }
-  return(sim_df)
+  return(batt_cap)
 }
 
 test_results <- sim_sizer("add_emish_sizecheck", bldg = test_bldg, batt_type = "li_ion", terr = "nyiso", guess = 2.5)
-
+# system.time(sim_sizer("add_emish_sizecheck", bldg = test_bldg, batt_type = "li_ion", terr = "nyiso", guess = 2.5))
