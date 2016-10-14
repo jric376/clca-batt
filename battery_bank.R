@@ -34,8 +34,6 @@ batt_bank <- R6Class("Batteries",
                             ) {
         self$add_metadata(meta)
         self$nameplate = nameplt
-        self$pwr_rt = nameplt*10  # limits (dis)charge to 10C / hr in each timestep
-        self$cap = nameplt        # C refers to nameplate (full) capacity
         self$soc = 1
         self$add_type(type)
         
@@ -47,6 +45,10 @@ batt_bank <- R6Class("Batteries",
                         )
         flog.appender(appender.file(log_path), name = "batt")
         flog.threshold(ERROR, name = "batt")
+        
+        # limits pwr rate to depletion (given min_soc) in 1hr
+        self$pwr_rt = ((1-self$min_soc)*nameplt)/(self$round_eff*meta[["time_int"]])  
+        self$cap = nameplt
       },
       
       add_metadata = function(metadata) {
