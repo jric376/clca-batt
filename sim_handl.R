@@ -3,6 +3,7 @@
 # wd_path = paste(Sys.getenv("USERPROFILE"), "\\OneDrive\\School\\Thesis\\program2", sep = "")
 # setwd(as.character(wd_path))
 # setwd("E:\\GitHub\\clca-batt")
+library("data.table")
 library("plyr")
 library("dplyr")
 library('foreach')
@@ -206,14 +207,16 @@ run_one_sim <- function(run_id, ctrl_id, bldg_nm = NULL, bldg_ts = NULL, pv_ts =
                           grid_ts = grid_ts,
                           disp = disp
   )
-  ctrlr$traverse_ts(log = TRUE, save_df = TRUE)
+  ctrlr$traverse_ts(n = 1000, log = TRUE, save_df = TRUE)
   sim_df <- ctrlr$get_sim_df()
   unmet_kwh <- sum(sim_df$unmet_kw)*interval
   curtail_kwh <- sum(sim_df$curtail_kw)*interval
   batt_kw.max <- max(sim_df$batt_kw)
   batt_kw.min <- min(sim_df$batt_kw)
   batt_cyceq <- max(sim_df$cyc_eq)
-
+  
+  #  NEED TO ADD: iso_mw, interest rate, batt_lsc
+  
   # annual_bill <- sim_df %>%
                       # mutate(mo = strftime(date_time, format = "%m"))
                       # %>% group_by(mo) %>%
@@ -225,12 +228,9 @@ run_one_sim <- function(run_id, ctrl_id, bldg_nm = NULL, bldg_ts = NULL, pv_ts =
   #     mtr_cost = sum(mtr_cost),
   #     before_cost = sum(before_cost), after_cost = sum(after_cost))
   
-  # costs and emissions will be summarized
-  # calling max/min/sum on sim_df
-  
   out_vec <- list("unmet_kwh" = unmet_kwh, "curtail_kwh" = curtail_kwh,
                   "batt_kw.max" = batt_kw.max, "batt_kw.min" = batt_kw.min,
-                  "batt_cyceq" = batt_cyceq)  # ALSO EMISSIONS STATS
+                  "batt_cyceq" = batt_cyceq)  
   return(out_vec)
 }
 
@@ -280,7 +280,7 @@ sim_sizer <- function(run_id, bldg = NULL, batt_type = NULL, terr = NULL, guess 
     #                      batt_type = batt_type,
     #                      terr = terr,
     #                      guess = guess)$batt_cap
-    batt_cap = 2.529
+    batt_cap = 3.16
     one_sim = run_one_sim(run_id = run_id, ctrl_id = c_id,
                              bldg_nm = bldg$get_metadata()[["bldg"]],
                              bldg_ts = bldg_ts, pv_ts = pv_ts,
@@ -290,12 +290,13 @@ sim_sizer <- function(run_id, bldg = NULL, batt_type = NULL, terr = NULL, guess 
     one_output = list("run_id" = run_id, bldg = bldg$get_metadata()[["bldg"]],
                       pv_kw = pv$get_metadata()[["kw"]],
                       dmd_frac = test_dmd, ts_num = j,
-                      batt_type = batt_type, batt_cap = batt_cap,
-                      unmet_kwh = one_sim[["unmet_kwh"]],
-                      curtail_kwh = one_sim[["curtail_kwh"]],
-                      batt_kw.max = one_sim[["batt_kw.max"]],
-                      batt_kw.min = one_sim[["batt_kw.min"]],
-                      batt_cyceq = one_sim[["batt_cyceq"]])
+                      batt_type = batt_type, batt_cap = batt_cap)
+    one_output = append(one_output, one_sim)
+                      # unmet_kwh = one_sim[["unmet_kwh"]],
+                      # curtail_kwh = one_sim[["curtail_kwh"]],
+                      # batt_kw.max = one_sim[["batt_kw.max"]],
+                      # batt_kw.min = one_sim[["batt_kw.min"]],
+                      # batt_cyceq = one_sim[["batt_cyceq"]])
     sim_df = one_output
     
   #   iterations <- length(bldg$get_ts_count())
@@ -335,15 +336,17 @@ sim_sizer <- function(run_id, bldg = NULL, batt_type = NULL, terr = NULL, guess 
   #                                          dmd_frac = test_dmd, batt_type = batt_type,
   #                                          batt_cap = batt_cap)
   # 
-  #                 one_output = list("run_id" = run_id, bldg = bldg$get_metadata()[["bldg"]],
-  #                                                       pv_kw = pv$get_metadata()[["kw"]],
-  #                                                       dmd_frac = test_dmd, ts_num = j,
-  #                                                       batt_type = batt_type, batt_cap = batt_cap,
-  #                                                       unmet_kwh = one_sim[["unmet_kwh"]],
-  #                                                       curtail_kwh = one_sim[["curtail_kwh"]],
-  #                                                       batt_kw.max = one_sim[["batt_kw.max"]],
-  #                                                       batt_kw.min = one_sim[["batt_kw.min"]],
-  #                                                       batt_cyceq = one_sim[["batt_cyceq"]])},
+                  # one_output = list("run_id" = run_id, bldg = bldg$get_metadata()[["bldg"]],
+                  #                                       pv_kw = pv$get_metadata()[["kw"]],
+                  #                                       dmd_frac = test_dmd, ts_num = j,
+                  #                                       batt_type = batt_type, batt_cap = batt_cap,
+                  #                                       unmet_kwh = one_sim[["unmet_kwh"]],
+                  #                                       curtail_kwh = one_sim[["curtail_kwh"]],
+                  #                                       batt_kw.max = one_sim[["batt_kw.max"]],
+                  #                                       batt_kw.min = one_sim[["batt_kw.min"]],
+                  #                                       batt_cyceq = one_sim[["batt_cyceq"]])},
+    
+
   #                 error = function(e) return(paste("Ts_df index", j,
   #                                                   "and dmd_targ at", dmd_fracs[i],
   #                                                   "( sample timestamp", bldg_ts[3,1],
@@ -352,8 +355,8 @@ sim_sizer <- function(run_id, bldg = NULL, batt_type = NULL, terr = NULL, guess 
   #                      }
   #   stopCluster(cl)
   # }
-  return(batt_cap)
+  return(sim_df)
 }
 
-test_results <- sim_sizer("add_emish_sizecheck", bldg = test_bldg, batt_type = "li_ion", terr = "nyiso", guess = 2.5)
+test_results <- sim_sizer("add_emish_1sim", bldg = test_bldg, batt_type = "li_ion", terr = "nyiso", guess = 2.5)
 # system.time(sim_sizer("add_emish_sizecheck", bldg = test_bldg, batt_type = "li_ion", terr = "nyiso", guess = 2.5))

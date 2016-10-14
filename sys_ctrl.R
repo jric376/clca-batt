@@ -180,9 +180,10 @@ sys_ctrlr <- R6Class("System Controller",
                          }
                          else{
                            bldg_plc2erta <- (bldg_kw*0.001)*as.numeric(private$metadata[["time_int"]])* 
-                                                private$disp$operate(iso_mw)
+                                                private$disp$get_emish(iso_mw)
                            grid_plc2erta <- (grid_kw*0.001)*as.numeric(private$metadata[["time_int"]])* 
-                                                private$disp$operate(iso_mw)
+                                                private$disp$get_emish(iso_mw)
+                           private$disp$stochastize_costs()
                          }
                            
                          next_state = list(
@@ -199,7 +200,7 @@ sys_ctrlr <- R6Class("System Controller",
                          return(next_state)
                        },
 
-                       traverse_ts = function(log = FALSE, save_df) { # Booleans controlling whether
+                       traverse_ts = function(n = "full", log = FALSE, save_df) { # Booleans controlling whether
                                                               # traversing gets logged to console
                                                               # each simulation is saved as csv
                          
@@ -208,7 +209,14 @@ sys_ctrlr <- R6Class("System Controller",
                          pv_kw = private$pv_ts$kw
                          iso_mw = private$grid_ts$mw
                          
-                         sim_df <- bind_rows(lapply(1:length(bldg_kw), function(i) {
+                         if(n != "full") {
+                           steps = n
+                         }
+                         else {
+                           steps = length(bldg_kw)
+                         }
+                         
+                         sim_df <- bind_rows(lapply(1:steps, function(i) {
                            if(log) {
                              flog.error(paste(timesteps[i], private$metadata[["ctrl_id"]]))
                            }
@@ -228,9 +236,9 @@ sys_ctrlr <- R6Class("System Controller",
                              }
                            }
                            nameplt_abrv <- paste(round(private$batt$nameplate, 2)*1000, "W", sep = "")
-                           targ_abrv <- 10 - round(private$dmd_targ/max(bldg_kw), 1)*10
+                           targ_abrv <- 100 - round(private$dmd_targ/max(bldg_kw), 1)*100
                            write.csv(sim_df, paste(curr_path, "\\", private$metadata[["ctrl_id"]],
-                                                   "_", private$batt$chem, nameplt_abrv, "_", targ_abrv,
+                                                   "_", private$batt$chem, nameplt_abrv, "_shave", targ_abrv,
                                                    ".csv", sep = ""))
                          }
                        },

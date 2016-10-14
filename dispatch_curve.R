@@ -82,21 +82,18 @@ disp_curv <- R6Class("Dispatch",
         self$stochastize_costs()
       },
       
-      operate = function(dmd_mw) {
+      get_emish = function(dmd_mw) {
         if(missing(dmd_mw)) {
           flog.error(paste("dmd_mw is missing"), name = "disp")
         }
-        cumul_plc2erta <- self$get_emish(dmd_mw)
-        self$stochastize_costs()
-        return(cumul_plc2erta)
-      },
-      
-      get_emish = function(dmd_mw) {
+        if(dmd_mw > max(private$disp_frame$cumul_cap)) {
+          flog.error(paste("Demand (", dmd_mw, "kW) too high for ISO"))
+        }
         active_plants <- private$disp_frame %>%
                         filter(cumul_cap < dmd_mw)
-        cumul_co2eq <- max(active_plants$cumul_plc2erta)
+        cumul_plc2erta <- max(active_plants$cumul_plc2erta)
         
-        return(cumul_co2eq)
+        return(cumul_plc2erta)
       },
       
       stochastize_costs = function() {
