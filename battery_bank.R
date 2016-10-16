@@ -23,17 +23,24 @@ batt_bank <- R6Class("Batteries",
       del_kwh = 0.0,
       round_eff = 0.0,
       min_soc = 0.0,
-      cyc_fail = 0,
+      cyc_fail.lo = 0,
+      cyc_fail.hi = 0,
       eng_dens = 0.0,
       soc = 0.0,
       cyc_eq = 0.0,
       co2eq_rt = 0.0,
+      cap_cost.lo = 0,
+      cap_cost.hi = 0,
+      om_cost.lo = 0,
+      om_cost.hi = 0,
+      repl_cost.lo = 0,
+      repl_cost.hi = 0,
       
       initialize = function(
-                            meta = NULL, type = NULL, nameplt = NULL
+                            meta = NULL, type = NULL, nameplate = NULL
                             ) {
         self$add_metadata(meta)
-        self$nameplate = nameplt
+        self$nameplate = nameplate
         self$soc = 1
         self$add_type(type)
         
@@ -47,8 +54,8 @@ batt_bank <- R6Class("Batteries",
         flog.threshold(ERROR, name = "batt")
         
         # limits pwr rate to depletion (given min_soc) in 1hr
-        self$pwr_rt = ((1-self$min_soc)*nameplt)/(self$round_eff*meta[["time_int"]])  
-        self$cap = nameplt
+        self$pwr_rt = ((1-self$min_soc)*nameplate)/(self$round_eff*meta[["time_int"]])  
+        self$cap = nameplate
       },
       
       add_metadata = function(metadata) {
@@ -79,22 +86,53 @@ batt_bank <- R6Class("Batteries",
           stop("Empty battery type")
         }
         types = list(
+          vrb = list(
+            chem = "vr_flow", round_eff = 0.75,
+            min_soc = 0.2,
+            cyc_fail.lo = 10000, cyc_fail.hi = 13000,
+            eng_dens = 20, co2eq_rt = 2.7,
+            cap_cost.lo = 150, cap_cost.hi = 1250,
+            om_cost.lo = 3, om_cost.hi = 40,
+            repl_cost.lo = 88, repl_cost.hi = 304
+          ),
           li_ion = list(
-            chem = 'li_ion', round_eff = 0.9,
-            min_soc = 0.2, cyc_fail = 10250,
-            eng_dens = 140, co2eq_rt = 22
+            chem = "li_ion", round_eff = 0.9,
+            min_soc = 0.2,
+            cyc_fail.lo = 1000, cyc_fail.hi = 6000,
+            eng_dens = 140, co2eq_rt = 22,
+            cap_cost.lo = 500, cap_cost.hi = 3600,
+            om_cost.lo = 8, om_cost.hi = 13,
+            repl_cost.lo = 209, repl_cost.hi = 304
+          ),
+          nas = list(
+            chem = "na_s", round_eff = 0.81,
+            min_soc = 0.2,
+            cyc_fail.lo = 2000, cyc_fail.hi = 4500,
+            eng_dens = 116, co2eq_rt = 14.9,
+            cap_cost.lo = 250, cap_cost.hi = 2730,
+            om_cost.lo = 11, om_cost.hi = 32,
+            repl_cost.lo = 269, repl_cost.hi = 1033
           ),
           pb_a = list(
-            chem = 'pb_a', round_eff = 0.82,
-            min_soc = 0.3, cyc_fail = 1250,
-            eng_dens = 27, co2eq_rt = 2.7
+            chem = "pb_a", round_eff = 0.82,
+            min_soc = 0.3,
+            cyc_fail.lo = 200, cyc_fail.hi = 4500,
+            eng_dens = 27, co2eq_rt = 2.7,
+            cap_cost.lo = 106, cap_cost.hi = 2260,
+            om_cost.lo = 13, om_cost.hi = 56,
+            repl_cost.lo = 333, repl_cost.hi = 686
           ),
           pb_a_r = list(
-            chem = 'pb_a_r', round_eff = 0.82,
-            min_soc = 0.3, cyc_fail = 1250,
-            eng_dens = 27, co2eq_rt = 1.9
+            chem = "pb_a_r", round_eff = 0.82,
+            min_soc = 0.3,
+            cyc_fail.lo = 200, cyc_fail.hi = 4500,
+            eng_dens = 27, co2eq_rt = 1.9,
+            cap_cost.lo = 106, cap_cost.hi = 2260,
+            om_cost.lo = 13, om_cost.hi = 56,
+            repl_cost.lo = 333, repl_cost.hi = 686
           )
         )
+        
         chosen_params <- types[[type]]
         for (param_name in names(chosen_params)) {
           self[[param_name]] <- chosen_params[[param_name]]
@@ -199,12 +237,6 @@ batt_bank <- R6Class("Batteries",
         if (missing(cyc_val)) return(self$cyc_eq)
         else self$cyc_eq <- self$cyc_eq + cyc_val
         
-        fail_state = (self$cyc_eq >= self$cyc_fail)
-        if (fail_state) {
-          flog.error(paste(private$metadata[["name"]], "failed"),
-                     name = "batt")
-        }
-        
         return(self)
       }
     ),
@@ -228,7 +260,7 @@ get_batt <- function(chem = NULL, kwh = NULL, interval = 1/12) {
   bank <- batt_bank$new(
                         meta = metadat,
                         type = chem,
-                        nameplt = kwh
+                        nameplate = kwh
                         )
   
   return(bank)
