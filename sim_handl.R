@@ -109,7 +109,7 @@ size_batt <- function(run_id, bldg_nm = NULL, bldg_ts = NULL, pv_ts = NULL,
     temp_batt <- batt_bank$new(
                               meta = batt_meta,
                               type = batt_type,
-                              nameplt = test_capacity
+                              nameplate = test_capacity
                               )
     ctrlr_meta <- list(
                         "name" = "Sam the System_Controller",
@@ -180,7 +180,7 @@ run_one_sim <- function(run_id, ctrl_id, bldg_nm = NULL, bldg_ts = NULL, pv_ts =
   batt <- batt_bank$new(
                         meta = batt_meta,
                         type = batt_type,
-                        nameplt = batt_cap
+                        nameplate = batt_cap
   )
   disp_meta = list(
                   "name" = "Doris the Dispatch",

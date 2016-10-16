@@ -57,9 +57,38 @@ get_bill_cost = function(bldg_nm, timestep, interval, before_kw, after_kw) {
 
 get_batt_lsc = function(batt, interest_rt) {
   
+  calendar_life = 20
+  cyc_life.lo = batt$cyc_fail.lo / batt$cyc_eq
+  cyc_life.hi = batt$cyc_fail.hi / batt$cyc_eq
+  life.lo = ifelse(cyc_life.lo > calendar_life, calendar_life, cyc_life.lo)
+  life.hi = ifelse(cyc_life.hi > calendar_life, calendar_life, cyc_life.hi)
   
-  # calculate batt lifetime based on cyc_eq (otherwise max 20 yr)
-  # add up purchase, installation, and any replacement costs (cite Zheng2 and Lazard's)
-  # calculate lsc based on Zheng eq. 2
+  lsc.lo = batt$nameplate*(batt$cap_cost.lo + batt$om_cost.lo)
+  lsc.lo = if(life.lo > 15) {
+    lsc.lo = lsc.lo + batt$nameplate*batt$repl_cost.lo
+  }
+  lsc.hi = batt$nameplate*(batt$cap_cost.hi + batt$cap_cost.hi)
+  lsc.hi = if(life.hi > 15) {
+    lsc.hi = lsc.hi + batt$nameplate*batt$repl_cost.hi
+  }
   
+  # ADD CAPITAL RECOVERY FACTOR
+  
+  out_list = list("life.lo" = life.lo,
+                  "life.hi" =  life.hi,
+                  "lsc.lo" = lsc.lo,
+                  "lsc.hi" = lsc.hi)
+  return(out_list)
 }
+
+batt_meta <- list(
+  "name" = "Boris the Battery",
+  "run_id" = "run_id",
+  "ctrl_id" = "ctrl_id",
+  "time_int" = 1/12
+)
+test_batt <- batt_bank$new(
+  meta = batt_meta,
+  type = "vrb",
+  nameplt = 30
+)
