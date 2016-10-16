@@ -71,6 +71,7 @@ get_batt_lsc = function(batt, interest_rt) {
   lsc.hi = if(life.hi > 15) {
     lsc.hi = lsc.hi + batt$nameplate*batt$repl_cost.hi
   }
+<<<<<<< HEAD
   
   # ADD CAPITAL RECOVERY FACTOR
   
@@ -90,6 +91,16 @@ get_pv_batt_plc2erta = function(pv, batt) {
   #                 "batt.plc2erta" = batt.plc2erta)
   # 
   # return(out_list)
+=======
+  
+  # ADD CAPITAL RECOVERY FACTOR
+  
+  out_list = list("life.lo" = life.lo,
+                  "life.hi" =  life.hi,
+                  "lsc.lo" = lsc.lo,
+                  "lsc.hi" = lsc.hi)
+  return(out_list)
+>>>>>>> 0bd4259d6b3d6a63d389084873bfdd38103959b5
 }
 
 batt_meta <- list(
