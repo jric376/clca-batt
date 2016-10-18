@@ -86,7 +86,7 @@ batt_bank <- R6Class("Batteries",
           stop("Empty battery type")
         }
         types = list(
-          vrb = list(
+          vrf = list(
             chem = "vr_flow", round_eff = 0.75,
             min_soc = 0.2,
             cyc_fail.lo = 10000, cyc_fail.hi = 13000,

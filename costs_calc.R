@@ -63,20 +63,29 @@ get_batt_lsc = function(batt, interest_rt) {
   life.lo = ifelse(cyc_life.lo > calendar_life, calendar_life, cyc_life.lo)
   life.hi = ifelse(cyc_life.hi > calendar_life, calendar_life, cyc_life.hi)
   
+  rt_term.lo = (1 + interest_rt)^life.lo
+  rt_term.hi = (1 + interest_rt)^life.hi
+  crf.lo = (interest_rt*rt_term.lo)/(rt_term.lo - 1)
+  crf.hi = (interest_rt*rt_term.hi)/(rt_term.hi - 1)
+  
   lsc.lo = batt$nameplate*(batt$cap_cost.lo + batt$om_cost.lo)
-  lsc.lo = if(life.lo > 15) {
+  lsc.hi = batt$nameplate*(batt$cap_cost.hi + batt$om_cost.hi)
+  if(life.lo > 15) {
     lsc.lo = lsc.lo + batt$nameplate*batt$repl_cost.lo
   }
-  lsc.hi = batt$nameplate*(batt$cap_cost.hi + batt$cap_cost.hi)
-  lsc.hi = if(life.hi > 15) {
+  if(life.hi > 15) {
     lsc.hi = lsc.hi + batt$nameplate*batt$repl_cost.hi
   }
-<<<<<<< HEAD
   
-  # ADD CAPITAL RECOVERY FACTOR
+  lsc.lo = lsc.lo*crf.lo
+  lsc.hi = lsc.hi*crf.hi
   
   out_list = list("life.lo" = life.lo,
                   "life.hi" =  life.hi,
+                  # "rt_term.lo" = rt_term.lo,
+                  # "rt_term.hi" = rt_term.hi,
+                  # "crf.lo" = crf.lo,
+                  # "crf.hi" = crf.hi,
                   "lsc.lo" = lsc.lo,
                   "lsc.hi" = lsc.hi)
   return(out_list)
@@ -91,16 +100,6 @@ get_pv_batt_plc2erta = function(pv, batt) {
   #                 "batt.plc2erta" = batt.plc2erta)
   # 
   # return(out_list)
-=======
-  
-  # ADD CAPITAL RECOVERY FACTOR
-  
-  out_list = list("life.lo" = life.lo,
-                  "life.hi" =  life.hi,
-                  "lsc.lo" = lsc.lo,
-                  "lsc.hi" = lsc.hi)
-  return(out_list)
->>>>>>> 0bd4259d6b3d6a63d389084873bfdd38103959b5
 }
 
 batt_meta <- list(
@@ -112,5 +111,5 @@ batt_meta <- list(
 test_batt <- batt_bank$new(
   meta = batt_meta,
   type = "vrb",
-  nameplt = 30
+  nameplate = 30
 )
