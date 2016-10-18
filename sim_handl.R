@@ -40,39 +40,6 @@ make_run_folder = function(run_id) {
   dir.create(file.path(new_path))
   return(new_id)
 }
-
-get_ts_intervals = function(run_id = NULL) {
-  
-  if (is.null(run_id)) {
-    flog.error("No run_id in get_ts_intervals")
-  }
-    
-  log_path = paste(
-                  "outputs\\", run_id, "\\ts_check_",
-                  strftime(Sys.time(), format = "%d%m%y_%H%M%S"),
-                  ".log", sep = ""
-  )
-  flog.appender(appender.file(log_path), name = "ts_check")
-  
-  intervals = c(
-    get_bldg(run_id = "get_ts", type = "office")$get_metadata()$time_int,
-    get_pv(run_id = "get_ts", type = "office")$get_metadata()$time_int,
-    get_grid(run_id = "get_ts", terr = "nyiso")$get_metadata()$time_int)
-  
-  if (length(unique(intervals)) > 1) {
-    flog.error(paste("Time-series have different freqs",
-                     intervals),
-               name = "ts_check")
-    warning(paste("Time series have different intervals,", intervals))
-  }
-  
-  interval = list(
-    "time_int" = as.difftime(intervals[1], units = "hours")
-  )
-  
-  return(interval)
-}
-
 size_batt <- function(run_id, bldg_nm = NULL, bldg_ts = NULL, pv_ts = NULL, interval = NULL,
                       dmd_frac = NULL, batt_type = NULL, terr = NULL, guess = NULL) {
   
@@ -285,7 +252,7 @@ sim_sizer <- function(run_id, bldg = NULL, cop = 1, batt_type = NULL, terr = NUL
 
     test_dmd = param_combns[i,1]
     test_rt = param_combns[1,21]
-    funs_to_pass = c("get_ts_intervals", "run_one_sim", "size_batt")
+    funs_to_pass = c("run_one_sim", "size_batt")
     pkgs_to_pass = c("dplyr", "futile.logger", "imputeTS")
 
     flog.info(paste0("Sim @ dmd_frac ", test_dmd,
@@ -377,3 +344,36 @@ one_sim <- fread("***",
               select(-V1)
 # system.time(sim_sizer("add_emish_sizecheck", bldg = test_bldg, cop = 2,
 #                       batt_type = "li_ion", terr = "nyiso", guess = 2.5))
+
+
+# get_ts_intervals = function(run_id = NULL) {
+#   
+#   if (is.null(run_id)) {
+#     flog.error("No run_id in get_ts_intervals")
+#   }
+#     
+#   log_path = paste(
+#                   "outputs\\", run_id, "\\ts_check_",
+#                   strftime(Sys.time(), format = "%d%m%y_%H%M%S"),
+#                   ".log", sep = ""
+#   )
+#   flog.appender(appender.file(log_path), name = "ts_check")
+#   
+#   intervals = c(
+#     get_bldg(run_id = "get_ts", type = "office")$get_metadata()$time_int,
+#     get_pv(run_id = "get_ts", type = "office")$get_metadata()$time_int,
+#     get_grid(run_id = "get_ts", terr = "nyiso")$get_metadata()$time_int)
+#   
+#   if (length(unique(intervals)) > 1) {
+#     flog.error(paste("Time-series have different freqs",
+#                      intervals),
+#                name = "ts_check")
+#     warning(paste("Time series have different intervals,", intervals))
+#   }
+#   
+#   interval = list(
+#     "time_int" = as.difftime(intervals[1], units = "hours")
+#   )
+#   
+#   return(interval)
+# }
