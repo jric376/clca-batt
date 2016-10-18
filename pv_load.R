@@ -59,22 +59,27 @@ pv_load <- R6Class("PV Load",
                            new_dt$date_time = NULL
                            colnames(new_dt) = c("date_time", "PVinv_w")
                            
-                           start_pt = sample(1:(length(new_dt$date_time)-1),1)
-                           interval = list(
-                             "time_int" = abs(as.numeric(
-                               (difftime(new_dt$date_time[start_pt],
-                                         new_dt$date_time[start_pt + 1],
-                                         units = "hours"))))
-                           )
-                           private$metadata = append(private$metadata, interval)
+                           interval = self$set_interval(base_ts)
                            
                            new_dt$kw = new_dt$PVinv_w*0.001*(1-0.1408) # loss factor taken from SAM
-                           new_dt$kwh = new_dt$kw*private$metadata$time_int
+                           new_dt$kwh = new_dt$kw*interval
                            new_dt$PVinv_w = NULL
                            new_dt = na.omit(new_dt)
                            
                            private$base_ts = new_dt
                          }
+                       },
+                       
+                       set_interval = function(ts) {
+                         start_pt = 2
+                         interval.num = abs(as.numeric(
+                                             (difftime(ts$date_time[start_pt],
+                                                       ts$date_time[start_pt + 1],
+                                                       units = "hours"))))
+                         interval = list("time_int" = interval.num)
+                         private$metadata = append(private$metadata, interval)
+                         
+                         return(interval.num)
                        },
                        
                        stochastize_ts = function(copies = 1, rand_factor) {

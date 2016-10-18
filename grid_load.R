@@ -43,18 +43,23 @@ grid_load <- R6Class("Grid Load",
                          base_ts$date_time = as.POSIXct(base_ts$date_time)
                          base_ts$time_5min = NULL
                          
-                         start_pt = sample(1:(length(base_ts$date_time)-1),1)
-                         interval = list(
-                                        "time_int" = abs(as.numeric(
-                                                        (difftime(base_ts$date_time[start_pt],
-                                                        base_ts$date_time[start_pt + 1],
-                                                        units = "hours"))))
-                         )
                          # base_ts$date_time = strftime(base_ts$date_time, format="%m/%d %H:%M:%S")
+                         interval = self$set_interval(base_ts)
                          
-                         private$metadata = append(private$metadata, interval)
                          private$base_ts = base_ts[2:nrow(base_ts),]
                        }
+                     },
+                     
+                     set_interval = function(ts) {
+                       start_pt = 2
+                       interval.num = abs(as.numeric(
+                                           (difftime(ts$date_time[start_pt],
+                                                     ts$date_time[start_pt + 1],
+                                                     units = "hours"))))
+                       interval = list("time_int" = interval.num)
+                       private$metadata = append(private$metadata, interval)
+                       
+                       return(interval.num)
                      },
                      
                      stochastize_ts = function(copies = 1, rand_factor) {

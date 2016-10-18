@@ -44,19 +44,24 @@ bldg_load <- R6Class("Bldg Load",
                            base_ts$elec.J = NULL
                            base_ts$gas.J = NULL
                            
-                           start_pt = sample(1:(length(base_ts$date_time)-1),1)
-                           interval = list(
-                             "time_int" = abs(as.numeric(
-                               (difftime(base_ts$date_time[start_pt],
-                                         base_ts$date_time[start_pt + 1],
-                                         units = "hours"))))
-                           )
                            # base_ts$date_time = strftime(base_ts$date_time, format="%m/%d %H:%M:%S")
                            
-                           private$metadata = append(private$metadata, interval)
-                           base_ts$kw = base_ts$kwh/private$metadata$time_int
+                           interval = self$set_interval(base_ts)
+                           base_ts$kw = base_ts$kwh/interval
                            private$base_ts = base_ts
                          }
+                       },
+                       
+                       set_interval = function(ts) {
+                         start_pt = 2
+                         interval.num = abs(as.numeric(
+                                             (difftime(ts$date_time[start_pt],
+                                                       ts$date_time[start_pt + 1],
+                                                        units = "hours"))))
+                         interval = list("time_int" = interval.num)
+                         private$metadata = append(private$metadata, interval)
+                         
+                         return(interval.num)
                        },
                        
                        make_ldc = function() {
