@@ -208,7 +208,12 @@ sys_ctrlr <- R6Class("System Controller",
                          timesteps = private$bldg_ts$date_time
                          bldg_kw = private$bldg_ts$kw
                          pv_kw = private$pv_ts$kw
-                         iso_mw = private$grid_ts$mw
+                         if (is.null(private$grid_ts)) {
+                            iso_mw = rep(1000, length(private$bldg_ts$kw))
+                         }
+                         else {
+                            iso_mw = private$grid_ts$mw
+                         }
                          
                          if(n != "full") {
                            steps = n
@@ -237,7 +242,7 @@ sys_ctrlr <- R6Class("System Controller",
                              }
                            }
                            nameplt_abrv <- paste(round(private$batt$nameplate, 2)*1000, "W", sep = "")
-                           targ_abrv <- 100 - round(private$dmd_targ/max(bldg_kw), 1)*100
+                           targ_abrv <- 100 - round(private$dmd_targ/max(bldg_kw), 2)*100
                            write.csv(sim_df, paste(curr_path, "\\", private$metadata[["ctrl_id"]],
                                                    "_", private$batt$chem, nameplt_abrv, "_shave", targ_abrv,
                                                    ".csv", sep = ""))
