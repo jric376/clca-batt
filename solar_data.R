@@ -367,75 +367,138 @@ get_chain_1hr = function(t0.val, tpm) {
   }
   return(daychain)
 }
-get_kt_1min = function(hrly_df, src_df, interval) {
+get_kt_1min = function(daily_df, src_df, interval) {
   # Attaches 1-min kt values to a time-series spanning 24hrs
 
-  weather <- unique(hrly_df$weather)
-  t0.vals <- rep(mean(filter(hrly_df, kt > 0)$kt), nrow(hrly_df)) 
+  weather <- unique(daily_df$weather)
+  # t0.vals <- (daily_df$kt)
+  t0.vals <- rep(mean(filter(daily_df, kt > 0)$kt), nrow(daily_df)) 
   tpm <- get_markovchains(df_str = src_df)
-  kt.1min <- data.frame(kt_1min = unlist(lapply(t0.vals,
-                                                function(i) {
-                                                  get_chain_1hr(i,
-                                                  tpm[[weather]])})
-                             ))
-  
-  minute_df <- data.frame(date_time = seq.POSIXt(hrly_df$date_time[1],
-                                          length.out = 24*60,
-                                          by = 60)) %>%
-                mutate(day_ind = as.numeric(strftime(date_time, format = "%j")),
-                       dayhr_ind = day_ind +
-                       as.numeric(strftime(date_time, format = "%H"))/24) %>%
-                left_join(hrly_df, by = c("day_ind", "dayhr_ind")) %>%
-                cbind.data.frame(kt.1min) %>%
-                mutate(kt_1min = ifelse(kt_1min > 2*max(hrly_df$clr_ghi),
-                                          2*mean(hrly_df$kt),
-                                          kt_1min),
-                       ghi_1min = clr_ghi*kt_1min,
-                       date_time = date_time.x) %>%
-                select(-date_time.y,-date_time.x)
-  
-  check_daily_irr <- summarize(group_by(minute_df, dayhr_ind),
-                               ghi.0 = mean(ghi),
-                               ghi.mC = mean(ghi_1min)) %>%
-                      summarize_if(is.numeric, sum)
-  scale_factor <- check_daily_irr$ghi.0 / check_daily_irr$ghi.mC
-  scale_factor <- ifelse(abs(scale_factor-1) > 0.05, scale_factor, 1)
-  minute_df <- mutate(minute_df, kt_1min.scl = kt_1min*scale_factor,
-                                  ghi_1min.scl = ghi_1min*scale_factor)
+  scale_factor <- 0.5
+  while (abs(scale_factor) >= 0.5) {
+    kt.1min <- data.frame(kt_1min = unlist(lapply(t0.vals,
+                                                  function(i) {
+                                                    get_chain_1hr(i,
+                                                    tpm[[weather]])})
+                               ))
+    
+    minute_df <- data.frame(date_time = seq.POSIXt(daily_df$date_time[1],
+                                            length.out = 24*60,
+                                            by = 60))
+#     if (nrow(minute_df) < 1440) {
+#       missing_dayind <- unique(daily_df$day_ind)
+#       missing_day <- data.frame(date_time = seq.POSIXt(strptime(paste("2014",
+#                                                                       missing_dayind),
+#                                                                 format = "%Y %j"),
+#                                                       length.out = 60,
+#                                                       by = 60))
+#       minute_df <- left_join(minute_df, missing_day, by = "date_time")
+#     }
+    
+    minute_df <- minute_df %>%
+                  mutate(day_ind = as.numeric(strftime(date_time, format = "%j")),
+                         dayhr_ind = day_ind +
+                         as.numeric(strftime(date_time, format = "%H"))/24) %>%
+                  left_join(daily_df, by = c("day_ind", "dayhr_ind")) %>%
+                  cbind.data.frame(kt.1min) %>%
+                  mutate(kt_1min = ifelse(kt_1min > 2*max(daily_df$clr_ghi),
+                                            2*mean(daily_df$kt),
+                                            kt_1min),
+                         ghi_1min = clr_ghi*kt_1min,
+                         date_time = date_time.x) %>%
+                  select(-date_time.y,-date_time.x)
+    
+    check_daily_irr <- summarize(group_by(minute_df, dayhr_ind),
+                                 ghi.0 = mean(ghi),
+                                 ghi.mC = mean(ghi_1min)) %>%
+                        summarize_if(is.numeric, sum)
+    scale_factor <- (check_daily_irr$ghi.0 / check_daily_irr$ghi.mC) - 1
+    message(paste(scale_factor, "-",
+                  unique(daily_df$day_ind), "-",
+                  weather, "-",
+                  nrow(minute_df)))
+  }
+  scale_factor <- ifelse(abs(scale_factor) > 0.05, scale_factor + 1, 1)
+  minute_df <- mutate(minute_df, scale_factor = scale_factor,
+                                 kt_1min.scl = kt_1min*scale_factor,
+                                 ghi_1min.scl = ghi_1min*scale_factor,
+                                 ghi.var = check_daily_irr$ghi.0,
+                                 ghi_mC.var = check_daily_irr$ghi.mC)
    
   return(minute_df)
 }
 get_1yr_markov = function(src_df, interval, seed = NULL) {
   if (!is.null(seed)) seed = 7
-  d_ind = 120
-  day_1min.0 = nsrdb_df.nyc %>%
-                  filter(day_ind == d_ind) %>%
-                  get_kt_1min(src_df, interval)
+  all_1min = foreach(j = 1:365,
+          .combine = "bind_rows",
+          .errorhandling = "remove") %do% {
+              
+              day_1min.0 = nsrdb_df.nyc %>%
+                            filter(day_ind == j) %>%  
+                            get_kt_1min(src_df, interval)
+              
+    return(day_1min.0)
+  }
   
-  return(day_1min.0)
+  return(all_1min)
 }
 validate_markov_df <- function(df) {
-  # bsrn_cove <- get_bsrn.cove("read")
-  # bsrn_larc <- get_bsrn.larc("read")
-  slim_df <- df %>%
-              select(date_time, ghi , ghi_1min.scl) %>%
-              mutate(ghi_1min.diff = abs(ghi_1min.scl - lag(ghi_1min.scl))) %>%
-              fill(ghi_1min.diff, .direction = "up")
+  bsrn_cove <- get_bsrn.cove("read") %>%
+                  select(date_time,ghi)
+  bsrn_larc <- get_bsrn.larc("read") %>%
+                  select(date_time, ghi)
   
-  return(slim_df)
+  bsrn_df <- full_join(bsrn_cove, bsrn_larc, by = "date_time",
+                       suffix = c("_cove", "_larc")) %>%
+                mutate(ghi_cove.diff = abs(ghi_cove - lag(ghi_cove)),
+                       ghi_larc.diff = abs(ghi_larc - lag(ghi_larc)))
+  bsrn_days <- unique(bsrn_df$day_ind)
+  
+  markov <- df %>%
+              filter(day_ind %in% bsrn_days) %>%
+              select(date_time, ghi_1min.scl) %>%
+              mutate(ghi_1min.diff = abs(ghi_1min.scl - lag(ghi_1min.scl))) %>%
+              select(date_time, ghi_1min.diff)
+  
+  output_df <- left_join(markov, bsrn_df, by = "date_time") %>%
+                  fill(ghi_1min.diff:ghi_larc.diff, .direction = "up") %>%
+                  group_by(date_time) %>%
+                  summarize_if(is.numeric, mean)
+  
+  return(output_df)
 }
 test <- get_1yr_markov(src_df = "larc", interval = 1/12)
 freq_test <- validate_markov_df(test)
 
-# need to compare to the same day in bsrn data. nsrdb hourly variance is too low...
-mean_variance <- list("markov" = sum(freq_test$ghi_1min.diff) / 1440)
-
-ggplot(data = test) + 
-  geom_line(aes(date_time, ghi)) +
-  geom_line(aes(date_time, ghi_1min), colour = "red") +
-  geom_line(aes(date_time, ghi_1min.scl), colour = "green")
+# ggplot(data = test) + 
+#   geom_line(aes(date_time, ghi)) +
+#   geom_line(aes(date_time, ghi_1min), colour = "red") +
+#   geom_line(aes(date_time, ghi_1min.scl), colour = "green")
 
 ggplot(data = freq_test) + 
-  geom_freqpoly(aes(ghi_1min.diff), binwidth = 50) +
+  geom_freqpoly(aes(ghi_1min.diff), binwidth = 50, colour = "red") + 
+  geom_freqpoly(aes(ghi_1min.diff), binwidth = 50, colour = "blue") + 
+  geom_freqpoly(aes(ghi_1min.diff), binwidth = 50, colour = "blue4") +
   scale_x_continuous(limits = c(0,max(freq_test$ghi_1min.diff))) +
   scale_y_log10()
+
+check_daily_irr <- summarise(group_by(test, day_ind),
+                             ghi_0 = mean(ghi),
+                             ghi_mC = mean(ghi_1min))
+
+# want similar plot to this but with variance on y axis
+ggplot(data = check_daily_irr, mapping = aes(x = day_ind)) +
+  geom_line(aes(y = ghi_0), colour = "red") +
+  geom_line(aes(y = ghi_mC), colour = "blue")
+
+mean_variance <- list("cove" = sum(freq_test$ghi_cove.diff) / 1440,
+                      "larc" = sum(freq_test$ghi_larc.diff) / 1440,
+                      "markov" = sum(freq_test$ghi_1min.diff) / 1440)
+
+ggplot(data = freq_test, mapping = aes(x = day_ind)) +
+  geom_line(aes(y = ghi_cove.diff), colour = "blue") +
+  geom_line(aes(y = ghi_larc.diff), colour = "blue4") +
+  geom_line(aes(y = ghi_1min.diff), colour = "blue4") +
+  
+
+mean_variance
