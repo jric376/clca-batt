@@ -74,7 +74,14 @@ get_nyc_solar = function(type = "read") {
   }
   return(nsrdb_df.slim)
 }
-
+nsrdb_df.nyc = get_nyc_solar("read") %>%
+                  filter(strftime(date_time, format = "%Y") == "2014") %>% 
+                  mutate(day_ind = as.numeric(strftime(date_time, format = "%j")),
+                         dayhr_ind = day_ind + 
+                           as.numeric(strftime(date_time, format = "%H"))/24) %>%
+                  select(-(kt.sum:kt.til),-(dhi:dni),-(clr_dhi:clr_dni),
+                         -sun_hrs)
+                  
 ## BSRN 2014 1-min Data
 {
 bsrn_dt = data.frame(seq.POSIXt(as.POSIXct("2014-01-01 00:01"),
@@ -86,6 +93,7 @@ bsrn_dt = bsrn_dt %>%
   mutate(index = strftime(date_time, format = "%Y-%m-%d"),
          day = as.numeric(strftime(date_time, format = "%d")),
          day_ind = as.numeric(strftime(date_time, format = "%j")),
+         dayhr_ind = day_ind + as.numeric(strftime(date_time, format = "%H"))/24,
          mo = as.numeric(strftime(date_time, format = "%m"))) %>%
   filter((mo == 01 & !(day > 8 & day < 14)) |
            (mo == 06 & !(day > 15 & day < 19) & !(day > 20 & day < 23)) |
@@ -346,10 +354,88 @@ get_markovchains = function(df_str) {
   names(chains) <- condns
   return(chains)
 }
+get_chain_1hr = function(t0.val, tpm) {
+  if (t0.val == 0) {
+    daychain <- rep(0, 60)
+  }
+  else {
+    daychain <- as.numeric(markovchainSequence(
+                                             59,
+                                             tpm$estimate,
+                                             t0 = round(t0.val, 2),
+                                             include.t0 = TRUE))
+  }
+  return(daychain)
+}
+get_kt_1min = function(hrly_df, src_df, interval) {
+  # Attaches 1-min kt values to a time-series spanning 24hrs
 
+  weather <- unique(hrly_df$weather)
+  t0.vals <- rep(mean(filter(hrly_df, kt > 0)$kt), nrow(hrly_df)) 
+  tpm <- get_markovchains(df_str = src_df)
+  kt.1min <- data.frame(kt_1min = unlist(lapply(t0.vals,
+                                                function(i) {
+                                                  get_chain_1hr(i,
+                                                  tpm[[weather]])})
+                             ))
+  
+  minute_df <- data.frame(date_time = seq.POSIXt(hrly_df$date_time[1],
+                                          length.out = 24*60,
+                                          by = 60)) %>%
+                mutate(day_ind = as.numeric(strftime(date_time, format = "%j")),
+                       dayhr_ind = day_ind +
+                       as.numeric(strftime(date_time, format = "%H"))/24) %>%
+                left_join(hrly_df, by = c("day_ind", "dayhr_ind")) %>%
+                cbind.data.frame(kt.1min) %>%
+                mutate(kt_1min = ifelse(kt_1min > 2*max(hrly_df$clr_ghi),
+                                          2*mean(hrly_df$kt),
+                                          kt_1min),
+                       ghi_1min = clr_ghi*kt_1min,
+                       date_time = date_time.x) %>%
+                select(-date_time.y,-date_time.x)
+  
+  check_daily_irr <- summarize(group_by(minute_df, dayhr_ind),
+                               ghi.0 = mean(ghi),
+                               ghi.mC = mean(ghi_1min)) %>%
+                      summarize_if(is.numeric, sum)
+  scale_factor <- check_daily_irr$ghi.0 / check_daily_irr$ghi.mC
+  scale_factor <- ifelse(abs(scale_factor-1) > 0.05, scale_factor, 1)
+  minute_df <- mutate(minute_df, kt_1min.scl = kt_1min*scale_factor,
+                                  ghi_1min.scl = ghi_1min*scale_factor)
+   
+  return(minute_df)
+}
+get_1yr_markov = function(src_df, interval, seed = NULL) {
+  if (!is.null(seed)) seed = 7
+  d_ind = 120
+  day_1min.0 = nsrdb_df.nyc %>%
+                  filter(day_ind == d_ind) %>%
+                  get_kt_1min(src_df, interval)
+  
+  return(day_1min.0)
+}
+validate_markov_df <- function(df) {
+  # bsrn_cove <- get_bsrn.cove("read")
+  # bsrn_larc <- get_bsrn.larc("read")
+  slim_df <- df %>%
+              select(date_time, ghi , ghi_1min.scl) %>%
+              mutate(ghi_1min.diff = abs(ghi_1min.scl - lag(ghi_1min.scl))) %>%
+              fill(ghi_1min.diff, .direction = "up")
+  
+  return(slim_df)
+}
+test <- get_1yr_markov(src_df = "larc", interval = 1/12)
+freq_test <- validate_markov_df(test)
 
-# nsrdb_df.nyc = get_nyc_solar("read")
-tpm.0 <- get_markovchains(df_str = "larc")[1]
-markovchainSequence(10, tpm.0[[names(tpm.0)]]$estimate, t0 = 0.01)
+# need to compare to the same day in bsrn data. nsrdb hourly variance is too low...
+mean_variance <- list("markov" = sum(freq_test$ghi_1min.diff) / 1440)
 
-# need to test frequency of irradiance, calclate mean variability before doing markov stuff
+ggplot(data = test) + 
+  geom_line(aes(date_time, ghi)) +
+  geom_line(aes(date_time, ghi_1min), colour = "red") +
+  geom_line(aes(date_time, ghi_1min.scl), colour = "green")
+
+ggplot(data = freq_test) + 
+  geom_freqpoly(aes(ghi_1min.diff), binwidth = 50) +
+  scale_x_continuous(limits = c(0,max(freq_test$ghi_1min.diff))) +
+  scale_y_log10()
