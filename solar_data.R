@@ -402,7 +402,7 @@ get_kt_1min = function(daily_df, src_df, interval) {
                   left_join(daily_df, by = c("day_ind", "dayhr_ind")) %>%
                   cbind.data.frame(kt.1min) %>%
                   mutate(kt_1min = ifelse(kt_1min > 2*max(daily_df$clr_ghi),
-                                            2*mean(daily_df$kt),
+                                            2*mean(daily_df$clr_ghi),
                                             kt_1min),
                          ghi_1min = clr_ghi*kt_1min,
                          date_time = date_time.x) %>%
@@ -443,16 +443,13 @@ get_1yr_markov = function(src_df, interval, seed = NULL) {
   return(all_1min)
 }
 validate_markov_df <- function(df) {
-  bsrn_cove <- get_bsrn.cove("read") %>%
-                  select(date_time,ghi)
-  bsrn_larc <- get_bsrn.larc("read") %>%
-                  select(date_time, ghi)
-  
+  bsrn_cove <- get_bsrn.cove("read")
+  bsrn_larc <- get_bsrn.larc("read")
   bsrn_df <- full_join(bsrn_cove, bsrn_larc, by = "date_time",
-                       suffix = c("_cove", "_larc")) %>%
-                mutate(ghi_cove.diff = abs(ghi_cove - lag(ghi_cove)),
-                       ghi_larc.diff = abs(ghi_larc - lag(ghi_larc)))
-  bsrn_days <- unique(bsrn_df$day_ind)
+                       suffix = c("_cove", "_larc"))
+  bsrn_days <- unique(bsrn_df$day_ind_cove)
+  bsrn_df <- bsrn_df %>%
+                select(date_time, ghi_cove, ghi_larc)
   
   markov <- df %>%
               filter(day_ind %in% bsrn_days) %>%
@@ -461,6 +458,8 @@ validate_markov_df <- function(df) {
               select(date_time, ghi_1min.diff)
   
   output_df <- left_join(markov, bsrn_df, by = "date_time") %>%
+                  mutate(ghi_cove.diff = abs(ghi_cove - lag(ghi_cove)),
+                         ghi_larc.diff = abs(ghi_larc - lag(ghi_larc))) %>%
                   fill(ghi_1min.diff:ghi_larc.diff, .direction = "up") %>%
                   group_by(date_time) %>%
                   summarize_if(is.numeric, mean)
@@ -477,8 +476,8 @@ freq_test <- validate_markov_df(test)
 
 ggplot(data = freq_test) + 
   geom_freqpoly(aes(ghi_1min.diff), binwidth = 50, colour = "red") + 
-  geom_freqpoly(aes(ghi_1min.diff), binwidth = 50, colour = "blue") + 
-  geom_freqpoly(aes(ghi_1min.diff), binwidth = 50, colour = "blue4") +
+  geom_freqpoly(aes(ghi_cove.diff), binwidth = 50, colour = "blue") + 
+  geom_freqpoly(aes(ghi_larc.diff), binwidth = 50, colour = "blue4") +
   scale_x_continuous(limits = c(0,max(freq_test$ghi_1min.diff))) +
   scale_y_log10()
 
