@@ -15,9 +15,9 @@ library("ggplot2")
 library("ggrepel")
 library("tidyr")
 
-if (!dir.exists(file.path("outputs\\plots"))) {
-  dir.create(file.path("outputs\\plots"))
-}
+# if (!dir.exists(file.path("outputs\\plots"))) {
+#   dir.create(file.path("outputs\\plots"))
+# }
 cbb_qual <- c("#E69F00", "#999999","#CC79A7", "#009E73", "#F0E442",
               "#000000", "#0072B2", "#D55E00", "#56B4E9")
 
@@ -359,7 +359,7 @@ get_bldg_comp <- function() {
 }
 get_kt_dist <- function(which_df, save = FALSE) {
   if(which_df == "nyc_nsrdb") {
-    solar_df = read.csv("inputs\\solar_nsrdb_slim.csv") %>%
+    solar_df = read.csv("inputs\\solar_nsrdb_2014.csv") %>%
       mutate(df = "NYC") %>%
       select(-X)
     cbb_qual = cbb_qual[2:3]
@@ -378,9 +378,9 @@ get_kt_dist <- function(which_df, save = FALSE) {
       group_by(dayhr_ind, date_time, weather, df) %>%
       summarise(kt.bar = mean(kt.bar),
                 kt.til = mean(kt.til))
-    cbb_qual = cbb_qual[1:3]
-    label_scale = 3
-    y_max = 0.4
+    cbb_qual = cbb_qual[2:3]
+    label_scale = 5
+    y_max = 0.3
   }
   sample_days = sample_n(group_by(solar_df, weather), 2)
   kt_plot = ggplot(solar_df, aes(x = kt.bar, y = kt.til)) +
@@ -427,6 +427,97 @@ get_kt_dist <- function(which_df, save = FALSE) {
   }
   
   return(kt_plot)
+}
+get_markov_sample <- function(sample, save = FALSE) {
+  
+  sample_colors = c("1min" = cbb_qual[9], "1hr" = cbb_qual[6])
+  mC_plt.bare <- ggplot(data = sample,
+                          mapping = aes(x = date_time)) +
+                  theme(panel.background = element_rect(colour = "gray75", fill = "gray80")) +
+                  theme(text = element_text(size = 16),
+                        axis.text.x = element_text(size = 14),
+                        axis.text.y = element_text(size = 14)) +
+                  theme(legend.box = "horizontal",
+                        legend.background = element_rect(fill = "white", colour = "gray75")) +
+                  background_grid(major = "xy", minor = "none",
+                                size.major = 0.5, colour.major = "gray85")
+  
+  
+  mC_plt.kt <- mC_plt.bare +
+                  geom_line(aes(date_time, kt_1min.scl, colour = "1min")) +
+                  geom_line(aes(date_time, kt, colour = "1hr"),
+                            alpha = 1/1.5, size = 1.1) +
+                  scale_colour_manual(name = NULL, values = sample_colors,
+                                      guide = guide_legend(override.aes = list(size = 3))) +
+                  labs(x = NULL,
+                       y = bquote(k[t]))
+  
+  mC_plt.ghi <- mC_plt.bare +
+                  geom_line(aes(date_time, ghi_1min.scl, colour = "1min")) +
+                  geom_line(aes(date_time, ghi, colour = "1hr"),
+                            alpha = 1/1.5, size = 1.1) +
+                  scale_colour_manual(name = NULL, values = sample_colors,
+                                      guide = guide_legend(override.aes = list(size = 2))) +
+                  labs(x = NULL,
+                       y = bquote("GHI (W /" ~m^2~")"))
+  
+  grobs <- ggplotGrob(mC_plt.ghi)$grobs
+  legend <- grobs[[which(sapply(grobs, function(x) x$name) == "guide-box")]]
+  
+  mC_plt.combined <- plot_grid(mC_plt.kt + theme(legend.position= "none"),
+                               NULL,
+                               mC_plt.ghi + theme(legend.position = "none"), 
+                               labels = c("A","","B"),
+                               nrow = 3, 
+                               rel_heights = c(1,0.25,1),
+                               align = "v") + 
+                        draw_grob(legend, 0, 1/2.25, 1, .25/2.25)
+  
+  ### For saving combined plot
+  if (save) {
+    save_plot(filename = "outputs\\plots\\markov_sample.png",
+              mC_plt.combined, ncol = 1, nrow = 2,
+              base_height = 6.25, base_width = 10)
+  }
+  return(mC_plt.combined)
+}
+get_markov_freqpoly <- function(mC_freq, save = FALSE) {
+  
+  markov_colors = c("cove model" = "#ca0020", "cove" = "#f4a582",
+                    "larc" = "#92c5de", "larc model" = "#0571b0")
+  mC_freq.plot <- ggplot(data = mC_freq) + 
+                    geom_freqpoly(aes(cove_var, colour = "cove"), binwidth = 5,
+                                  size = 1.5) + 
+                    geom_freqpoly(aes(larc_var, colour = "larc"),binwidth = 5,
+                                  size = 1.5) +
+                    geom_freqpoly(aes(markov_var_cove, colour = "cove model"), binwidth = 5,
+                                  size = 1.5) + 
+                    geom_freqpoly(aes(markov_var_larc, colour = "larc model"), binwidth = 5,
+                                  size = 1.5) +
+                    scale_x_continuous(limits = c(0,150)) +
+                    scale_y_log10() +
+                    scale_colour_manual(name = "Dataset", values = markov_colors) + 
+                    labs(
+                      x = bquote(e[var]),
+                      y = "Counts",
+                      title = "Comparing Normalized 1min Solar GHI Variance"
+                    ) +
+                    theme(panel.background = element_rect(colour = "gray75", fill = "gray80")) +
+                    theme(panel.grid.major = element_line(colour = "gray85")) +
+                    theme(panel.grid.minor = element_line(colour = "gray85")) +
+                    theme(text = element_text(size = 16),
+                          axis.text.x = element_text(size = 12),
+                          axis.text.y = element_text(size = 12)) +
+                    theme(legend.position = c(0.8, 0.8), legend.box = "vertical",
+                          legend.background = element_rect(fill = "white", colour = "gray75"))
+  
+  if(save) {
+    ggsave(filename = paste0("outputs\\plots\\mC_freq.png"),
+           mC_freq.plot, 
+           width = 10, height = 6.25, units = "in")
+  }
+  
+  return(mC_freq.plot)
 }
 
 # bldg_gif <- get_ani_bldg(20)
