@@ -1,7 +1,7 @@
 # Solar Resource Characterization
 
 # Contains full set of solar data from NSRDB
-# Calculates transition matrix for Markov Chains - NOT DONE
+# Calculates transition matrix for Markov Chains
 
 library("data.table")
 library('foreach')
@@ -75,18 +75,16 @@ get_nyc_solar = function(type = "read") {
     nsrdb_df = read.csv("inputs\\solar_nsrdb_2014.csv")  %>% 
       select(-X) %>%
       mutate(date_time = as.POSIXct(date_time)) %>%
-      mutate_if(is.factor, as.character)
+      mutate_if(is.factor, as.character) %>%
+      filter(strftime(date_time, format = "%Y") == "2014") %>% 
+      mutate(day_ind = as.numeric(strftime(date_time, format = "%j")),
+             dayhr_ind = day_ind + 
+               as.numeric(strftime(date_time, format = "%H"))/24) %>%
+      select(-(kt.sum:kt.til),-(dhi:dni),-(clr_dhi:clr_dni),
+             -sun_hrs)
   }
   return(nsrdb_df)
 }
-nsrdb_df.nyc = get_nyc_solar("read") %>%
-                  filter(strftime(date_time, format = "%Y") == "2014") %>% 
-                  mutate(day_ind = as.numeric(strftime(date_time, format = "%j")),
-                         dayhr_ind = day_ind + 
-                           as.numeric(strftime(date_time, format = "%H"))/24) %>%
-                  select(-(kt.sum:kt.til),-(dhi:dni),-(clr_dhi:clr_dni),
-                         -sun_hrs)
-                  
 ## BSRN 2014 1-min Data
 {
 bsrn_dt = data.frame(seq.POSIXt(as.POSIXct("2014-01-01 00:01"),
@@ -362,92 +360,150 @@ get_markovchains = function(df_str) {
   names(chains) <- condns
   return(chains)
 }
-get_chain_1hr = function(t0.val, tpm) {
-  if (t0.val == 0) {
-    daychain <- rep(0, 60)
-  }
-  else {
-    daychain <- as.numeric(markovchainSequence(
-                                             59,
-                                             tpm$estimate,
-                                             t0 = round(t0.val, 2),
-                                             include.t0 = TRUE))
-  }
-  return(daychain)
+get_chain_1hr = function(t0.val, cop = 2, tpm.list, weather) {
+  df_names = c("cove", "larc", "too_many")
+  daychains <-  foreach(i = 1:length(tpm.list),
+                        .combine = "cbind.data.frame") %do% {
+                    foreach(j = 1:cop,
+                            .combine = "cbind.data.frame") %do% {
+                    if (t0.val == 0) {
+                      daychain <- rep(0, 24*60)
+                    }
+                    else {
+                      tpm <- tpm.list[[i]]
+                      daychain <- as.numeric(markovchainSequence(
+                                                               24*60-1,
+                                                               tpm$estimate,
+                                                               t0 = round(t0.val, 2),
+                                                               include.t0 = TRUE))
+                    }
+                    daychain <- list(j = daychain)
+                    }
+                }
+  names(daychains) <- sort(unlist(lapply(1:length(tpm.list), function(x) {
+                                    lapply(1:cop, function(y) {
+                                      paste0("kt_1min.",df_names[[x]],"_",y)})})))
+  return(daychains)
 }
-get_kt_1min = function(daily_df, src_df, interval) {
+attach_chains = function(df, scalars) {
+  
+  ghi.col <- select(df, kt, clr_ghi)
+  ghi_1min <- foreach(x = iter(scalars, by = 'col'),
+                      nm = colnames(scalars),
+                      .combine = "cbind.data.frame") %do% {
+                        new_ghi_1min = ghi.col %>%
+                                        mutate(new_ghi_1min = clr_ghi*x) %>%
+                                        select(new_ghi_1min)
+                        new_nm <- gsub("^.*?_","ghi_",nm)
+                        names(new_ghi_1min) <- new_nm
+                        new_ghi_1min
+                      }
+  
+  df <- cbind.data.frame(df, scalars, ghi_1min)
+  
+  return(df)
+}
+get_kt_1min = function(daily_df, tpm.list, cop = 2, interval) {
   # Attaches 1-min kt values to a time-series spanning 24hrs
 
   weather <- unique(daily_df$weather)
-  # t0.vals <- (daily_df$kt)
-  t0.vals <- rep(mean(filter(daily_df, kt > 0)$kt), nrow(daily_df)) 
-  tpm <- get_markovchains(df_str = src_df)
-  scale_factor <- 0.5
-  while (abs(scale_factor) >= 0.5) {
-    kt.1min <- data.frame(kt_1min = unlist(lapply(t0.vals,
-                                                  function(i) {
-                                                    get_chain_1hr(i,
-                                                    tpm[[weather]])})
-                               ))
+  t0.val <- filter(daily_df, kt > 0) %>%
+                filter(row_number(kt) == 1) %>%
+                select(kt) %>%
+                as.numeric()
+  # scale_factor <- 0.5
+  # while (abs(1 - scale_factor) >= 0.5) {
+    kt.1min <- get_chain_1hr(t0.val, cop, tpm.list) %>%
+                    mutate_all(function(x) ifelse(x > 2, 2, x))
+    # kt.1min <- mutate_all(kt.1min, function(x) ifelse(kt.1min$kt == 0, 0, x))
     
-    minute_df <- data.frame(date_time = seq.POSIXt(daily_df$date_time[1],
-                                            length.out = 24*60,
+    day_df <- data.frame(date_time = seq.POSIXt(daily_df$date_time[1],
+                                            length.out = nrow(kt.1min),
                                             by = 60))
-#     if (nrow(minute_df) < 1440) {
+#     if (nrow(day_df) < 1440) {
 #       missing_dayind <- unique(daily_df$day_ind)
 #       missing_day <- data.frame(date_time = seq.POSIXt(strptime(paste("2014",
 #                                                                       missing_dayind),
 #                                                                 format = "%Y %j"),
 #                                                       length.out = 60,
 #                                                       by = 60))
-#       minute_df <- left_join(minute_df, missing_day, by = "date_time")
+#       day_df <- left_join(day_df, missing_day, by = "date_time")
 #     }
     
-    minute_df <- minute_df %>%
+    day_df <- day_df %>%
                   mutate(day_ind = as.numeric(strftime(date_time, format = "%j")),
                          dayhr_ind = day_ind +
                          as.numeric(strftime(date_time, format = "%H"))/24) %>%
                   left_join(daily_df, by = c("day_ind", "dayhr_ind")) %>%
-                  cbind.data.frame(kt.1min) %>%
-                  mutate(kt_1min = ifelse(kt_1min > 1.5*max(daily_df$kt),
-                                            2,
-                                            ifelse(kt == 0, 0, kt_1min)),
-                         ghi_1min = clr_ghi*kt_1min,
-                         date_time = date_time.x) %>%
-                  select(-date_time.y,-date_time.x)
+                  mutate(date_time = date_time.x) %>%
+                  select(-date_time.x, -date_time.y) %>%
+                  attach_chains(kt.1min)
     
-    check_daily_irr <- summarize(group_by(minute_df, dayhr_ind),
-                                 ghi.0 = mean(ghi),
-                                 ghi.mC = mean(ghi_1min)) %>%
-                        summarize_if(is.numeric, sum)
-    scale_factor <- (check_daily_irr$ghi.0 / check_daily_irr$ghi.mC) - 1
+    daily.ghi <- select(day_df, dayhr_ind, ghi) %>%
+                    group_by(dayhr_ind) %>%
+                    summarise(ghi = mean(ghi)) %>%
+                    ungroup() %>%
+                    summarise(ghi = sum(ghi)) %>%
+                    as.numeric()
+    mC.ghi <- select(day_df, dayhr_ind, contains("ghi_")) %>%
+                    group_by(dayhr_ind) %>%
+                    summarise_at(contains("ghi_"), mean) %>%
+                    ungroup() %>%
+                    summarise_at(contains("ghi_"), sum) %>%
+                    rowMeans()
+    scale_factor <- daily.ghi / mC.ghi
     message(paste(scale_factor, "-",
                   unique(daily_df$day_ind), "-",
                   weather, "-",
-                  nrow(minute_df)))
-  }
-  scale_factor <- ifelse(abs(scale_factor) > 0.05, scale_factor + 1, 1)
-  minute_df <- mutate(minute_df, scale_factor = scale_factor,
-                                 kt_1min.scl = kt_1min*scale_factor,
-                                 ghi_1min.scl = ghi_1min*scale_factor,
-                                 ghi.var = check_daily_irr$ghi.0,
-                                 ghi_mC.var = check_daily_irr$ghi.mC)
-   
-  return(minute_df)
+                  daily.ghi, "-",
+                  mC.ghi))
+  # }
+  cols_to_keep <- select(day_df, day_ind:kt, date_time)
+  scale_factor <- ifelse(abs(scale_factor-1) <= 0.05, 1, scale_factor)
+  scaled_kt <- select(day_df, contains("kt_"), kt)
+  scaled_kt <- mutate_all(scaled_kt, function(x) ifelse(scaled_kt$kt == 0, 0, x)) %>%
+                  select(-kt) %>%
+                  mutate_all(function(x) x*scale_factor)
+  scaled_ghi <- select(day_df, contains("ghi_")) %>%
+                  mutate_all(function(x) x*scale_factor)
+  output_df <- cbind.data.frame(cols_to_keep, scaled_kt, scaled_ghi)
+  return(output_df)
 }
-get_1yr_markov = function(src_df, interval, seed = NULL) {
+get_1yr_markov = function(src_df = list("cove", "larc"), cop = 2, interval, seed = NULL) {
   if (!is.null(seed)) seed = 7
-  all_1min = foreach(j = 1:365,
-          .combine = "bind_rows",
-          .errorhandling = "remove") %do% {
-              
-              day_1min.0 = nsrdb_df.nyc %>%
-                            filter(day_ind == j) %>%  
-                            get_kt_1min(src_df, interval)
-              
-    return(day_1min.0)
-  }
   
+  nsrdb_df <- get_nyc_solar("read")
+  
+  cl <- makeCluster(3)
+  registerDoSNOW(cl)
+  
+  funs.to.pass <- c("get_bsrn.cove", "get_bsrn.larc",
+                    "get_nyc_solar", "get_markovchains",
+                    "get_chain_1hr", "attach_chains",
+                    "get_kt_1min")
+  pkgs.to.pass <- c("data.table", "foreach", "iterators",
+                    "plyr", "dplyr",
+                    "tidyr", "futile.logger")
+  
+  all_1min = foreach(j = 1:365,
+                .combine = "bind_rows",
+                .multicombine = TRUE,
+                .export = funs.to.pass,
+                .packages = pkgs.to.pass,
+                # .errorhandling = "remove",
+                .verbose = TRUE) %dopar% {
+                  
+                  day_1min.0 = nsrdb_df %>%
+                                filter(day_ind == j)
+                  weather <- unique(day_1min.0$weather)
+                  tpm.1 <- get_markovchains(df_str = src_df[1])[[weather]]
+                  tpm.2 <- get_markovchains(df_str = src_df[2])[[weather]]
+                  tpm.list <- list(tpm.1, tpm.2)
+                  
+                  day_1min.0 <- get_kt_1min(day_1min.0, tpm.list, cop, interval)
+            
+                }
+  stopCluster(cl)
   return(all_1min)
 }
 validate_markov_df <- function(df) {
@@ -459,12 +515,16 @@ validate_markov_df <- function(df) {
   bsrn_df <- bsrn_df %>%
                 select(date_time, ghi_cove, ghi_larc)
   
-  markov <- df %>%
-              filter(day_ind %in% bsrn_days) %>%
-              select(date_time, ghi_1min.scl) %>%
-              mutate(markov_var = ifelse(ghi_1min.scl == 0, 0,
-                                            abs(ghi_1min.scl - lag(ghi_1min.scl))/ghi_1min.scl)) %>%
-              select(date_time, markov_var)
+  markov <- filter(df, day_ind %in% bsrn_days)
+  markov <- mutate(markov, markov_mean.cove = rowMeans(select(markov,
+                                                      matches("(.*ghi_)(.*cove)"))),
+                   markov_mean.larc = rowMeans(select(markov,
+                                                      matches("(.*ghi_)(.*larc)")))) %>%
+              mutate(markov_var.cove = ifelse(markov_mean.cove == 0, 0,
+                                        abs(markov_mean.cove - lag(markov_mean.cove))/markov_mean.cove),
+                     markov_var.larc = ifelse(markov_mean.larc == 0, 0,
+                                        abs(markov_mean.larc - lag(markov_mean.larc))/markov_mean.larc)) %>%
+              select(date_time, contains("markov_var"))
   
   output_df <- left_join(markov, bsrn_df, by = "date_time") %>%
                   mutate(cove_var = ifelse(ghi_cove == 0, 0,
@@ -473,29 +533,21 @@ validate_markov_df <- function(df) {
                                                 abs(ghi_larc - lag(ghi_larc))/ghi_larc)) %>%
                   mutate(cove_var = ifelse(cove_var < 0, 0, cove_var),
                          larc_var = ifelse(larc_var < 0, 0, larc_var)) %>%
-                  fill(markov_var:larc_var, .direction = "up") %>%
+                  fill(contains("var"), .direction = "up") %>%
                   group_by(date_time) %>%
                   summarize_if(is.numeric, mean) %>%
-                  select(date_time, markov_var, cove_var, larc_var)
+                  select(date_time, contains("var"))
   
   return(output_df)
 }
 
-mC_1yr.cove <- get_1yr_markov(src_df = "cove", interval = 1/12)
-mC_1yr.larc <- get_1yr_markov(src_df = "larc", interval = 1/12)
+# mC_1yr <- get_1yr_markov(cop = 10, interval = 1/12)
+mC_1yr.freq <- validate_markov_df(mC_1yr)
 
-# want to combine both src_df results into one function call
-# also, want single function call to generate multiple years in parallel
-
-mC_1yr.cove.freq <- validate_markov_df(mC_1yr.cove)
-mC_1yr.larc.freq <- validate_markov_df(mC_1yr.larc)
-mC_1yr.freq <- inner_join(mC_1yr.cove.freq, mC_1yr.larc.freq,
-                          by = c("date_time", "cove_var", "larc_var"),
-                          suffix = c("_cove", "_larc"))
-
-sample_colors = c("1min" = "#56B4E9", "1hr" = "#000000")
-sample.cove = mC_1yr.cove %>%
-                select(date_time, day_ind, kt, kt_1min.scl, ghi, ghi_1min.scl, weather) %>%
+sample_mC = mC_1yr %>%
+                select(date_time, day_ind,
+                       contains("kt"), contains("ghi"),
+                       weather) %>%
                 filter(day_ind %in% seq(119,123))
 
 check_daily_irr.cove <- summarise(group_by(mC_1yr.cove, day_ind),

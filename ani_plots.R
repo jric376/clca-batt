@@ -430,12 +430,16 @@ get_kt_dist <- function(which_df, save = FALSE) {
 }
 get_markov_sample <- function(sample, save = FALSE) {
   
-  sample_colors = c("1min" = cbb_qual[9], "1hr" = cbb_qual[6])
+  sample_colors = c("COVE 1min" = cbb_qual[9],
+                    "LARC 1min" = cbb_qual[8],
+                    "NSRDB 1hr" = cbb_qual[6])
   mC_plt.bare <- ggplot(data = sample,
-                          mapping = aes(x = date_time)) +
+                          mapping = aes(x = as.factor(date_time)), alpha = 1/2) +
+                  scale_x_datetime(date_breaks = "1 day",
+                               date_labels = "%m-%d") +
                   theme(panel.background = element_rect(colour = "gray75", fill = "gray80")) +
                   theme(text = element_text(size = 16),
-                        axis.text.x = element_text(size = 14),
+                        axis.text.x = element_text(size = 12),
                         axis.text.y = element_text(size = 14)) +
                   theme(legend.box = "horizontal",
                         legend.background = element_rect(fill = "white", colour = "gray75")) +
@@ -444,18 +448,20 @@ get_markov_sample <- function(sample, save = FALSE) {
   
   
   mC_plt.kt <- mC_plt.bare +
-                  geom_line(aes(date_time, kt_1min.scl, colour = "1min")) +
-                  geom_line(aes(date_time, kt, colour = "1hr"),
-                            alpha = 1/1.5, size = 1.1) +
+                  geom_line(aes(date_time, kt_1min.larc_1, colour = "LARC 1min")) +
+                  geom_line(aes(date_time, kt_1min.cove_1, colour = "COVE 1min")) +
+                  geom_line(aes(date_time, kt, colour = "NSRDB 1hr"),
+                            alpha = 1/1.2) +
                   scale_colour_manual(name = NULL, values = sample_colors,
                                       guide = guide_legend(override.aes = list(size = 3))) +
                   labs(x = NULL,
                        y = bquote(k[t]))
   
   mC_plt.ghi <- mC_plt.bare +
-                  geom_line(aes(date_time, ghi_1min.scl, colour = "1min")) +
-                  geom_line(aes(date_time, ghi, colour = "1hr"),
-                            alpha = 1/1.5, size = 1.1) +
+                  geom_line(aes(date_time, ghi_1min.larc_1, colour = "LARC 1min")) +
+                  geom_line(aes(date_time, ghi_1min.cove_1, colour = "COVE 1min")) +
+                  geom_line(aes(date_time, ghi, colour = "NSRDB 1hr"),
+                            alpha = 1/1.2) +
                   scale_colour_manual(name = NULL, values = sample_colors,
                                       guide = guide_legend(override.aes = list(size = 2))) +
                   labs(x = NULL,
@@ -469,9 +475,9 @@ get_markov_sample <- function(sample, save = FALSE) {
                                mC_plt.ghi + theme(legend.position = "none"), 
                                labels = c("A","","B"),
                                nrow = 3, 
-                               rel_heights = c(1,0.25,1),
+                               rel_heights = c(1,0.3,1),
                                align = "v") + 
-                        draw_grob(legend, 0, 1/2.25, 1, .25/2.25)
+                        draw_grob(legend, 0, 1/2.3, 1, .3/2.3)
   
   ### For saving combined plot
   if (save) {
@@ -486,15 +492,15 @@ get_markov_freqpoly <- function(mC_freq, save = FALSE) {
   markov_colors = c("cove model" = "#ca0020", "cove" = "#f4a582",
                     "larc" = "#92c5de", "larc model" = "#0571b0")
   mC_freq.plot <- ggplot(data = mC_freq) + 
-                    geom_freqpoly(aes(cove_var, colour = "cove"), binwidth = 5,
+                    geom_freqpoly(aes(cove_var, colour = "cove"), binwidth = 10,
                                   size = 1.5) + 
-                    geom_freqpoly(aes(larc_var, colour = "larc"),binwidth = 5,
+                    geom_freqpoly(aes(larc_var, colour = "larc"),binwidth = 10,
                                   size = 1.5) +
-                    geom_freqpoly(aes(markov_var_cove, colour = "cove model"), binwidth = 5,
-                                  size = 1.5) + 
-                    geom_freqpoly(aes(markov_var_larc, colour = "larc model"), binwidth = 5,
+                    geom_freqpoly(aes(markov_var.cove, colour = "cove model"), binwidth = 10,
                                   size = 1.5) +
-                    scale_x_continuous(limits = c(0,150)) +
+                    geom_freqpoly(aes(markov_var.larc, colour = "larc model"), binwidth = 10,
+                                  size = 1.5) +
+                    scale_x_continuous(limits = c(0,100)) +
                     scale_y_log10() +
                     scale_colour_manual(name = "Dataset", values = markov_colors) + 
                     labs(
