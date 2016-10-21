@@ -21,11 +21,13 @@ sampleDF <- function(df, n) df[sample(nrow(df), n), , drop = FALSE]
 ## NSRDB 2005-2014 Hourly Data
 get_nyc_solar = function(type = "read") {
   if (type == "new" | type == "write") {
-    nsrdb_files = list.files("inputs\\nsrdb_raw", pattern = "*.csv", full.names = TRUE)
-    nsrdb_df = rbindlist(lapply(nsrdb_files, fread))
-    colnames(nsrdb_df) = c("year","mo","day","hr","min","dhi","dni","ghi",
-                           "clr_dhi", "clr_dni", "clr_ghi", "tempC", "pressure")
-    nsrdb_df = write.csv(nsrdb_df, "inputs\\solar_nsrdb.csv")
+    ## THIS BLOCK IS ONLY NEEDED ONCE, TO COMPILE DIFFERENT CSV FILES
+    
+    # nsrdb_files = list.files("inputs\\nsrdb_raw", pattern = "*.csv", full.names = TRUE)
+    # nsrdb_df = rbindlist(lapply(nsrdb_files, fread))
+    # colnames(nsrdb_df) = c("year","mo","day","hr","min","dhi","dni","ghi",
+    #                        "clr_dhi", "clr_dni", "clr_ghi", "tempC", "pressure")
+    # nsrdb_df = write.csv(nsrdb_df, "inputs\\solar_nsrdb.csv")
   
     nsrdb_df = read.csv("inputs\\solar_nsrdb.csv") %>%
       mutate(date_time = as.POSIXct(strptime(paste(year,"-",mo,"-",day," ",
@@ -40,39 +42,42 @@ get_nyc_solar = function(type = "read") {
       select(-X,-(year:min)) %>%
       group_by(dayhr_ind, date_time) %>%
       summarise_if(is.numeric, "mean") %>%
-      mutate(sun_hrs = ifelse(ghi == 0, 0, 1))
+      mutate(sun_hrs = ifelse(ghi == 0, 0, 1)) %>%
+      ungroup() %>%
+      add_weather()
   
-    sun_hrs.daily = group_by(nsrdb_df, day_ind, sun_hrs) %>%
-      tally() %>%
-      mutate(sun_hrs.daily = ifelse(sun_hrs < 1, 0, as.numeric(n))) %>%
-      select(-(sun_hrs:n)) %>%
-      filter(sun_hrs.daily > 0)
-    kt_sum = group_by(nsrdb_df, day_ind) %>%
-      summarise(kt.sum = sum(kt))
-    kt_diff = group_by(nsrdb_df, day_ind) %>%
-      mutate(temp_diff = abs(kt - lag(kt, default = 0))) %>%
-      summarise(kt.diff = sum(temp_diff))
-    cols_to_add = Reduce(left_join, list(kt_sum, kt_diff, sun_hrs.daily)) %>%
-      mutate(kt.bar = ifelse(sun_hrs.daily == 0, 0, kt.sum / sun_hrs.daily),
-             kt.til = ifelse(sun_hrs.daily == 0, 0, kt.diff / sun_hrs.daily),
-             weather = ifelse((kt.bar+kt.til)<0.6, "Overcast",
-                              ifelse((0.8*kt.bar-kt.til)>=0.72, "Cloudless",
-                                     "Some clouds")))
-    nsrdb_df = left_join(cols_to_add, nsrdb_df)
+    # sun_hrs.daily = group_by(nsrdb_df, day_ind, sun_hrs) %>%
+    #   tally() %>%
+    #   mutate(sun_hrs.daily = ifelse(sun_hrs < 1, 0, as.numeric(n))) %>%
+    #   select(-(sun_hrs:n)) %>%
+    #   filter(sun_hrs.daily > 0)
+    # kt_sum = group_by(nsrdb_df, day_ind) %>%
+    #   summarise(kt.sum = sum(kt))
+    # kt_diff = group_by(nsrdb_df, day_ind) %>%
+    #   mutate(temp_diff = abs(kt - lag(kt, default = 0))) %>%
+    #   summarise(kt.diff = sum(temp_diff))
+    # cols_to_add = Reduce(left_join, list(kt_sum, kt_diff, sun_hrs.daily)) %>%
+    #   mutate(kt.bar = ifelse(sun_hrs.daily == 0, 0, kt.sum / sun_hrs.daily),
+    #          kt.til = ifelse(sun_hrs.daily == 0, 0, kt.diff / sun_hrs.daily),
+    #          weather = ifelse((kt.bar+kt.til)<0.6, "Overcast",
+    #                           ifelse((0.8*kt.bar-kt.til)>=0.72, "Cloudless",
+    #                                  "Some clouds")))
+    # nsrdb_df = left_join(cols_to_add, nsrdb_df)
+    
     if (type == "write") {
-      temp_file_name = paste0("inputs\\solar_nsrdb_slim_",
+      temp_file_name = paste0("inputs\\solar_nsrdb_2014",
                               strftime(Sys.time(), format = "%y%m%d_%H%M"),
                               ".csv")
       write.csv(nsrdb_df, temp_file_name)
     }
   }
   if(type == "read") {
-    nsrdb_df.slim = read.csv("inputs\\solar_nsrdb_slim.csv")  %>% 
+    nsrdb_df = read.csv("inputs\\solar_nsrdb_2014.csv")  %>% 
       select(-X) %>%
       mutate(date_time = as.POSIXct(date_time)) %>%
       mutate_if(is.factor, as.character)
   }
-  return(nsrdb_df.slim)
+  return(nsrdb_df)
 }
 nsrdb_df.nyc = get_nyc_solar("read") %>%
                   filter(strftime(date_time, format = "%Y") == "2014") %>% 
@@ -103,7 +108,7 @@ bsrn_dt = bsrn_dt %>%
 sample_dt = unique(bsrn_dt$index) # LARC data is limiting factor for days in selected months
 }
 
-# Combining LARC files, saved as bsrn_df.larc
+# Combining LARC files, or reading the csv
 get_bsrn.larc = function(type = "read") {
     if (type == "new" | type == "write") {
       readUrl <- function(url, skip = 3) {
@@ -203,19 +208,21 @@ get_bsrn.larc = function(type = "read") {
       stopCluster(cl)
   
       bsrn_df.larc.days = bsrn_df.larc.days %>%
-                              mutate(date_time = as.POSIXct(date_time),
-                                     hr = as.numeric(strftime(date_time, format = "%H")),
-                                     dayhr_ind = day_ind + hr/24) %>%
-                              filter(!is.na(date_time)) %>%
-                              arrange(dayhr_ind, date_time) %>%
-                              select(-tempC,-hr) %>%
-                              group_by(dayhr_ind, date_time) %>%
-                              summarise_if(is.numeric, "mean") %>%
-                              mutate(sun_hrs = ifelse(ghi == 0, 0, 1))
+                            mutate(date_time = as.POSIXct(date_time),
+                                   hr = as.numeric(strftime(date_time, format = "%H")),
+                                   dayhr_ind = day_ind + hr/24) %>%
+                            filter(!is.na(date_time)) %>%
+                            arrange(dayhr_ind, date_time) %>%
+                            select(-tempC,-hr) %>%
+                            group_by(dayhr_ind, date_time) %>%
+                            summarise_if(is.numeric, "mean") %>%
+                            mutate(sun_hrs = ifelse(ghi == 0, 0, 1)) %>%
+                            ungroup() %>%
+                            add_weather()
   
-      tally.compare <- left_join(tally(group_by(bsrn_dt, day_ind)),
-                                 tally(group_by(bsrn_df.larc.days, day_ind)),
-                                 by = "day_ind")
+      # tally.compare <- left_join(tally(group_by(bsrn_dt, day_ind)),
+      #                            tally(group_by(bsrn_df.larc.days, day_ind)),
+      #                            by = "day_ind")
       if (type == "write") {
         temp_file_name = paste0("inputs\\solar_bsrn_larc_",
                               strftime(Sys.time(), format = "%y%m%d_%H%M"),
@@ -231,7 +238,7 @@ get_bsrn.larc = function(type = "read") {
   }
   return(bsrn_df.larc.days)
 }
-# Combining COVE dat file, savd as bsrn_df.
+# Combining COVE dat file, or reading the csv
 get_bsrn.cove = function(type = "read") {
   if (type == "new" | type == "write") {
     bsrn_df.cove.days = readLines("inputs\\bsrn_raw\\2014001-2014365_COVEdata.DAT")
@@ -262,7 +269,8 @@ get_bsrn.cove = function(type = "read") {
     bsrn_df.cove.days = left_join(data.frame(index = sample_dt, stringsAsFactors = FALSE), bsrn_df.cove.days) %>%
                     select(-index) %>%
                     mutate(sun_hrs = ifelse(ghi == 0, 0, 1))
-    bsrn_df.cove.days = bsrn_df.cove.days[2:nrow(bsrn_df.cove.days),]
+    bsrn_df.cove.days = bsrn_df.cove.days[2:nrow(bsrn_df.cove.days),] %>%
+                          add_weather()
     if (type == "write") {
       temp_file_name = paste0("inputs\\solar_bsrn_cove_",
                               strftime(Sys.time(), format = "%y%m%d_%H%M"),
@@ -325,7 +333,7 @@ add_weather = function(bsrn_df.station) {
     mutate(kt.bar = ifelse(sun_hrs.daily == 0, 0, kt.sum / sun_hrs.daily),
            kt.til = ifelse(sun_hrs.daily == 0, 0, kt.diff / sun_hrs.daily),
            weather = ifelse((kt.bar+kt.til)<0.6, "Overcast",
-                            ifelse((kt.bar-kt.til)>=0.72, "Cloudless",
+                            ifelse((0.8*kt.bar-kt.til)>=0.72, "Cloudless",
                                    "Some clouds")))
   bsrn_df.station = left_join(cols_to_add, bsrn_df.station)
 }
@@ -401,9 +409,9 @@ get_kt_1min = function(daily_df, src_df, interval) {
                          as.numeric(strftime(date_time, format = "%H"))/24) %>%
                   left_join(daily_df, by = c("day_ind", "dayhr_ind")) %>%
                   cbind.data.frame(kt.1min) %>%
-                  mutate(kt_1min = ifelse(kt_1min > 2*max(daily_df$clr_ghi),
-                                            2*mean(daily_df$clr_ghi),
-                                            kt_1min),
+                  mutate(kt_1min = ifelse(kt_1min > 1.5*max(daily_df$kt),
+                                            2,
+                                            ifelse(kt == 0, 0, kt_1min)),
                          ghi_1min = clr_ghi*kt_1min,
                          date_time = date_time.x) %>%
                   select(-date_time.y,-date_time.x)
@@ -454,50 +462,60 @@ validate_markov_df <- function(df) {
   markov <- df %>%
               filter(day_ind %in% bsrn_days) %>%
               select(date_time, ghi_1min.scl) %>%
-              mutate(ghi_1min.diff = abs(ghi_1min.scl - lag(ghi_1min.scl))) %>%
-              select(date_time, ghi_1min.diff)
+              mutate(markov_var = ifelse(ghi_1min.scl == 0, 0,
+                                            abs(ghi_1min.scl - lag(ghi_1min.scl))/ghi_1min.scl)) %>%
+              select(date_time, markov_var)
   
   output_df <- left_join(markov, bsrn_df, by = "date_time") %>%
-                  mutate(ghi_cove.diff = abs(ghi_cove - lag(ghi_cove)),
-                         ghi_larc.diff = abs(ghi_larc - lag(ghi_larc))) %>%
-                  fill(ghi_1min.diff:ghi_larc.diff, .direction = "up") %>%
+                  mutate(cove_var = ifelse(ghi_cove == 0, 0,
+                                                abs(ghi_cove - lag(ghi_cove))/ghi_cove),
+                         larc_var = ifelse(ghi_larc == 0, 0,
+                                                abs(ghi_larc - lag(ghi_larc))/ghi_larc)) %>%
+                  mutate(cove_var = ifelse(cove_var < 0, 0, cove_var),
+                         larc_var = ifelse(larc_var < 0, 0, larc_var)) %>%
+                  fill(markov_var:larc_var, .direction = "up") %>%
                   group_by(date_time) %>%
-                  summarize_if(is.numeric, mean)
+                  summarize_if(is.numeric, mean) %>%
+                  select(date_time, markov_var, cove_var, larc_var)
   
   return(output_df)
 }
-test <- get_1yr_markov(src_df = "larc", interval = 1/12)
-freq_test <- validate_markov_df(test)
 
-# ggplot(data = test) + 
-#   geom_line(aes(date_time, ghi)) +
-#   geom_line(aes(date_time, ghi_1min), colour = "red") +
-#   geom_line(aes(date_time, ghi_1min.scl), colour = "green")
+mC_1yr.cove <- get_1yr_markov(src_df = "cove", interval = 1/12)
+mC_1yr.larc <- get_1yr_markov(src_df = "larc", interval = 1/12)
 
-ggplot(data = freq_test) + 
-  geom_freqpoly(aes(ghi_1min.diff), binwidth = 50, colour = "red") + 
-  geom_freqpoly(aes(ghi_cove.diff), binwidth = 50, colour = "blue") + 
-  geom_freqpoly(aes(ghi_larc.diff), binwidth = 50, colour = "blue4") +
-  scale_x_continuous(limits = c(0,max(freq_test$ghi_1min.diff))) +
-  scale_y_log10()
+# want to combine both src_df results into one function call
+# also, want single function call to generate multiple years in parallel
 
-check_daily_irr <- summarise(group_by(test, day_ind),
+mC_1yr.cove.freq <- validate_markov_df(mC_1yr.cove)
+mC_1yr.larc.freq <- validate_markov_df(mC_1yr.larc)
+mC_1yr.freq <- inner_join(mC_1yr.cove.freq, mC_1yr.larc.freq,
+                          by = c("date_time", "cove_var", "larc_var"),
+                          suffix = c("_cove", "_larc"))
+
+sample_colors = c("1min" = "#56B4E9", "1hr" = "#000000")
+sample.cove = mC_1yr.cove %>%
+                select(date_time, day_ind, kt, kt_1min.scl, ghi, ghi_1min.scl, weather) %>%
+                filter(day_ind %in% seq(119,123))
+
+check_daily_irr.cove <- summarise(group_by(mC_1yr.cove, day_ind),
                              ghi_0 = mean(ghi),
                              ghi_mC = mean(ghi_1min))
+check_daily_irr.larc <- summarise(group_by(mC_1yr.larc, day_ind),
+                                  ghi_0 = mean(ghi),
+                                  ghi_mC = mean(ghi_1min))
+check_daily_irr <- inner_join(check_daily_irr.cove,
+                              check_daily_irr.larc)
 
-# want similar plot to this but with variance on y axis
-ggplot(data = check_daily_irr, mapping = aes(x = day_ind)) +
-  geom_line(aes(y = ghi_0), colour = "red") +
-  geom_line(aes(y = ghi_mC), colour = "blue")
 
-mean_variance <- list("cove" = sum(freq_test$ghi_cove.diff) / 1440,
-                      "larc" = sum(freq_test$ghi_larc.diff) / 1440,
-                      "markov" = sum(freq_test$ghi_1min.diff) / 1440)
+# want similar plot to variance as function of day_ind
+mean_variance <- list("cove" = sum(mC_1yr.freq$ghi_cove.diff) / 1440,
+                      "larc" = sum(mC_1yr.freq$ghi_larc.diff) / 1440,
+                      "markov" = sum(mC_1yr.freq$ghi_1min.diff) / 1440)
 
-ggplot(data = freq_test, mapping = aes(x = day_ind)) +
+ggplot(data = mC_1yr.larc.freq, mapping = aes(x = date_time)) +
   geom_line(aes(y = ghi_cove.diff), colour = "blue") +
   geom_line(aes(y = ghi_larc.diff), colour = "blue4") +
-  geom_line(aes(y = ghi_1min.diff), colour = "blue4") +
-  
+  geom_line(aes(y = ghi_1min.diff), colour = "blue4")
 
 mean_variance
