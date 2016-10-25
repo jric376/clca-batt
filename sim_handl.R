@@ -202,10 +202,6 @@ run_one_sim <- function(run_id, ctrl_id, bldg_nm = NULL, bldg_ts = NULL, pv_ts =
                   as.list()
   
   batt_lsc <- get_batt_lsc(batt, rate)
-  # tac.lo <- batt_lsc[["lsc.lo"]] + annual_bill[["control_cost"]]
-  # tac.hi <- batt_lsc[["lsc.hi"]] + annual_bill[["conttrol_cost"]]
-  # prof.lo <- annual_bill[["dr_cost"]] - tac.lo
-  # prof.hi <- annual_bill[["dr_cost"]] - tac.hi
   
   out_vec <- list("unmet_kwh" = unmet_kwh, "curtail_kwh" = curtail_kwh,
                   "batt_kw.max" = batt_kw.max, "batt_kw.min" = batt_kw.min,
@@ -224,7 +220,7 @@ sim_sizer <- function(run_id, bldg = NULL, cop = 1, batt_type = NULL, terr = NUL
   
   # figure out what demand_frac range to use based on LDC
   
-  dmd_fracs = seq(0.2,0.6,0.1)
+  dmd_fracs = seq(0.2,0.4,0.1)
   rates = c(0.05, 0.15) # seq(0.05, 0.20, 0.05)
   param_combns = as.vector((expand.grid(dmd_fracs, rates)))
   
@@ -323,6 +319,11 @@ sim_sizer <- function(run_id, bldg = NULL, cop = 1, batt_type = NULL, terr = NUL
                   dr_batt_params = list(dmd_frac = test_dmd, ts_num = j,
                                           batt_type = batt_type, batt_cap = batt_cap)
                   one_output = append(one_output, c(pv_cost, dr_batt_params, one_sim))
+                  
+                  # tac.lo <- batt, pv costs and control (bill) cost
+                  # tac.hi <- same but all hi
+                  # prof.lo <- dr (bill) cost - tac.lo
+                  # prof.hi <- dr (bill) cost - tac.hi
                   },
                   
                   error = function(e) {err_msg = paste("Error:", e)

@@ -41,16 +41,16 @@ get_bill_cost = function(bldg_nm, timestep, interval, before_kw, after_kw) {
   
   month = as.numeric(strftime(timestep, format = "%m"))
   costs = filter(rate_sched, mo == month)
-  bldg_kw.cost = costs$kw_first + ifelse(before_kw > over_thresh,
+  control_kw.cost = costs$kw_first + ifelse(before_kw > over_thresh,
                                          costs$kw_over*(before_kw - over_thresh), 0)
-  bldg_kwh.cost = before_kw*interval*costs$kwh_cost
-  grid_kw.cost = costs$kw_first + ifelse(after_kw > over_thresh,
+  control_kwh.cost = before_kw*interval*costs$kwh_cost
+  dr_kw.cost = costs$kw_first + ifelse(after_kw > over_thresh,
                                          costs$kw_over*(after_kw - over_thresh), 0)
-  grid_kwh.cost = after_kw*interval*costs$kwh_cost
+  dr_kwh.cost = after_kw*interval*costs$kwh_cost
   
   output = list(
-                "bldg_kw.cost" = bldg_kw.cost, "bldg_kwh.cost" = bldg_kwh.cost,
-                "grid_kw.cost" = grid_kw.cost, "grid_kwh.cost" = grid_kwh.cost
+                "control_kw.cost" = control_kw.cost, "control_kwh.cost" = control_kwh.cost,
+                "dr_kw.cost" = dr_kw.cost, "dr_kwh.cost" = dr_kwh.cost
   )
   return(output)
 }
