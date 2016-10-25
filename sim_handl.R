@@ -318,10 +318,11 @@ sim_sizer <- function(run_id, bldg = NULL, cop = 1, batt_type = NULL, terr = NUL
                                         batt_cap = batt_cap, rate = test_rt,
                                         steps = steps)
                   one_output = list("run_id" = run_id, bldg = bldg$get_metadata()[["bldg"]],
-                                    pv_kw = pv$get_metadata()[["kw"]],
-                                    dmd_frac = test_dmd, ts_num = j,
-                                    batt_type = batt_type, batt_cap = batt_cap)
-                  one_output = append(one_output, one_sim)
+                                    pv_kw = pv$get_metadata()[["kw"]])
+                  pv_cost = get_pv_cost(pv)
+                  dr_batt_params = list(dmd_frac = test_dmd, ts_num = j,
+                                          batt_type = batt_type, batt_cap = batt_cap)
+                  one_output = append(one_output, c(pv_cost, dr_batt_params, one_sim))
                   },
                   
                   error = function(e) {err_msg = paste("Error:", e)

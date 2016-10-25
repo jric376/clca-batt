@@ -91,15 +91,26 @@ get_batt_lsc = function(batt, interest_rt) {
   return(out_list)
 }
 
+get_pv_cost = function(pv) {
+  
+  calendar_life = 25
+  cost.lo = pv$cap_cost.lo + calendar_life*pv$om_cost.lo
+  cost.hi = pv$cap_cost.hi + calendar_life*pv$om_cost.hi
+  
+  out_list = list("cost.lo" = cost.lo,
+                  "cost.hi" = cost.hi)
+  return(out_list)
+}
+
 get_pv_batt_plc2erta = function(pv, batt) {
   
-  # multiply batt$nameplate by factor from Hiremath
-  # multiply pv$get_metadata()[["kw"]] by factor from Kim (??)
+  batt.plc2erta <- (batt$nameplate/batt$eng_dens)*batt$plc2erta
+  pv.plc2erta <- pv$get_metadata()[["kw"]]*pv$plc2erta
   
-  # out_list = list("pv.plc2erta" = pv.plc2erta,
-  #                 "batt.plc2erta" = batt.plc2erta)
-  # 
-  # return(out_list)
+  out_list = list("pv.plc2erta" = pv_plc2erta,
+                  "batt.plc2erta" = batt_plc2erta)
+  
+  return(out_list)
 }
 
 batt_meta <- list(

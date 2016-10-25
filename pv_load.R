@@ -13,6 +13,13 @@ library('R6')
 
 pv_load <- R6Class("PV Load",
                      public = list(
+                       
+                       plc2erta = 77.15, # g CO2eq / kWh, NEEDS TO BE kW and include BOS
+                       cap_cost.lo = 2000,
+                       cap_cost.hi = 5300,
+                       om_cost.lo = 12,
+                       om_cost.hi = 22.50,
+                       
                        initialize = function(
                          meta = NA, pv_ts_path = NA,
                          rand_copies = NA, rand_factor = NA
