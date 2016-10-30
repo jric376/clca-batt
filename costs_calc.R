@@ -80,35 +80,43 @@ get_batt_lsc = function(batt, interest_rt) {
   lsc.lo = lsc.lo*crf.lo
   lsc.hi = lsc.hi*crf.hi
   
-  out_list = list("life.lo" = life.lo,
-                  "life.hi" =  life.hi,
-                  # "rt_term.lo" = rt_term.lo,
-                  # "rt_term.hi" = rt_term.hi,
-                  # "crf.lo" = crf.lo,
-                  # "crf.hi" = crf.hi,
-                  "lsc.lo" = lsc.lo,
-                  "lsc.hi" = lsc.hi)
+  out_list = list("life_lo" = life.lo,
+                  "life_hi" =  life.hi,
+                  # "rt_term_lo" = rt_term.lo,
+                  # "rt_term_hi" = rt_term.hi,
+                  # "crf_lo" = crf.lo,
+                  # "crf_hi" = crf.hi,
+                  "lsc_lo" = lsc.lo,
+                  "lsc_hi" = lsc.hi)
   return(out_list)
 }
 
-get_pv_cost = function(pv) {
+get_pv_cost = function(pv, interest_rt) {
   
   calendar_life = 25
   cost.lo = pv$cap_cost.lo + calendar_life*pv$om_cost.lo
   cost.hi = pv$cap_cost.hi + calendar_life*pv$om_cost.hi
   
-  out_list = list("cost.lo" = cost.lo,
-                  "cost.hi" = cost.hi)
+  rt_term.lo = (1 + interest_rt)^calendar_life
+  rt_term.hi = (1 + interest_rt)^calendar_life
+  crf.lo = (interest_rt*rt_term.lo)/(rt_term.lo - 1)
+  crf.hi = (interest_rt*rt_term.hi)/(rt_term.hi - 1)
+  
+  pv_levcost.lo = cost.lo*crf.lo
+  pv_levcost.hi = cost.hi*crf.hi
+  
+  out_list = list("pv_levcost_lo" = pv_levcost.lo,
+                  "pv_levcost_hi" = pv_levcost.hi)
   return(out_list)
 }
 
 get_pv_batt_plc2erta = function(pv, batt) {
   
   batt.plc2erta <- (batt$nameplate/batt$eng_dens)*batt$plc2erta
-  pv.plc2erta <- pv$get_metadata()[["kw"]]*pv$plc2erta
+  pv.plc2erta <- pv$nameplate*pv$plc2erta
   
-  out_list = list("pv.plc2erta" = pv_plc2erta,
-                  "batt.plc2erta" = batt_plc2erta)
+  out_list = list("pv_plc2erta" = pv_plc2erta,
+                  "batt_plc2erta" = batt_plc2erta)
   
   return(out_list)
 }

@@ -34,8 +34,7 @@ sys_ctrlr <- R6Class("System Controller",
                          
                          log_path = paste(
                            "outputs\\", meta[["run_id"]], "\\",
-                           meta[["ctrl_id"]], "_", 
-                           strftime(Sys.time(), format = "%d%m%y_%H%M%S"),
+                           meta[["ctrl_id"]],
                            ".log", sep = ""
                          )
                          flog.appender(appender.file(log_path), name = "ctrlr")
@@ -215,16 +214,17 @@ sys_ctrlr <- R6Class("System Controller",
                             iso_mw = private$grid_ts$mw
                          }
                          
-                         if(n != "full") {
+                         if(is.numeric(n)) {
                            steps = n
                          }
                          else {
-                           steps = length(bldg_kw)
+                           steps = length(bldg_kw) - 1
                          }
                          
                          sim_df <- bind_rows(lapply(1:steps, function(i) {
                            if(log) {
-                             flog.error(paste(timesteps[i], private$metadata[["ctrl_id"]]))
+                             flog.error(paste(timesteps[i], private$metadata[["ctrl_id"]]),
+                                        name = "ctrlr")
                            }
                            self$operate(timesteps[i], bldg_kw[i], pv_kw[i], iso_mw[i])
                          }))
