@@ -8,6 +8,7 @@
 library("animation")
 library("cowplot")
 library("data.table")
+library("plyr")
 library("dplyr")
 library("futile.logger")
 library("gganimate")
@@ -20,12 +21,14 @@ library("tidyr")
 # }
 cbb_qual <- c("#E69F00", "#999999","#CC79A7", "#009E73", "#F0E442",
               "#000000", "#0072B2", "#D55E00", "#56B4E9")
+sim_df.samp <- fread("outputs\\new_tryFULL\\df\\ctrlr_2_2_vr_flow175010W_shave30.csv")
+sim_results.samp <- fread("outputs\\new_tryFULL\\new_tryFULL_run_results.csv")
 
-get_ani_bldg <- function(cop) {
+get_ani_bldg <- function(copies) {
   source("bldg_load.R")
-  bldg <- get_bldg(run_id = "plot", copies = cop, type = "office")
+  bldg <- get_bldg(run_id = "plot", copies = copies, type = "office")
   full_df <- bldg$get_base_ts()
-  full_df$run<- 1
+  full_df$run <- 1
   full_df$week <- format(full_df$date_time, "%U")
   
   for (i in seq.int(2,bldg$get_ts_count())) {
@@ -70,7 +73,7 @@ get_ani_bldg <- function(cop) {
 }
 get_ani_grid <- function(copies) {
   source("grid_load.R")
-  get_grid(run_id = "plot", copies = cop, terr = "nyiso")
+  get_grid(run_id = "plot", copies = copies, terr = "nyiso")
   full_df <- grid$get_base_ts()
   full_df$run<- 1
   full_df$week <- format(full_df$date_time, "%U")
@@ -115,9 +118,9 @@ get_ani_grid <- function(copies) {
   
   ani.options(outdir = getwd(), ani.width = 960, ani.height = 600)
   ani_jul_plt <- gg_animate(ani_jul_plt, "outputs\\plots\\grid_load.gif")}
-get_ani_pv <- function(cop) {
+get_ani_pv <- function(copies) {
   source("pv_load.R")
-  pv <- get_pv(run_id = "plot", copies = cop, type = "office")
+  pv <- get_pv(run_id = "plot", copies = copies, type = "office")
   full_df <- pv$get_base_ts()
   full_df$run<- 1
   full_df$week <- format(full_df$date_time, "%U")
@@ -356,6 +359,64 @@ get_bldg_comp <- function() {
   
   ggsave(filename = "outputs\\plots\\office_compare.png",
          width = 10, height = 6.25, units = "in")
+}
+get_bldg_heatmap_ldc <- function(type, copies, save = FALSE) {
+  source("bldg_load.R")
+  rowSds <- function(x) {
+    sqrt(rowSums((x - rowMeans(x))^2)/(dim(x)[2] - 1))
+  }
+  suffixes <- letters[1:(copies+1)]
+  bldg <- get_bldg(run_id = "plot", type = type, copies = copies)
+  full_df <- bldg$get_ts_df()
+  for (i in 1:(copies+1)) {
+    dots <- names(full_df[[i]])
+    col.names <- c("date_time",
+                   paste0("kw_", suffixes[i]),
+                   paste0("kwh_", suffixes[i]))
+    full_df[[i]] <- mutate_(full_df[[i]],
+                            .dots = setNames(dots, col.names)) %>%
+                    select(-kw,-kwh)
+  }
+  full_df <- Reduce(function(x, y) inner_join(x, y, by = "date_time"), full_df) %>%
+              na.omit()
+  
+  summ_df <- mutate(full_df, kw_mean = rowMeans(select(full_df, contains("kw_"))),
+                     kw_sd = rowSds(select(full_df, contains("kw_"))),
+                     kwh_mean = rowMeans(select(full_df, contains("kwh_"))),
+                     kwh_sd = rowSds(select(full_df, contains("kwh_"))),
+                     hr = as.numeric(strftime(date_time, format = "%H")),
+                     day_ind = as.numeric(strftime(date_time, format = "%j")),
+                     dayhr_ind = day_ind + as.numeric(hr/24))
+  rm(full_df)
+  
+  ldc_df <- summ_df %>%
+              select(dayhr_ind, kw_mean, kw_sd) %>%
+              group_by(dayhr_ind) %>%
+              summarise_if(is.numeric, mean)
+  ldc_hist = hist(ldc_df$kw_mean, breaks = floor(max(ldc_df$kw_mean)), plot = FALSE)
+  ldc_df = data.frame(c(0, ldc_hist$counts),
+                       ldc_hist$breaks)
+  colnames(ldc_df) = c("hrs", "kw")
+  ldc_df$cumul_hrs = rev(cumsum(ldc_df$hrs))
+  ldc_df$rel_kw = ldc_df$kw / max(ldc_df$kw)
+  ldc_df$hrs_diff = c(0, diff(ldc_df$hrs)) / 8760
+
+  ldc_plot <- ggplot(data = ldc_df,
+                     mapping = aes(x = cumul_hrs)) +
+                geom_line(aes(y = rel_kw), size = 1.1) +
+                labs(x = "Hours of Load",
+                     y = bquote("kW /" ~kW[max]),
+                     title = "Office Load Duration Curve") +
+                theme(panel.background = element_rect(colour = "gray75", fill = "gray80")) +
+                theme(panel.grid.major = element_line(colour = "gray85")) +
+                theme(panel.grid.minor = element_line(colour = "gray85"))
+  
+  if (save) {
+    ggsave(filename = paste0("outputs\\plots\\", type, "_ldc.png"),
+           width = 10, height = 6.25, units = "in")
+  }
+  
+  return(ldc_plot)
 }
 get_kt_dist <- function(which_df, save = FALSE) {
   if(which_df == "nyc_nsrdb") {
