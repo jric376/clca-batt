@@ -50,7 +50,7 @@ disp_curv <- R6Class("Dispatch",
       
       add_metadata = function(metadata) {
         if (length(metadata) < 1) {
-          print(length(metadata))
+          # print(length(metadata))
           flog.error(
             paste("Empty metadata in dispatch curve with ", self$iso_terr),
             name = "disp"

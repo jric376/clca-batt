@@ -14,6 +14,8 @@ library("futile.logger")
 library("gganimate")
 library("ggplot2")
 library("ggrepel")
+library("reshape2")
+library("scales")
 library("tidyr")
 
 # if (!dir.exists(file.path("outputs\\plots"))) {
@@ -168,11 +170,18 @@ get_ani_pv <- function(copies) {
   ani.options(outdir = getwd(), ani.width = 960, ani.height = 600)
   ani_jul_plt <- gg_animate(ani_jul_plt, "outputs\\plots\\pv_load.gif")
 }
-get_ani_disp <- function(runs = 20) {
+get_ani_disp <- function(runs = 20, save = FALSE) {
   source("dispatch_curve.R")
-  disp <- get_disp("plot","plot","nyiso")
+  
+  disp_meta = list(
+    "name" = "Doris the Dispatch",
+    "run_id" = "plot",
+    "ctrl_id" = "plot"
+  )
+  disp <- disp_curv$new(meta = disp_meta,
+                        terr = "nyiso")
   full_df <- disp$get_dispatch()
-  full_df$run<- 1
+  full_df$run <- 1
   
   for (i in seq.int(2,runs)) {
     
@@ -242,16 +251,18 @@ get_ani_disp <- function(runs = 20) {
                         nrow = 2, align = "v")
   
   ### For saving combined plot
-  save_plot(filename = "outputs\\plots\\disp_nyiso_combined.png",
-            disp_plt, ncol = 1, nrow = 2,
-            base_height = 6.25, base_width = 10)
-  
+  if (save) {
+    save_plot(filename = "outputs\\plots\\disp_nyiso_combined.png",
+              disp_plt, ncol = 1, nrow = 2,
+              base_height = 6.25, base_width = 10)
+  }
   ### For saving individual ggplot objects
-  ggsave(disp_cost, filename = "outputs\\plots\\disp_nyiso.png",
-         width = 10, height = 6.25, units = "in")
-  ggsave(disp_emish, filename = "outputs\\plots\\disp_nyiso_emish.png",
-         width = 10, height = 6.25, units = "in")
-
+  if (save) {
+    ggsave(disp_cost, filename = "outputs\\plots\\disp_nyiso.png",
+           width = 10, height = 6.25, units = "in")
+    ggsave(disp_emish, filename = "outputs\\plots\\disp_nyiso_emish.png",
+           width = 10, height = 6.25, units = "in")
+  }
   ani_disp_cost <- disp_plt.bare + labs(
                                         y = "Marg Cost ($ / kWh)",
                                         title = "NYISO Dispatch Curve") +
@@ -309,11 +320,50 @@ get_ani_disp <- function(runs = 20) {
 
 
   ani.options(outdir = getwd(), ani.width = 960, ani.height = 600)
-  gg_animate(ani_disp_cost, "outputs\\plots\\disp_nyiso_cost.gif")
-  gg_animate(ani_disp_emish, "outputs\\plots\\disp_nyiso_emish.gif")
+  if (save) {
+    gg_animate(ani_disp_cost, "outputs\\plots\\disp_nyiso_cost.gif")
+    gg_animate(ani_disp_emish, "outputs\\plots\\disp_nyiso_emish.gif")
+  }
   
   return(full_df)
 }
+
+source("dispatch_curve.R")
+
+disp_meta = list(
+  "name" = "Doris the Dispatch",
+  "run_id" = "plot",
+  "ctrl_id" = "plot"
+)
+disp <- disp_curv$new(meta = disp_meta,
+                      terr = "nyiso")
+full_df <- disp$get_dispatch()
+disp_plot.cap <- ggplot(data = full_df,
+                        mapping = aes(x = factor(fuel_type),
+                                      fill = factor(fuel_type))) +
+                    geom_boxplot(aes(y = namepcap)) +
+                    scale_y_log10() +
+                    scale_fill_manual(name = "Fuel", values = cbb_qual) +
+                    labs(x = "",
+                         y = "Capacity (MW)") +
+                    theme(panel.background = element_rect(colour = "gray75", fill = "gray80")) +
+                    theme(panel.grid.major = element_line(colour = "gray85")) +
+                    theme(panel.grid.minor = element_line(colour = "gray85")) +
+                    theme(legend.position = "none")
+
+disp_plot.plc2erta <- ggplot(data = filter(full_df, plc2erta > 0),
+                              mapping = aes(x = factor(fuel_type),
+                                            fill = factor(fuel_type))) +
+                        geom_boxplot(aes(y = plc2erta)) +
+                        scale_y_log10() +
+                        scale_fill_manual(name = "Fuel", values = cbb_qual) +
+                        labs(x = "",
+                             y = "lb CO2eq / MWh") +
+                        theme(panel.background = element_rect(colour = "gray75", fill = "gray80")) +
+                        theme(panel.grid.major = element_line(colour = "gray85")) +
+                        theme(panel.grid.minor = element_line(colour = "gray85")) +
+                        theme(legend.position = "none")
+
 get_bldg_comp <- function() {
   bldg_df <- read.csv("inputs\\bldg_summ.csv",
                       stringsAsFactors = FALSE)
@@ -327,7 +377,7 @@ get_bldg_comp <- function() {
                                  levels = bldg_lvls)
   )
   
-  summ_plt <- ggplot(data = bldg_df,
+  summ_plot <- ggplot(data = bldg_df,
                      mapping = aes(x = use_cat, y = kwh,
                                    colour = src)) +
     scale_colour_manual(name = "Source",
@@ -358,9 +408,10 @@ get_bldg_comp <- function() {
     expand_limits(y = c(0,310000))
   
   ggsave(filename = "outputs\\plots\\office_compare.png",
+         summ_plot,
          width = 10, height = 6.25, units = "in")
 }
-get_bldg_heatmap_ldc <- function(type, copies, save = FALSE) {
+get_bldg_summ <- function(type, copies) {
   source("bldg_load.R")
   rowSds <- function(x) {
     sqrt(rowSums((x - rowMeans(x))^2)/(dim(x)[2] - 1))
@@ -375,19 +426,24 @@ get_bldg_heatmap_ldc <- function(type, copies, save = FALSE) {
                    paste0("kwh_", suffixes[i]))
     full_df[[i]] <- mutate_(full_df[[i]],
                             .dots = setNames(dots, col.names)) %>%
-                    select(-kw,-kwh)
+      select(-kw,-kwh)
   }
   full_df <- Reduce(function(x, y) inner_join(x, y, by = "date_time"), full_df) %>%
-              na.omit()
+    na.omit()
   
   summ_df <- mutate(full_df, kw_mean = rowMeans(select(full_df, contains("kw_"))),
-                     kw_sd = rowSds(select(full_df, contains("kw_"))),
-                     kwh_mean = rowMeans(select(full_df, contains("kwh_"))),
-                     kwh_sd = rowSds(select(full_df, contains("kwh_"))),
-                     hr = as.numeric(strftime(date_time, format = "%H")),
-                     day_ind = as.numeric(strftime(date_time, format = "%j")),
-                     dayhr_ind = day_ind + as.numeric(hr/24))
-  rm(full_df)
+                    kw_sd = rowSds(select(full_df, contains("kw_"))),
+                    kwh_mean = rowMeans(select(full_df, contains("kwh_"))),
+                    kwh_sd = rowSds(select(full_df, contains("kwh_"))),
+                    hr = as.numeric(strftime(date_time, format = "%H")),
+                    day_ind = as.numeric(strftime(date_time, format = "%j")),
+                    dayhr_ind = day_ind + as.numeric(hr/24))
+  
+  return(summ_df)
+}
+get_bldg_ldc <- function(type, copies, save = FALSE) {
+  
+  summ_df <- get_bldg_summ(type, copies)
   
   ldc_df <- summ_df %>%
               select(dayhr_ind, kw_mean, kw_sd) %>%
@@ -413,10 +469,99 @@ get_bldg_heatmap_ldc <- function(type, copies, save = FALSE) {
   
   if (save) {
     ggsave(filename = paste0("outputs\\plots\\", type, "_ldc.png"),
+           ldc_plot,
            width = 10, height = 6.25, units = "in")
   }
   
   return(ldc_plot)
+}
+get_bldg_heatmap <- function(type, copies, save = FALSE) {
+  
+  summ_df <- get_bldg_summ(type, copies)
+  
+  heatmap_df <- summ_df %>%
+                  select(date_time, hr, dayhr_ind, contains("_mean"), contains("_sd")) %>%
+                  group_by(dayhr_ind) %>%
+                  summarise_if(is.numeric, mean) %>%
+                  mutate(day = (floor(dayhr_ind)+4)%%7) %>% # offsetting days for graph
+                  select(-dayhr_ind) %>%
+                  group_by(day, hr) %>%
+                  summarise_all(mean) %>%
+                  select(day, hr, contains("kw_"))
+  heatmap_df.m <- melt(heatmap_df,
+                        id.vars = c("day","hr"),
+                        measure.vars = c("kw_mean","kw_sd"))
+  heatmap_df.s <- ddply(heatmap_df.m, .(variable), transform, rescale = scale(value))
+  heatmap_mean <- filter(heatmap_df.s, variable == "kw_mean")
+  heatmap_sd <- filter(heatmap_df.s, variable == "kw_sd")
+  
+  day_labels <- c("Mon", "Tues", "Wed", "Thur", "Fri", "Sat", "Sun")
+  hr_labels <- unlist(lapply(seq(3,21,3), function(x) ifelse(x>10, paste0(x, ":00"),
+                                                             paste0("0", x, ":00"))))
+  
+  mean_plot <- ggplot(heatmap_mean, aes(y = day, x = hr)) + 
+                  geom_tile(aes(fill = value), colour = "gray80") +
+                  scale_x_continuous(breaks = seq(2,20,3),
+                                     labels = hr_labels,
+                                     expand=c(0,0)) +
+                  scale_y_continuous(breaks = seq(0,6,1),
+                                     labels = day_labels,
+                                     expand=c(0,0)) +
+                  scale_fill_gradient2(name = bquote(bar(kW)), low = "#7b3294",
+                                       mid = "#f7f7f7", high = "#008837",
+                                       midpoint = 10) +
+                  labs(x = "",
+                       y = "") +
+                  theme(panel.background = element_blank(),
+                        panel.border = element_blank(),
+                        axis.line = element_blank(),
+                        axis.ticks = element_blank(),
+                        axis.text.y = element_text(angle = 33, hjust = 1),
+                        axis.text.x = element_text(angle = 33, vjust = 1, hjust = 1),
+                        axis.title.x = element_blank())
+  
+  sd_plot <- ggplot(heatmap_sd, aes(y = day, x = hr)) + 
+                geom_tile(aes(fill = value), colour = "gray80") +
+                scale_x_continuous(breaks = seq(2,20,3),
+                                   labels = hr_labels,
+                                   expand=c(0,0)) +
+                scale_y_continuous(breaks = seq(0,6,1),
+                                   labels = day_labels,
+                                   expand=c(0,0)) +
+                scale_fill_gradient2(name = bquote(sigma[scriptscriptstyle(kW)]),
+                                     low = "#7b3294", mid = "#f7f7f7", high = "#008837",
+                                     midpoint = 0.75) +
+                labs(x = "",
+                     y = "") +
+                theme(panel.background = element_blank(),
+                      panel.border = element_blank(),
+                      axis.line = element_blank(),
+                      axis.ticks = element_blank(),
+                      axis.text.y = element_blank(),
+                      axis.text.x = element_text(angle = 33, vjust = 1, hjust = 1))
+  
+  heatmap_plot <- plot_grid(mean_plot, sd_plot,
+                            labels = c("A","B"),
+                            nrow = 2, align = "v",
+                            rel_heights = c(1, 0.333))
+  title <- ggdraw() + draw_label("Office Weekly Load Profile",
+                                 fontface = "bold")
+  heatmap_plot <- plot_grid(title, heatmap_plot,
+                            ncol = 1, rel_heights = c(0.05, 1))
+  
+  if (save) {
+    # ggsave(paste0("outputs\\plots\\", type, "_heatmap_mean.png"),
+    #        mean_plot,
+    #        width = 10, height = 6.25, units = "in")
+    # ggsave(paste0("outputs\\plots\\", type, "_heatmap_sd.png"),
+    #        sd_plot,
+    #        width = 10, height = 6.25, units = "in")
+    save_plot(filename = paste0("outputs\\plots\\", type, "_heatmap.png"),
+              heatmap_plot, ncol = 1, nrow = 2,
+              base_height = 6.25, base_width = 10)
+  }
+
+  return(heatmap_plot)
 }
 get_kt_dist <- function(which_df, save = FALSE) {
   if(which_df == "nyc_nsrdb") {
@@ -586,8 +731,3 @@ get_markov_freqpoly <- function(mC_freq, save = FALSE) {
   
   return(mC_freq.plot)
 }
-
-# bldg_gif <- get_ani_bldg(20)
-# grid_gif <- get_ani_grid(20)
-# pv_gif <- get_ani_pv(20)
-# disp_gif <- get_ani_disp()
