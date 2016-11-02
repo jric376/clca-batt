@@ -315,9 +315,6 @@ get_disp_ani <- function(runs = 20, save = FALSE) {
   
   return(full_df)
 }
-get_disp_grid_stats <- function() {
-  return(0)
-}
 get_disp_w_donut <- function(runs = 20, save = FALSE) {
   source("dispatch_curve.R")
   source("grid_load.R")
@@ -352,29 +349,50 @@ get_disp_w_donut <- function(runs = 20, save = FALSE) {
     full_disp <- rbind(full_disp, rand_disp)
   }
   rm(rand_disp)
-  full_disp <- select(full_disp, namepcap, cumul_cap, fuel_type) %>%
-                mutate(bin = cumul_cap%/%(max(full_disp$cumul_cap)/3),
-                       fuel_type = factor(fuel_type))
+  full_disp <- full_disp %>%
+                  mutate(bin = cumul_cap%/%(max(full_disp$cumul_cap)/3),
+                         fuel_type = factor(fuel_type),
+                         bin = ifelse(bin == 3, 2, bin))
   
-  hist_df <- group_by(full_disp, bin, fuel_type) %>%
+  donut_df <- select(full_disp, namepcap, cumul_cap, fuel_type:bin) %>%
+                group_by(bin, fuel_type) %>%
                 select(-cumul_cap) %>%
                 summarise_at(contains("namepcap"), sum) %>%
                 complete(bin, fuel_type, fill = list (namepcap = 0)) %>%
                 group_by(bin, fuel_type) %>%
                 summarise_at(contains("namepcap"), sum) %>%
-                arrange(fuel_type) %>%
-                mutate(c_mw = ifelse(fuel_type == lag(fuel_type),
-                                     ifelse(namepcap == 0, 0, 1), 0))
-                # NEED TO SHOW FRACTION OF EACH FUEL TYPE AT EACH CUMUL_CAP
-                # group_by(bin) %>%
-                # mutate(frac = namepcap / sum(namepcap)) %>%
-                # group_by(bin) %>%
-                # mutate(frac_bin = frac / sum(frac))
+                ungroup() %>%
+                group_by(fuel_type) %>%
+                mutate(c_mw = cumsum(namepcap)) %>%
+                group_by(bin) %>%
+                mutate(bin_frac = namepcap / sum(namepcap),
+                        tot_frac = c_mw / sum(c_mw)) %>%
+                select(bin, fuel_type, tot_frac) %>%
   
-  # for (k in )
-    
+  donut_df.0 <- filter(donut_df, bin == 0, tot_frac > 0)
+  donut_df.0 <- donut_df.0 %>%
+                  arrange(tot_frac) %>%
+                  mutate(ymax = cumsum(tot_frac),
+                         ymin = c(0, head(ymax, n = -1)))
+  p1 = ggplot(donut_df.0, aes(fill=fuel_type, ymax=ymax, ymin=ymin, xmax=4, xmin=3)) +
+          geom_rect() +
+          coord_polar(theta="y") +
+          xlim(c(0, 4)) +
+          theme(panel.grid=element_blank()) +
+          theme(axis.text=element_blank()) +
+          theme(axis.ticks=element_blank()) +
+          annotate("text", x = 0, y = 0, label = "My Ring plot !") +
+          labs(title="")
+  p1
   
-  disp_plt.bare <- ggplot(data = full_disp,
+  vert_lines <- max(full_disp$cumul_cap)*seq.int(2)/3
+  summ_disp <- select(full_disp, -(plprmfl:MC),
+                      -plc2erta, -(wtd_plc2erta:cumul_plc2erta)) %>%
+                  group_by(orispl, fuel_type) %>%
+                  summarise_if(is.numeric, mean)
+                  # inner_join(select(full_disp, orispl, fuel_type), by = "orispl")
+  
+  disp_plt.bare <- ggplot(data = summ_disp,
                           mapping = aes(x = cumul_cap)) +
                       labs(x = "Cumulative Capacity (MW)") +
                       theme(panel.background = element_rect(colour = "gray75", fill = "gray80")) +
@@ -386,16 +404,14 @@ get_disp_w_donut <- function(runs = 20, save = FALSE) {
                       background_grid(major = "xy", minor = "none",
                                       size.major = 0.5, colour.major = "gray85")
   
-  
   disp_cost <- disp_plt.bare + labs(y = "Marg. Cost ($ / kWh)") +
                   expand_limits(y = c(0, 0.32)) +
-                  geom_errorbar(data = subset(full_disp, full_disp$run == 1),
-                                mapping = aes(
+                  geom_errorbar(mapping = aes(
                                   y = MC_rand, size = namepcap,
                                   ymax = MC_rand + se, ymin = MC_rand - se),
                                 width = 50, colour = "black", size = 1) +
-                  geom_point(data = subset(full_disp, full_disp$run == 1),
-                             mapping = aes(
+                  geom_vline(xintercept = vert_lines, lty = 3) +
+                  geom_point(mapping = aes(
                                y = MC_rand, size = namepcap,
                                fill = fuel_type),
                              alpha = 1/1.2,
