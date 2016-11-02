@@ -72,43 +72,6 @@ pv_load <- R6Class("PV Load",
                          private$ts_df = ts_df
                        },
                        
-                       # add_base_ts = function(base_ts) {
-                       #   if (missing(base_ts)) {
-                       #     return("Base time-series data is missing")
-                       #   }
-                       #   else {
-                       #     base_ts$date_time = strptime(base_ts$time_hr, format="%m/%d/%Y %H:%M")
-                       #     base_ts$date_time$year <- base_ts$date_time$year + 2
-                       #     base_ts$time_hr = NULL
-                       #     
-                       #     new_dt = as.POSIXlt(seq.POSIXt(base_ts$date_time[1],
-                       #                                    base_ts$date_time[length(base_ts$date_time)],
-                       #                                    by = "5 min"))
-                       #     new_dt = new_dt[2:length(new_dt)]
-                       #     new_dt = data.frame(new_dt,
-                       #                         new_dt - as.numeric(format(new_dt, "%M"))*60)
-                       #     colnames(new_dt) = c("dt", "date_time")
-                       #     new_dt$dt = as.POSIXlt(new_dt$dt)
-                       #     new_dt$date_time = as.POSIXlt(new_dt$date_time)
-                       #     new_dt = merge(x = new_dt, y = base_ts,
-                       #                    by = "date_time", all.y = TRUE)
-                       #     new_dt$dt = as.POSIXct(new_dt$dt)
-                       #     new_dt$date_time = as.POSIXct(new_dt$date_time)
-                       #     new_dt = plyr::arrange(new_dt, dt)
-                       #     new_dt$date_time = NULL
-                       #     colnames(new_dt) = c("date_time", "PVinv_w")
-                       #     
-                       #     interval = self$set_interval(base_ts)
-                       #     
-                       #     new_dt$kw = new_dt$PVinv_w*0.001*(1-0.1408) # loss factor taken from SAM
-                       #     new_dt$kwh = new_dt$kw*interval
-                       #     new_dt$PVinv_w = NULL
-                       #     new_dt = na.omit(new_dt)
-                       #     
-                       #     private$base_ts = new_dt
-                       #   }
-                       # },
-                       
                        set_interval = function(ts) {
                          start_pt = 2
                          interval.num = abs(as.numeric(

@@ -199,7 +199,7 @@ disp_curv <- R6Class("Dispatch",
         private$disp_frame = disp_frame
         self$assign_colors()
         
-        return(self)
+        # return(self)
       },
       
       get_metadata = function() {

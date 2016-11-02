@@ -54,7 +54,7 @@ batt_bank <- R6Class("Batteries",
         flog.threshold(ERROR, name = "batt")
         
         # limits pwr rate to depletion (given min_soc) in 1hr
-        self$pwr_rt = ((1-self$min_soc)*nameplate)/(self$round_eff*meta[["time_int"]])  
+        self$pwr_rt = (1-self$min_soc)*nameplate/(meta[["time_int"]]*self$round_eff)
         self$cap = nameplate
       },
       

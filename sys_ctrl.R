@@ -152,6 +152,7 @@ sys_ctrlr <- R6Class("System Controller",
                            }
                            else {
                              
+                             # atm, timestep is a chr w format "%Y-%m-%d %H:%M:%S"
                              # THIS IS WHERE BATT WOULD CHARGE FROM GRID
                              # GIVEN TEMPORAL AND OTHER CONSTRAINTS
                              # i.e. using timestep and maybe SoC
@@ -186,7 +187,7 @@ sys_ctrlr <- R6Class("System Controller",
                          }
                            
                          next_state = list(
-                           "date_time" = timestep,
+                           "date_time" = strftime(timestep, format = "%Y-%m-%d %H:%M"),
                            "iso_mw" = iso_mw,
                            "bldg_kw" = bldg_kw, "grid_kw" = grid_kw,
                            "pv_kw" = pv_kw, "batt_kw" = batt_kw, 

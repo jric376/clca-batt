@@ -7,11 +7,6 @@ library("dplyr")
 library("futile.logger")
 library("R6")
 
-# interval <- 1/12
-# test_df <- read.csv("outputs\\testing_1yr_copy_2\\df\\ctrlr_2_li_ion730W_2.csv", header = T)
-# slim_df <- select(test_df, date_time:curtail_kw) %>%
-#             mutate(mo = as.POSIXlt(date_time)$mo + 1)
-
 get_bill_cost = function(bldg_nm, timestep, interval, before_kw, after_kw) {
   
   # rate schedules
@@ -110,25 +105,26 @@ get_pv_cost = function(pv, interest_rt) {
   return(out_list)
 }
 
-get_pv_batt_plc2erta = function(pv, batt) {
-  
-  batt.plc2erta <- (batt$nameplate/batt$eng_dens)*batt$plc2erta
-  pv.plc2erta <- pv$nameplate*pv$plc2erta
+get_pv_batt_plc2erta = function(pv, batt_type, batt_cap) {
+  if(!exists("batt_bank", mode = "function")) source("battery_bank.R")
+  batt_meta <- list(
+    "name" = "Boris the Battery",
+    "run_id" = "c2g impacts",
+    "ctrl_id" = "c2g impacts",
+    "time_int" = 1/12
+  )
+  batt <- batt_bank$new(
+    meta = batt_meta,
+    type = batt_type,
+    nameplate = batt_cap
+  )
+  batt_plc2erta <- 1000*batt$nameplate/batt$eng_dens*batt$plc2erta
+  pv_plc2erta <- pv$nameplate*pv$plc2erta
   
   out_list = list("pv_plc2erta" = pv_plc2erta,
                   "batt_plc2erta" = batt_plc2erta)
   
+  rm(batt, batt_meta)
+  
   return(out_list)
 }
-
-batt_meta <- list(
-  "name" = "Boris the Battery",
-  "run_id" = "run_id",
-  "ctrl_id" = "ctrl_id",
-  "time_int" = 1/12
-)
-test_batt <- batt_bank$new(
-  meta = batt_meta,
-  type = "vrb",
-  nameplate = 30
-)
