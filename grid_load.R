@@ -7,6 +7,8 @@
 # wd_path = paste(Sys.getenv("USERPROFILE"), "\\OneDrive\\School\\Thesis\\program2", sep = "")
 # setwd(as.character(wd_path))
 # setwd("E:\\GitHub\\clca-batt")
+library("plyr")
+library("dplyr")
 library('foreach')
 library('iterators')
 library('doSNOW')
@@ -19,7 +21,7 @@ grid_load <- R6Class("Grid Load",
                                               rand_copies = NA, rand_factor = NA
                                              ) {
                        self$add_metadata(meta)
-                       self$add_base_ts(read.csv(grid_ts_path, head = T, stringsAsFactors = F))
+                       self$add_base_ts(fread(grid_ts_path, header = TRUE, stringsAsFactors = FALSE))
                        self$stochastize_ts(rand_copies, rand_factor)
                      },
                      
@@ -39,11 +41,11 @@ grid_load <- R6Class("Grid Load",
                          return("Base time-series data is missing")
                        }
                        else {
-                         base_ts$date_time = strptime(base_ts$time_5min, format="%m/%d/%Y %H:%M")
-                         base_ts$date_time = as.POSIXct(base_ts$date_time)
-                         base_ts$time_5min = NULL
+                         base_ts <- base_ts %>%
+                                    mutate(date_time = as.POSIXct(strptime(time_5min,
+                                                                           format="%m/%d/%Y %H:%M"))) %>%
+                                    select(-time_5min)
                          
-                         # base_ts$date_time = strftime(base_ts$date_time, format="%m/%d %H:%M:%S")
                          interval = self$set_interval(base_ts)
                          
                          private$base_ts = base_ts[2:nrow(base_ts),]
@@ -70,15 +72,8 @@ grid_load <- R6Class("Grid Load",
                          
                          for (i in 1:copies) {
                            j = i + 1
-                           new_ts = private$base_ts
-                           
-                           
-                           foreach(x = iter(new_ts, by = 'col'), nm = colnames(new_ts)) %do%
-                             if (is.numeric(x)) {
-                               x = sapply(x, function(y) rnorm(1, mean = y, sd = y*rand_factor))
-                               new_ts[[nm]] = x
-                             }
-                           
+                           new_ts = private$base_ts %>%
+                                      mutate(mw = mw*(1 + rnorm(nrow(private$base_ts), sd = rand_factor)))
                            ts_df[[j]] = new_ts
                          }
                        }

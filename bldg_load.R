@@ -19,7 +19,7 @@ bldg_load <- R6Class("Bldg Load",
                        initialize = function(meta = NULL, bldg_ts_path = NULL,
                                              rand_copies = NULL, rand_factor = NULL) {
                          self$add_metadata(meta)
-                         self$add_base_ts(read.csv(bldg_ts_path, head = T, stringsAsFactors = F))
+                         self$add_base_ts(fread(bldg_ts_path, head = TRUE, stringsAsFactors = FALSE))
                          self$stochastize_ts(rand_copies, rand_factor)
                        },
                        
@@ -39,17 +39,14 @@ bldg_load <- R6Class("Bldg Load",
                            return("Base time-series data is missing")
                          }
                          else {
-                           base_ts$date_time = strptime(base_ts$time_5min, format="%m/%d %H:%M:%S")
-                           base_ts$date_time = as.POSIXct(base_ts$date_time)
-                           base_ts$time_5min = NULL
-                           base_ts$kwh = base_ts$elec.J*(2.778E-7) # J to kWh
-                           base_ts$elec.J = NULL
-                           base_ts$gas.J = NULL
-                           
-                           # base_ts$date_time = strftime(base_ts$date_time, format="%m/%d %H:%M:%S")
-                           
+                           base_ts <- base_ts %>%
+                                        mutate(date_time = as.POSIXct(strptime(time_5min,
+                                                                               format = "%m/%d %H:%M:%S")),
+                                               kwh = elec.J*(2.778E-7)) %>% # J to kWh
+                                        select(-time_5min, -elec.J, -gas.J)
                            interval = self$set_interval(base_ts)
-                           base_ts$kw = base_ts$kwh/interval
+                           base_ts <- base_ts %>%
+                                        mutate(kw = kwh/interval)
                            private$base_ts = base_ts
                          }
                        },
@@ -74,14 +71,9 @@ bldg_load <- R6Class("Bldg Load",
                            
                            for (i in 1:copies) {
                              j = i + 1
-                             new_ts = private$base_ts
-                             
-                             foreach(x = iter(new_ts, by = 'col'), nm = colnames(new_ts)) %do%
-                               if (is.numeric(x)) {
-                                 x = sapply(x, function(y) rnorm(1, mean = y, sd = y*rand_factor))
-                                 new_ts[[nm]] = x
-                               }
-                             
+                             new_ts = private$base_ts %>%
+                               mutate(kw = kw*(1 + rnorm(nrow(private$base_ts), sd = rand_factor)),
+                                      kwh = kwh*(1 + rnorm(nrow(private$base_ts), sd = rand_factor)))
                              ts_df[[j]] = new_ts
                            }
                          }
