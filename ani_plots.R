@@ -14,6 +14,7 @@ library("futile.logger")
 library("gganimate")
 library("ggplot2")
 library("ggrepel")
+library("imputeTS")
 library("reshape2")
 library("scales")
 library("tidyr")
@@ -315,7 +316,7 @@ get_disp_ani <- function(runs = 20, save = FALSE) {
   
   return(full_df)
 }
-get_disp_w_donut <- function(runs = 20, save = FALSE) {
+get_disp_w_donut <- function(runs = 20, terr = "nyiso", save = FALSE) {
   source("dispatch_curve.R")
   source("grid_load.R")
   
@@ -352,7 +353,7 @@ get_disp_w_donut <- function(runs = 20, save = FALSE) {
   full_disp <- full_disp %>%
                   mutate(bin = cumul_cap%/%(max(full_disp$cumul_cap)/3),
                          fuel_type = factor(fuel_type),
-                         bin = ifelse(bin == 3, 2, bin))
+                         bin = ifelse(full_disp$bin != 3, bin, 2))
   
   donut_df <- select(full_disp, namepcap, cumul_cap, fuel_type:bin) %>%
                 group_by(bin, fuel_type) %>%
@@ -366,45 +367,67 @@ get_disp_w_donut <- function(runs = 20, save = FALSE) {
                 mutate(c_mw = cumsum(namepcap)) %>%
                 group_by(bin) %>%
                 mutate(bin_frac = namepcap / sum(namepcap),
-                        tot_frac = c_mw / sum(c_mw)) %>%
-                select(bin, fuel_type, tot_frac) %>%
+                        tot_frac = c_mw / sum(c_mw),
+                        color = cbb_qual) %>%
+                select(bin, fuel_type, namepcap, tot_frac:color)
   
-  donut_df.0 <- filter(donut_df, bin == 0, tot_frac > 0)
-  donut_df.0 <- donut_df.0 %>%
-                  arrange(tot_frac) %>%
-                  mutate(ymax = cumsum(tot_frac),
-                         ymin = c(0, head(ymax, n = -1)))
-  p1 = ggplot(donut_df.0, aes(fill=fuel_type, ymax=ymax, ymin=ymin, xmax=4, xmin=3)) +
-          geom_rect() +
-          coord_polar(theta="y") +
-          xlim(c(0, 4)) +
-          theme(panel.grid=element_blank()) +
-          theme(axis.text=element_blank()) +
-          theme(axis.ticks=element_blank()) +
-          annotate("text", x = 0, y = 0, label = "My Ring plot !") +
-          labs(title="")
-  p1
-  
+  donut_plots <- list()
+  for (k in 0:1) {
+    donut_df.0 <- filter(donut_df, bin == k, tot_frac > 0)
+    donut_df.0 <- donut_df.0 %>%
+                    arrange(tot_frac) %>%
+                    mutate(ymax = cumsum(tot_frac),
+                           ymin = c(0, head(ymax, n = -1)))
+    cap_label <- paste(as.character(round(sum(filter(donut_df,
+                                                     bin <= k)$namepcap)/20)),
+                       "MW")
+    donut_plot.0 <- ggplot(donut_df.0, aes(fill=fuel_type, ymax=ymax, ymin=ymin, xmax=4, xmin=1)) +
+                      geom_rect() +
+                      coord_polar(theta="y") +
+                      scale_fill_manual(name = NULL, values = donut_df.0$color) +
+                      xlim(c(0, 4)) +
+                      theme(panel.grid=element_blank(),
+                            legend.position = "none") +
+                      theme(axis.text=element_blank()) +
+                      theme(axis.ticks=element_blank()) +
+                      theme(axis.line = element_blank(),
+                            axis.title = element_blank()) +
+                      annotate("text", x = 0, y = 0, 
+                               label = cap_label,
+                               fontface = 2, size = 4) +
+                      labs(title="")
+    donut_plots[[length(donut_plots)+1]] <- donut_plot.0
+  }
+  donut_plots <- plot_grid(plotlist = donut_plots,
+                            nrow = 1, align = "h")
+  donut_plots <- plot_grid(ggdraw(),donut_plots,ggdraw(),
+                           nrow = 1, align = "h",
+                           rel_widths = c(0.323,1,0.343))
   vert_lines <- max(full_disp$cumul_cap)*seq.int(2)/3
   summ_disp <- select(full_disp, -(plprmfl:MC),
-                      -plc2erta, -(wtd_plc2erta:cumul_plc2erta)) %>%
-                  group_by(orispl, fuel_type) %>%
-                  summarise_if(is.numeric, mean)
-                  # inner_join(select(full_disp, orispl, fuel_type), by = "orispl")
+                      -plc2erta, -(wtd_plc2erta:cumul_plc2erta))
+  
+  num_plants <- length(unique(summ_disp$orispl))
+  which_disp <- sample.int(runs, size = 1)
+  start_ind <- (num_plants*which_disp)+1
+  summ_disp <- summ_disp[start_ind:(start_ind+num_plants-1),]
   
   disp_plt.bare <- ggplot(data = summ_disp,
                           mapping = aes(x = cumul_cap)) +
                       labs(x = "Cumulative Capacity (MW)") +
-                      theme(panel.background = element_rect(colour = "gray75", fill = "gray80")) +
+                      theme(panel.background = element_rect(colour = "gray75",
+                                                            fill = "gray80")) +
                       theme(text = element_text(size = 16),
                             axis.text.x = element_text(size = 14),
                             axis.text.y = element_text(size = 14)) +
                       theme(legend.box = "horizontal",
-                            legend.background = element_rect(colour = "gray75", fill = alpha("gray85", 1/4))) +
+                            legend.background = element_rect(colour = "gray75",
+                                                             fill = alpha("gray85", 1/4))) +
                       background_grid(major = "xy", minor = "none",
                                       size.major = 0.5, colour.major = "gray85")
   
-  disp_cost <- disp_plt.bare + labs(y = "Marg. Cost ($ / kWh)") +
+  disp_cost <- disp_plt.bare + labs(y = "Marg. Cost ($ / kWh)",
+                                    title = "NYISO Dispatch Curve and Energy Mix") +
                   expand_limits(y = c(0, 0.32)) +
                   geom_errorbar(mapping = aes(
                                   y = MC_rand, size = namepcap,
@@ -416,12 +439,247 @@ get_disp_w_donut <- function(runs = 20, save = FALSE) {
                                fill = fuel_type),
                              alpha = 1/1.2,
                              colour = "gray35", shape = 21) +
+                  geom_text(aes(x = vert_lines[1],
+                                label = paste(as.character(round(vert_lines[1])), "MW"),
+                                y = 0.12),
+                            size = 4) +
                   scale_size(name = bquote(scriptstyle(MW[plant])),
                              breaks = c(250,500,1000,2000),
                              range = c(3,15)) +
                   scale_fill_manual(name = NULL, values = cbb_qual,
-                                    guide = guide_legend(override.aes = list(alpha = 1, size = 5))) +
+                                    guide = guide_legend(override.aes = list(alpha = 1,
+                                                                             size = 5))) +
                   theme(legend.position = c(0.25, 0.70))
+  
+  dispatch_donut <- plot_grid(disp_cost, donut_plots,
+                               nrow = 2, align = "v",
+                               rel_heights = c(1, 0.25))
+  if (save) {
+    save_plot(filename = paste0("outputs\\plots\\", terr, "_disp_donut.png"),
+              dispatch_donut, ncol = 1, nrow = 2,
+              base_height = 6.25, base_width = 10)
+  }
+  
+  return(dispatch_donut)
+}
+get_ts_summ <- function(choice, copies) {
+  
+  rowSds <- function(x) {
+    sqrt(rowSums((x - rowMeans(x))^2)/(dim(x)[2] - 1))
+  }
+  
+  suffixes <- letters[1:(copies+1)]
+  
+  if (choice != "nyiso") {
+    source("bldg_load.R")
+    ts <- get_bldg(run_id = "plot", type = choice, copies = copies)
+  }
+  if (choice == "nyiso") {
+    source("grid_load.R")
+    ts <- get_grid(run_id = "plot", terr = choice, copies = copies)
+  }
+  
+  full_df <- ts$get_ts_df()
+  
+  if (choice != "nyiso") {
+    for (i in 1:(copies+1)) {
+      dots <- names(full_df[[i]])
+      col.names <- c("date_time",
+                     paste0("kw_", suffixes[i]),
+                     paste0("kwh_", suffixes[i]))
+      full_df[[i]] <- mutate_(full_df[[i]],
+                              .dots = setNames(dots, col.names)) %>%
+        select(-kw,-kwh) %>%
+        na.omit() %>%
+        arrange(date_time)
+    }
+  }
+  
+  full_df <- Reduce(function(x, y) inner_join(x, y, by = "date_time"), full_df) %>%
+              mutate(hr = as.numeric(strftime(date_time, format = "%H")),
+                      day_ind = as.numeric(strftime(date_time, format = "%j")),
+                     dayhr_ind = day_ind + hr/24)
+  
+  if (choice != "nyiso") {
+    summ_df <- mutate(full_df,
+                      kw_mean = rowMeans(select(full_df, contains("kw_"))),
+                      kw_sd = rowSds(select(full_df, contains("kw_"))),
+                      kwh_mean = rowMeans(select(full_df, contains("kwh_"))),
+                      kwh_sd = rowSds(select(full_df, contains("kwh_"))))
+  }
+  if (choice == "nyiso") {
+    summ_df <- mutate(full_df,
+                      mw_mean = rowMeans(select(full_df, contains("mw"))),
+                      date_time = as.POSIXct(date_time),
+                      mw_sd = rowSds(select(full_df, contains("mw"))))
+  }
+  
+  return(summ_df)
+}
+get_ts_heatmap <- function(choice, copies, save = FALSE) {
+  
+  # d_offset aligns the time-series based on where the weekend appears to be
+  # i.e. where there is a period of 2 consecutive days with reduced loads
+  if (choice != "nyiso") {
+    d_offset = 4
+    unit_txt = "kw_"
+    lgnd_txt1 = bquote(bar(kW))
+    lgnd_txt2 = bquote(sigma[scriptscriptstyle(kW)])
+    title_txt = tools::toTitleCase(choice)
+  }
+  if (choice == "nyiso") {
+    d_offset = 0
+    unit_txt = "mw_"
+    lgnd_txt1 = bquote(bar(MW))
+    lgnd_txt2 = bquote(sigma[scriptscriptstyle(MW)])
+    title_txt = toupper(choice)
+  }
+  
+  chdd_df <- fread("inputs\\2014_chdd.csv", header = TRUE, stringsAsFactors = FALSE) %>%
+              select(date_time, cl) %>%
+              mutate(day_ind = as.numeric(strftime(date_time, format = "%j"))) %>%
+              select(-date_time)
+  # labels match order of cluster numbers
+  # in chdd_df
+  cl_label <- c("Jul - Sep","Jan - Mar",
+                "Apr - Jun","Oct - Dec")
+  cl_label <- factor(cl_label, levels = c("Jan - Mar","Apr - Jun",
+                                          "Jul - Sep","Oct - Dec"))
+  
+              
+  summ_df <- get_ts_summ(choice, copies) %>%
+                mutate(day_ind = as.numeric(strftime(date_time, format = "%j"))) %>%
+                left_join(chdd_df, by = "day_ind") %>%
+                mutate(cl = na.ma(cl, k = 4)) %>%
+                na.omit()
+  mean_txt <- paste0(unit_txt, "mean")
+  sd_txt <- paste0(unit_txt, "sd")
+  midpt.mean <- mean(select(summ_df, contains(mean_txt))[[mean_txt]])
+  midpt.sd <- mean(select(summ_df, contains(sd_txt))[[sd_txt]])
+  
+  heatmap_df.mean <- foreach(k = 1:max(summ_df$cl),
+                          .combine = "rbind.data.frame") %do% {
+                            
+                              cl_df <- summ_df %>%
+                                          filter(cl == k) %>%
+                                          select(-cl)
+                              
+                              heatmap_df.0 <- cl_df %>%
+                                                select(date_time, hr, dayhr_ind,
+                                                       contains("_mean")) %>%
+                                                group_by(dayhr_ind) %>%
+                                                summarise_if(is.numeric, mean) %>%
+                                                mutate(day = (floor(dayhr_ind)+d_offset)%%7) %>%
+                                                select(-dayhr_ind) %>%
+                                                group_by(day, hr) %>%
+                                                summarise_all(mean) %>%
+                                                select(day, hr, contains(unit_txt))
+                              
+                              heatmap_df.m <- melt(heatmap_df.0,
+                                                   id.vars = c("day","hr"),
+                                                   measure.vars = c(paste0(unit_txt, "mean")))
+                              heatmap_df.s <- ddply(heatmap_df.m, .(variable),
+                                                    transform, rescale = scale(value))
+                              heatmap_mean.0 <- filter(heatmap_df.s, variable == paste0(unit_txt,
+                                                                                        "mean")) %>%
+                                                  mutate(cl = cl_label[k])
+                          }
+  
+  heatmap_df.sd <- foreach(k = 1:max(summ_df$cl),
+                             .combine = "rbind.data.frame") %do% {
+                               
+                               cl_df <- summ_df %>%
+                                           filter(cl == k) %>%
+                                           select(-cl)
+                               
+                               heatmap_df.0 <- cl_df %>%
+                                                 select(date_time, hr, dayhr_ind,
+                                                        contains("_sd")) %>%
+                                                 group_by(dayhr_ind) %>%
+                                                 summarise_if(is.numeric, mean) %>%
+                                                 mutate(day = (floor(dayhr_ind)+d_offset)%%7) %>%
+                                                 select(-dayhr_ind) %>%
+                                                 group_by(day, hr) %>%
+                                                 summarise_all(mean) %>%
+                                                 select(day, hr, contains(unit_txt))
+                               
+                               heatmap_df.m <- melt(heatmap_df.0,
+                                                    id.vars = c("day","hr"),
+                                                    measure.vars = c(paste0(unit_txt, "sd")))
+                               heatmap_df.s <- ddply(heatmap_df.m, .(variable),
+                                                     transform, rescale = scale(value))
+                               heatmap_sd.0 <- filter(heatmap_df.s, variable == paste0(unit_txt,
+                                                                                       "sd")) %>%
+                                                  mutate(cl = cl_label[k])
+                          }
+  
+  day_labels <- c("Mon", "Tues", "Wed", "Thur", "Fri", "Sat", "Sun")
+  hr_labels <- unlist(lapply(seq(3,21,3), function(x) ifelse(x>10, paste0(x, ":00"),
+                                                             paste0("0", x, ":00"))))
+  
+  mean_plot <- ggplot(heatmap_df.mean, aes(y = day, x = hr)) + 
+                  geom_tile(aes(fill = value), colour = "gray80") +
+                  facet_grid(cl ~ .) +
+                  scale_x_continuous(breaks = seq(2,20,3),
+                                     labels = hr_labels,
+                                     expand=c(0,0)) +
+                  scale_y_continuous(breaks = seq(0,6,1),
+                                     labels = day_labels,
+                                     expand=c(0,0)) +
+                  scale_fill_gradient2(name = lgnd_txt1, low = "#7b3294",
+                                       mid = "#f7f7f7", high = "#008837",
+                                       midpoint = midpt.mean) +
+                  labs(x = "",
+                       y = "") +
+                  theme(panel.background = element_blank(),
+                        panel.border = element_blank(),
+                        axis.line = element_blank(),
+                        axis.ticks = element_blank(),
+                        axis.text.y = element_text(angle = 33, hjust = 1, size = 8),
+                        axis.text.x =  element_text(angle = 33, vjust = 1, hjust = 1))
+  
+  sd_plot <- ggplot(heatmap_df.sd, aes(y = day, x = hr)) + 
+                geom_tile(aes(fill = value), colour = "gray80") +
+                facet_grid(cl ~ .) +
+                scale_x_continuous(breaks = seq(2,20,3),
+                                   labels = hr_labels,
+                                   expand=c(0,0)) +
+                scale_y_continuous(breaks = seq(0,6,1),
+                                   labels = day_labels,
+                                   expand=c(0,0)) +
+                scale_fill_gradient2(name = lgnd_txt2,
+                                     low = "#7b3294", mid = "#f7f7f7", high = "#008837",
+                                     midpoint = midpt.sd) +
+                labs(x = "",
+                     y = "") +
+                theme(panel.background = element_blank(),
+                      panel.border = element_blank(),
+                      axis.line = element_blank(),
+                      axis.ticks = element_blank(),
+                      axis.text.y = element_text(angle = 33, hjust = 1, size = 8),
+                      axis.text.x = element_text(angle = 33, vjust = 1, hjust = 1))
+  
+  heatmap_plot <- plot_grid(mean_plot, sd_plot,
+                              labels = c("A","B"),
+                              ncol = 1, align = "v")
+  title <- ggdraw() + draw_label(paste(title_txt, "Weekly Load Profile"),
+                                    fontface = "bold")
+  heatmap_plot <- plot_grid(title, heatmap_plot,
+                              ncol = 1, rel_heights = c(0.05, 1))
+  
+  if (save) {
+    # ggsave(paste0("outputs\\plots\\", choice, "_heatmap_mean.png"),
+    #        mean_plot,
+    #        width = 12, height = 8, units = "in")
+    # ggsave(paste0("outputs\\plots\\", choice, "_heatmap_sd.png"),
+    #        sd_plot,
+    #        width = 12, height = 8, units = "in")
+    save_plot(filename = paste0("outputs\\plots\\", choice, "_heatmap.png"),
+              heatmap_plot,
+              base_height = 12, base_width = 8)
+  }
+  
+  return(heatmap_plot)
 }
 get_isoterr_plots <- function(terr = "nyiso", save = FALSE) {
   source("dispatch_curve.R")
@@ -551,36 +809,6 @@ get_bldg_comp <- function() {
          summ_plot,
          width = 10, height = 6.25, units = "in")
 }
-get_bldg_summ <- function(type, copies) {
-  source("bldg_load.R")
-  rowSds <- function(x) {
-    sqrt(rowSums((x - rowMeans(x))^2)/(dim(x)[2] - 1))
-  }
-  suffixes <- letters[1:(copies+1)]
-  bldg <- get_bldg(run_id = "plot", type = type, copies = copies)
-  full_df <- bldg$get_ts_df()
-  for (i in 1:(copies+1)) {
-    dots <- names(full_df[[i]])
-    col.names <- c("date_time",
-                   paste0("kw_", suffixes[i]),
-                   paste0("kwh_", suffixes[i]))
-    full_df[[i]] <- mutate_(full_df[[i]],
-                            .dots = setNames(dots, col.names)) %>%
-      select(-kw,-kwh)
-  }
-  full_df <- Reduce(function(x, y) inner_join(x, y, by = "date_time"), full_df) %>%
-    na.omit()
-  
-  summ_df <- mutate(full_df, kw_mean = rowMeans(select(full_df, contains("kw_"))),
-                    kw_sd = rowSds(select(full_df, contains("kw_"))),
-                    kwh_mean = rowMeans(select(full_df, contains("kwh_"))),
-                    kwh_sd = rowSds(select(full_df, contains("kwh_"))),
-                    hr = as.numeric(strftime(date_time, format = "%H")),
-                    day_ind = as.numeric(strftime(date_time, format = "%j")),
-                    dayhr_ind = day_ind + as.numeric(hr/24))
-  
-  return(summ_df)
-}
 get_bldg_ldc <- function(type, copies, save = FALSE) {
   
   summ_df <- get_bldg_summ(type, copies)
@@ -614,94 +842,6 @@ get_bldg_ldc <- function(type, copies, save = FALSE) {
   }
   
   return(ldc_plot)
-}
-get_bldg_heatmap <- function(type, copies, save = FALSE) {
-  
-  summ_df <- get_bldg_summ(type, copies)
-  
-  heatmap_df <- summ_df %>%
-                  select(date_time, hr, dayhr_ind, contains("_mean"), contains("_sd")) %>%
-                  group_by(dayhr_ind) %>%
-                  summarise_if(is.numeric, mean) %>%
-                  mutate(day = (floor(dayhr_ind)+4)%%7) %>% # offsetting days for graph
-                  select(-dayhr_ind) %>%
-                  group_by(day, hr) %>%
-                  summarise_all(mean) %>%
-                  select(day, hr, contains("kw_"))
-  heatmap_df.m <- melt(heatmap_df,
-                        id.vars = c("day","hr"),
-                        measure.vars = c("kw_mean","kw_sd"))
-  heatmap_df.s <- ddply(heatmap_df.m, .(variable), transform, rescale = scale(value))
-  heatmap_mean <- filter(heatmap_df.s, variable == "kw_mean")
-  heatmap_sd <- filter(heatmap_df.s, variable == "kw_sd")
-  
-  day_labels <- c("Mon", "Tues", "Wed", "Thur", "Fri", "Sat", "Sun")
-  hr_labels <- unlist(lapply(seq(3,21,3), function(x) ifelse(x>10, paste0(x, ":00"),
-                                                             paste0("0", x, ":00"))))
-  
-  mean_plot <- ggplot(heatmap_mean, aes(y = day, x = hr)) + 
-                  geom_tile(aes(fill = value), colour = "gray80") +
-                  scale_x_continuous(breaks = seq(2,20,3),
-                                     labels = hr_labels,
-                                     expand=c(0,0)) +
-                  scale_y_continuous(breaks = seq(0,6,1),
-                                     labels = day_labels,
-                                     expand=c(0,0)) +
-                  scale_fill_gradient2(name = bquote(bar(kW)), low = "#7b3294",
-                                       mid = "#f7f7f7", high = "#008837",
-                                       midpoint = 10) +
-                  labs(x = "",
-                       y = "") +
-                  theme(panel.background = element_blank(),
-                        panel.border = element_blank(),
-                        axis.line = element_blank(),
-                        axis.ticks = element_blank(),
-                        axis.text.y = element_text(angle = 33, hjust = 1),
-                        axis.text.x = element_text(angle = 33, vjust = 1, hjust = 1),
-                        axis.title.x = element_blank())
-  
-  sd_plot <- ggplot(heatmap_sd, aes(y = day, x = hr)) + 
-                geom_tile(aes(fill = value), colour = "gray80") +
-                scale_x_continuous(breaks = seq(2,20,3),
-                                   labels = hr_labels,
-                                   expand=c(0,0)) +
-                scale_y_continuous(breaks = seq(0,6,1),
-                                   labels = day_labels,
-                                   expand=c(0,0)) +
-                scale_fill_gradient2(name = bquote(sigma[scriptscriptstyle(kW)]),
-                                     low = "#7b3294", mid = "#f7f7f7", high = "#008837",
-                                     midpoint = 0.75) +
-                labs(x = "",
-                     y = "") +
-                theme(panel.background = element_blank(),
-                      panel.border = element_blank(),
-                      axis.line = element_blank(),
-                      axis.ticks = element_blank(),
-                      axis.text.y = element_blank(),
-                      axis.text.x = element_text(angle = 33, vjust = 1, hjust = 1))
-  
-  heatmap_plot <- plot_grid(mean_plot, sd_plot,
-                            labels = c("A","B"),
-                            nrow = 2, align = "v",
-                            rel_heights = c(1, 0.333))
-  title <- ggdraw() + draw_label("Office Weekly Load Profile",
-                                 fontface = "bold")
-  heatmap_plot <- plot_grid(title, heatmap_plot,
-                            ncol = 1, rel_heights = c(0.05, 1))
-  
-  if (save) {
-    # ggsave(paste0("outputs\\plots\\", type, "_heatmap_mean.png"),
-    #        mean_plot,
-    #        width = 10, height = 6.25, units = "in")
-    # ggsave(paste0("outputs\\plots\\", type, "_heatmap_sd.png"),
-    #        sd_plot,
-    #        width = 10, height = 6.25, units = "in")
-    save_plot(filename = paste0("outputs\\plots\\", type, "_heatmap.png"),
-              heatmap_plot, ncol = 1, nrow = 2,
-              base_height = 6.25, base_width = 10)
-  }
-
-  return(heatmap_plot)
 }
 get_kt_dist <- function(which_df, save = FALSE) {
   if(which_df == "nyc_nsrdb") {

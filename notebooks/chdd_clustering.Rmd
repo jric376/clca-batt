@@ -1,0 +1,52 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+This is an [R Markdown](http://rmarkdown.rstudio.com) Notebook. When you execute code within the notebook, the results appear beneath the code. 
+
+Try executing this chunk by clicking the *Run* button within the chunk or by placing your cursor inside it and pressing *Ctrl+Shift+Enter*. 
+
+```{r}
+
+hdd_raw <- read.table("ftp://ftp.cpc.ncep.noaa.gov/htdocs/degree_days/weighted/daily_data/2014/StatesCONUS.Heating.txt",
+                     sep = "|", skip = 3, header = TRUE, stringsAsFactors = FALSE) %>%
+            filter(Region == "NY")
+cdd_raw <- read.table("ftp://ftp.cpc.ncep.noaa.gov/htdocs/degree_days/weighted/daily_data/2014/StatesCONUS.Cooling.txt",
+                     sep = "|", skip = 3, header = TRUE, stringsAsFactors = FALSE) %>%
+            filter(Region == "NY")
+
+hdd_df <- as.data.frame(t(hdd_raw[,-1]))
+cdd_df <- as.data.frame(t(cdd_raw[,-1]))
+colnames(hdd_df) <- c("hdd")
+colnames(cdd_df) <- c("cdd")
+date_time <- as.POSIXct(strptime(rownames(hdd_df), format = "X%Y%m%d"))
+chdd_df <- hdd_df %>%
+            mutate(date_time = date_time,
+                   cdd = cdd_df$cdd,
+                   hdd_s = scale(hdd, center = 0),
+                   cdd_s = scale(cdd, center = 0),
+                   dd_diff = hdd_s - cdd_s,
+                   dd_diff_s = scale(dd_diff, center = 0))
+rm(hdd_raw,cdd_raw,hdd_df,cdd_df,date_time)
+
+chdd_df.num = model.matrix(~ . - 1, chdd_df)
+wss <- (nrow(chdd_df)-1)*sum(apply(chdd_df.num,2,var))
+for (i in 2:15) wss[i] <- sum(kmeans(chdd_df.num,
+   centers=i)$withinss)
+qplot(1:15, wss, geom = "path", xlab="Number of Clusters",
+  ylab="Within groups sum of squares")
+cl <- as.numeric(kmeans(chdd_df.num, 4)$cluster)
+rm(chdd_df.num)
+
+chdd_df$cl <- cl
+
+ggplot(chdd_df, aes(x = date_time)) +
+  geom_point(aes(y = dd_diff_s, colour = cl))
+  # geom_line(aes(y = hdd_s, colour = "red")) +
+  # geom_line(aes(y = cdd_s, colour = "steelblue"))
+```
+
+Add a new chunk by clicking the *Insert Chunk* button on the toolbar or by pressing *Ctrl+Alt+I*.
+
+When you save the notebook, an HTML file containing the code and output will be saved alongside it (click the *Preview* button or press *Ctrl+Shift+K* to preview the HTML file).
