@@ -10,6 +10,9 @@ library("cowplot")
 library("data.table")
 library("plyr")
 library("dplyr")
+library("foreach")
+library("iterators")
+library("doSNOW")
 library("futile.logger")
 library("gganimate")
 library("ggplot2")
@@ -24,6 +27,12 @@ library("tidyr")
 # }
 cbb_qual <- c("#E69F00", "#999999","#CC79A7", "#009E73", "#F0E442",
               "#000000", "#0072B2", "#D55E00", "#56B4E9")
+
+cbb_qual.n <- c("Biomass" = "#E69F00", "Coal-based" = "#999999",
+                "Hydro" = "#CC79A7", "Landfill Gas" = "#009E73",
+                "Nat. Gas" = "#F0E442", "Nuclear" = "#000000", 
+                "Petro-fuels" = "#0072B2", "PV" = "#D55E00",
+                "Wind" = "#56B4E9")
 
 get_bldg_ani <- function(copies) {
   source("bldg_load.R")
@@ -316,24 +325,9 @@ get_disp_ani <- function(runs = 20, save = FALSE) {
   
   return(full_df)
 }
-get_disp_w_donut <- function(runs = 20, terr = "nyiso", save = FALSE) {
+get_isoterr_donuts <- function(runs = 20, terr = "nyiso", save = FALSE) {
   source("dispatch_curve.R")
-  source("grid_load.R")
   
-  grid <- get_grid(run_id = "plot", copies = floor((runs-1)/2), terr = "nyiso")
-  
-  full_grid <- grid$get_base_ts()
-  full_grid$week <- format(full_grid$date_time, "%U")
-  
-  for (i in seq.int(2,grid$get_ts_count())) {
-    
-    rand_mw <- as.data.frame(grid$get_ts_df(i))
-    rand_mw$week <- format(rand_mw$date_time, "%U")
-    full_grid <- rbind(full_grid, rand_mw)
-  }
-  rm(rand_mw)
-  full_grid <- summarise_if(group_by(full_grid, date_time),
-                            is.numeric, .funs = c("mean", "sd"))
   disp_meta = list(
     "name" = "Doris the Dispatch",
     "run_id" = "plot",
@@ -349,61 +343,75 @@ get_disp_w_donut <- function(runs = 20, terr = "nyiso", save = FALSE) {
     rand_disp <- disp$get_dispatch()
     full_disp <- rbind(full_disp, rand_disp)
   }
-  rm(rand_disp)
-  full_disp <- full_disp %>%
-                  mutate(bin = cumul_cap%/%(max(full_disp$cumul_cap)/3),
-                         fuel_type = factor(fuel_type),
-                         bin = ifelse(full_disp$bin != 3, bin, 2))
   
-  donut_df <- select(full_disp, namepcap, cumul_cap, fuel_type:bin) %>%
+  bins <- c("12000" = 12000,"15000" = 15000,"22500" = 22500) # lcolorbar lo-hi + max val from non-avg'd
+  full_disp <- full_disp %>%
+                  mutate(bin = ifelse(cumul_cap <= bins[1], 1,
+                                      ifelse(cumul_cap <= bins[2], 2,
+                                             ifelse(cumul_cap <= bins[3], 3,
+                                                    -99))),
+                         fuel_type = factor(fuel_type)) %>%
+                  filter(bin != -99)
+  plant_caps <- full_disp %>%
+                    group_by(orispl) %>%
+                    summarise(namepcap = mean(namepcap), cumul_cap = median(cumul_cap))
+                  
+  donut_df <- select(full_disp, orispl, fuel_type:bin) %>%
+                left_join(plant_caps, by = "orispl") %>%
+                group_by(orispl, fuel_type) %>%
+                summarise_if(is.numeric, mean) %>%
+                mutate(bin = round(bin)) %>%
                 group_by(bin, fuel_type) %>%
-                select(-cumul_cap) %>%
+                select(-orispl, -cumul_cap) %>%
                 summarise_at(contains("namepcap"), sum) %>%
                 complete(bin, fuel_type, fill = list (namepcap = 0)) %>%
-                group_by(bin, fuel_type) %>%
-                summarise_at(contains("namepcap"), sum) %>%
                 ungroup() %>%
                 group_by(fuel_type) %>%
                 mutate(c_mw = cumsum(namepcap)) %>%
                 group_by(bin) %>%
                 mutate(bin_frac = namepcap / sum(namepcap),
-                        tot_frac = c_mw / sum(c_mw),
-                        color = cbb_qual) %>%
-                select(bin, fuel_type, namepcap, tot_frac:color)
+                        tot_frac = c_mw / sum(c_mw)) %>%
+                select(bin, fuel_type, namepcap, tot_frac)
   
   donut_plots <- list()
-  for (k in 0:1) {
+  for (k in 1:length(bins)) {
     donut_df.0 <- filter(donut_df, bin == k, tot_frac > 0)
     donut_df.0 <- donut_df.0 %>%
                     arrange(tot_frac) %>%
                     mutate(ymax = cumsum(tot_frac),
                            ymin = c(0, head(ymax, n = -1)))
-    cap_label <- paste(as.character(round(sum(filter(donut_df,
-                                                     bin <= k)$namepcap)/20)),
-                       "MW")
-    donut_plot.0 <- ggplot(donut_df.0, aes(fill=fuel_type, ymax=ymax, ymin=ymin, xmax=4, xmin=1)) +
-                      geom_rect() +
+    cap_label <- paste0("~", as.character(bins[k]), " MW")
+    donut_plot.0 <- ggplot(donut_df.0, aes(fill=fuel_type,
+                                           ymax=ymax, ymin=ymin,
+                                           xmax=4, xmin=2)) +
+                      geom_rect(colour = "gray75", size = 0.25) +
                       coord_polar(theta="y") +
-                      scale_fill_manual(name = NULL, values = donut_df.0$color) +
+                      scale_y_continuous(expand = c(0,0)) +
+                      scale_fill_manual(name = NULL, values = cbb_qual.n,
+                                        guide = guide_legend(nrow = 1)) +
                       xlim(c(0, 4)) +
-                      theme(panel.grid=element_blank(),
-                            legend.position = "none") +
+                      theme(panel.grid=element_blank()) +
                       theme(axis.text=element_blank()) +
                       theme(axis.ticks=element_blank()) +
                       theme(axis.line = element_blank(),
                             axis.title = element_blank()) +
+                      theme(legend.direction = "horizontal",
+                            legend.position = "bottom") +
                       annotate("text", x = 0, y = 0, 
                                label = cap_label,
-                               fontface = 2, size = 4) +
+                               fontface = 2, size = 4.5) +
                       labs(title="")
-    donut_plots[[length(donut_plots)+1]] <- donut_plot.0
+    
+    if (k == length(bins)) {
+      legend <- get_legend(donut_plot.0)
+    }
+    
+    donut_plots[[length(donut_plots)+1]] <- donut_plot.0 +
+                                              theme(legend.position = "none")
   }
   donut_plots <- plot_grid(plotlist = donut_plots,
                             nrow = 1, align = "h")
-  donut_plots <- plot_grid(ggdraw(),donut_plots,ggdraw(),
-                           nrow = 1, align = "h",
-                           rel_widths = c(0.323,1,0.343))
-  vert_lines <- max(full_disp$cumul_cap)*seq.int(2)/3
+  
   summ_disp <- select(full_disp, -(plprmfl:MC),
                       -plc2erta, -(wtd_plc2erta:cumul_plc2erta))
   
@@ -411,58 +419,24 @@ get_disp_w_donut <- function(runs = 20, terr = "nyiso", save = FALSE) {
   which_disp <- sample.int(runs, size = 1)
   start_ind <- (num_plants*which_disp)+1
   summ_disp <- summ_disp[start_ind:(start_ind+num_plants-1),]
+  terr <- toupper(terr)
+  title <- ggdraw() + draw_label(paste(terr, "Energy Mix (2014)"), fontface = "bold")
+  donut_plots <- plot_grid(title, donut_plots, 
+                               nrow = 2,
+                               rel_heights = c(0.1, 1))
+  donut_plots <- plot_grid(donut_plots, legend,
+                              nrow = 2,
+                              rel_heights = c(1, 0.5))
   
-  disp_plt.bare <- ggplot(data = summ_disp,
-                          mapping = aes(x = cumul_cap)) +
-                      labs(x = "Cumulative Capacity (MW)") +
-                      theme(panel.background = element_rect(colour = "gray75",
-                                                            fill = "gray80")) +
-                      theme(text = element_text(size = 16),
-                            axis.text.x = element_text(size = 14),
-                            axis.text.y = element_text(size = 14)) +
-                      theme(legend.box = "horizontal",
-                            legend.background = element_rect(colour = "gray75",
-                                                             fill = alpha("gray85", 1/4))) +
-                      background_grid(major = "xy", minor = "none",
-                                      size.major = 0.5, colour.major = "gray85")
-  
-  disp_cost <- disp_plt.bare + labs(y = "Marg. Cost ($ / kWh)",
-                                    title = "NYISO Dispatch Curve and Energy Mix") +
-                  expand_limits(y = c(0, 0.32)) +
-                  geom_errorbar(mapping = aes(
-                                  y = MC_rand, size = namepcap,
-                                  ymax = MC_rand + se, ymin = MC_rand - se),
-                                width = 50, colour = "black", size = 1) +
-                  geom_vline(xintercept = vert_lines, lty = 3) +
-                  geom_point(mapping = aes(
-                               y = MC_rand, size = namepcap,
-                               fill = fuel_type),
-                             alpha = 1/1.2,
-                             colour = "gray35", shape = 21) +
-                  geom_text(aes(x = vert_lines[1],
-                                label = paste(as.character(round(vert_lines[1])), "MW"),
-                                y = 0.12),
-                            size = 4) +
-                  scale_size(name = bquote(scriptstyle(MW[plant])),
-                             breaks = c(250,500,1000,2000),
-                             range = c(3,15)) +
-                  scale_fill_manual(name = NULL, values = cbb_qual,
-                                    guide = guide_legend(override.aes = list(alpha = 1,
-                                                                             size = 5))) +
-                  theme(legend.position = c(0.25, 0.70))
-  
-  dispatch_donut <- plot_grid(disp_cost, donut_plots,
-                               nrow = 2, align = "v",
-                               rel_heights = c(1, 0.25))
   if (save) {
-    save_plot(filename = paste0("outputs\\plots\\", terr, "_disp_donut.png"),
-              dispatch_donut, ncol = 1, nrow = 2,
-              base_height = 6.25, base_width = 10)
+    save_plot(filename = paste0("outputs\\plots\\", terr, "_donut.png"),
+              donut_plots, ncol = 1, nrow = 2,
+              base_height = 3, base_width = 10)
   }
   
-  return(dispatch_donut)
+  return(donut_plots)
 }
-get_ts_summ <- function(choice, copies) {
+get_ts_summ <- function(choice, copies, emish) {
   
   rowSds <- function(x) {
     sqrt(rowSums((x - rowMeans(x))^2)/(dim(x)[2] - 1))
@@ -512,6 +486,36 @@ get_ts_summ <- function(choice, copies) {
                       mw_mean = rowMeans(select(full_df, contains("mw"))),
                       date_time = as.POSIXct(date_time),
                       mw_sd = rowSds(select(full_df, contains("mw"))))
+    
+    if (emish) {
+      source("dispatch_curve.R")
+      disp_meta = list(
+        "name" = "Doris the Dispatch",
+        "run_id" = "plot",
+        "ctrl_id" = "plot"
+      )
+      disp <- disp_curv$new(meta = disp_meta,
+                            terr = choice)
+      pkgs_to_pass = c("dplyr", "futile.logger", "imputeTS")
+      
+      cl <- makeCluster(3)
+      registerDoSNOW(cl)
+      plc2erta <- foreach(i = 1:nrow(summ_df),
+                          .combine = "rbind.data.frame",
+                          .multicombine = TRUE,
+                          .packages = pkgs_to_pass,
+                          .verbose = TRUE) %dopar% {
+                            plc2erta.mean <- disp$get_emish(summ_df$mw_mean[i])
+                            plc2erta.lo <-disp$get_emish(summ_df$mw_mean[i] - summ_df$mw_sd[i])
+                            plc2erta.hi <-disp$get_emish(summ_df$mw_mean[i] + summ_df$mw_sd[i])
+                            plc2erta.sd <- abs(plc2erta.mean - mean(c(plc2erta.lo, plc2erta.hi)))
+                            
+                            list("plc2erta_mean" = plc2erta.mean,
+                                 "plc2erta_sd" = plc2erta.sd)
+                          }
+      stopCluster(cl)
+      summ_df <- cbind.data.frame(summ_df, data.frame(plc2erta))
+    }
   }
   
   return(summ_df)
@@ -520,6 +524,8 @@ get_ts_heatmap <- function(choice, copies, save = FALSE) {
   
   # d_offset aligns the time-series based on where the weekend appears to be
   # i.e. where there is a period of 2 consecutive days with reduced loads
+  # assumes no emissions calculations need to be made
+  emish = FALSE
   if (choice != "nyiso") {
     d_offset = 4
     unit_txt = "kw_"
@@ -534,6 +540,14 @@ get_ts_heatmap <- function(choice, copies, save = FALSE) {
     lgnd_txt2 = bquote(sigma[scriptscriptstyle(MW)])
     title_txt = toupper(choice)
   }
+  if (choice == "nyiso_plc2erta") {
+    emish = TRUE
+    d_offset = 0
+    unit_txt = "plc2erta_"
+    lgnd_txt1 = bquote(bar("lb"~ CO[scriptstyle(2)]~ "eq / MWh"))
+    lgnd_txt2 = bquote(sigma[scriptscriptstyle("lb"~ CO[scriptscriptstyle(2)]~ "eq / MWh")])
+    title_txt = bquote("NYISO Weekly"~ CO[scriptstyle(2)]~ "eq Emissions Profile (2014)")
+  }
   
   chdd_df <- fread("inputs\\2014_chdd.csv", header = TRUE, stringsAsFactors = FALSE) %>%
               select(date_time, cl) %>%
@@ -546,16 +560,20 @@ get_ts_heatmap <- function(choice, copies, save = FALSE) {
   cl_label <- factor(cl_label, levels = c("Jan - Mar","Apr - Jun",
                                           "Jul - Sep","Oct - Dec"))
   
-              
-  summ_df <- get_ts_summ(choice, copies) %>%
+  df_choice <- ifelse(choice == "nyiso_plc2erta", "nyiso", choice)            
+  summ_df <- get_ts_summ(df_choice, copies, emish = emish) %>%
                 mutate(day_ind = as.numeric(strftime(date_time, format = "%j"))) %>%
                 left_join(chdd_df, by = "day_ind") %>%
                 mutate(cl = na.ma(cl, k = 4)) %>%
                 na.omit()
   mean_txt <- paste0(unit_txt, "mean")
   sd_txt <- paste0(unit_txt, "sd")
-  midpt.mean <- mean(select(summ_df, contains(mean_txt))[[mean_txt]])
-  midpt.sd <- mean(select(summ_df, contains(sd_txt))[[sd_txt]])
+  midpt.mean <- median(select(summ_df, contains(mean_txt))[[mean_txt]])
+  midpt.sd <- median(select(summ_df, contains(sd_txt))[[sd_txt]])
+  if (choice == "office") {
+    midpt.mean <- mean(select(summ_df, contains(mean_txt))[[mean_txt]])
+    midpt.sd <- mean(select(summ_df, contains(sd_txt))[[sd_txt]])
+  }
   
   heatmap_df.mean <- foreach(k = 1:max(summ_df$cl),
                           .combine = "rbind.data.frame") %do% {
@@ -662,8 +680,11 @@ get_ts_heatmap <- function(choice, copies, save = FALSE) {
   heatmap_plot <- plot_grid(mean_plot, sd_plot,
                               labels = c("A","B"),
                               ncol = 1, align = "v")
-  title <- ggdraw() + draw_label(paste(title_txt, "Weekly Load Profile"),
+  title <- ggdraw() + draw_label(paste(title_txt, "Weekly Load Profile (2014)"),
                                     fontface = "bold")
+  if (choice == "nyiso_plc2erta") {
+    title <- ggdraw() + draw_label(title_txt, fontface = "bold")
+  }
   heatmap_plot <- plot_grid(title, heatmap_plot,
                               ncol = 1, rel_heights = c(0.05, 1))
   

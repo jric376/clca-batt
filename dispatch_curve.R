@@ -90,7 +90,7 @@ disp_curv <- R6Class("Dispatch",
           flog.error(paste("Demand (", dmd_mw, "kW) too high for ISO"))
         }
         active_plants <- private$disp_frame %>%
-                        filter(cumul_cap < dmd_mw)
+                            filter(cumul_cap < dmd_mw)
         cumul_plc2erta <- max(active_plants$cumul_plc2erta)
         
         return(cumul_plc2erta)
