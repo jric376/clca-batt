@@ -220,13 +220,13 @@ run_one_sim <- function(run_id, ctrl_id, bldg_nm = NULL, bldg_ts = NULL, pv_ts =
 }
 
 sim_year <- function(run_id, bldg = NULL, cop = 1, batt_type = NULL, terr = NULL,
-                      guess = NULL, steps = NULL) {
+                      guess = NULL, steps = NULL, is_pv = TRUE) {
   
   run_id = make_run_folder(run_id)
   
   # figure out what demand_frac range to use based on LDC
   
-  dmd_fracs = seq(0.2,0.25,0.025)
+  dmd_fracs = seq(0.2,0.2,0.025)
   rates = seq(0.05, 0.05, 0.05)
   param_combns = as.vector((expand.grid(dmd_fracs, rates)))
   
@@ -241,8 +241,14 @@ sim_year <- function(run_id, bldg = NULL, cop = 1, batt_type = NULL, terr = NULL
   
   grid_df = get_grid(run_id, copies = bldg$get_ts_count() - 1,
                      terr = terr)
-  pv = get_pv(run_id, copies = bldg$get_ts_count(), # pv copies counted differently
-              type = bldg$get_metadata()[["bldg"]])
+  if (is_pv) {
+    pv = get_pv(run_id, copies = bldg$get_ts_count(), # pv copies counted differently
+                type = bldg$get_metadata()[["bldg"]])
+  }
+  else {
+    pv = get_pv(run_id, copies = bldg$get_ts_count(), # pv copies counted differently
+                type = "empty")
+  }
   flog.info(paste("Intialized PV with", pv$nameplate, "kw"), name = "sim_1yr")
   flog.info(paste("Intialized grid as", grid_df$get_metadata()[["territory"]]), name = "sim_1yr")
   
@@ -323,16 +329,15 @@ sim_year <- function(run_id, bldg = NULL, cop = 1, batt_type = NULL, terr = NULL
                                     nrow(grid_ts), "- grid,", nrow(pv_ts), "- pv,"), name = "sim_1yr")
                     flog.info(paste("Interval is", interval), name = "sim_1yr")
                     
-                    # batt_cap = size_batt(run_id = run_id,
-                    #                      bldg_nm = bldg$get_metadata()[["bldg"]],
-                    #                      bldg_ts = bldg_ts,
-                    #                      pv_ts = pv_ts,
-                    #                      interval = interval,
-                    #                      dmd_frac = test_dmd,
-                    #                      batt_type = batt_type,
-                    #                      terr = terr,
-                    #                      guess = guess)$batt_cap
-                    batt_cap = 3.16
+                    batt_cap = size_batt(run_id = run_id,
+                                         bldg_nm = bldg$get_metadata()[["bldg"]],
+                                         bldg_ts = bldg_ts,
+                                         pv_ts = pv_ts,
+                                         interval = interval,
+                                         dmd_frac = test_dmd,
+                                         batt_type = batt_type,
+                                         terr = terr,
+                                         guess = guess)$batt_cap
                     flog.info(paste("Running", c_id,
                                     "out of", bldg$get_ts_count()*nrow(param_combns)),
                               name = "sim_1yr")
@@ -391,9 +396,9 @@ sim_year <- function(run_id, bldg = NULL, cop = 1, batt_type = NULL, terr = NULL
   return(output_df)
 }
 
-size_results <- sim_year("new_summary", bldg = "office", cop = 2,
+size_results <- sim_year("warm_up", bldg = "office", cop = 2,
                           batt_type = "vrf", terr = "nyiso", guess = 2.5,
-                          steps = 200)
+                          steps = 20)
 one_sim <- fread("***",
                  nrows = 1000) %>%
               select(-V1)
