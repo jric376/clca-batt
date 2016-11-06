@@ -46,7 +46,9 @@ pv_load <- R6Class("PV Load",
                          array_area <- array_area*self$self_shade
                          # nameplate calc assumes SolarWorld SW 280-290 MONO BLACK
                          self$nameplate <- 0.290*array_area/(1.675*1.001)
-                         
+                         self$cap_cost.lo <- self$cap_cost.lo*self$nameplate
+                         self$cap_cost.hi <- self$cap_cost.hi*self$nameplate
+                        
                          self$add_ts_df(readRDS("inputs\\solar_min.rds"),
                                         rand_copies,
                                         array_area)

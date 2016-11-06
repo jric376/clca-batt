@@ -8,9 +8,19 @@ This is an [R Markdown](http://rmarkdown.rstudio.com) Notebook. When you execute
 Try executing this chunk by clicking the *Run* button within the chunk or by placing your cursor inside it and pressing *Ctrl+Shift+Enter*. 
 
 ```{r}
+# having errors with sourcing R files
 # test <- get_run_results("vrf_02")
+test_df <- test$df
+test_summ <- test$summ
 ggplot(data = test_df) +
-    geom_line(aes(x = batt_cap, y = curtail_kwh))
+    geom_histogram(aes(x = pv_levcost_lo), fill = "red",  binwidth = 500) +
+    geom_histogram(aes(x = pv_levcost_hi), fill = "red",  binwidth = 500) +
+    geom_histogram(aes(x = lsc_lo), fill = "blue",  binwidth = 500) +
+    geom_histogram(aes(x = lsc_hi), fill = "blue", binwidth = 500) +
+    geom_histogram(aes(x = control_cost), fill = "black", binwidth = 500) +
+    geom_histogram(aes(x = dr_cost), fill = "grey65", binwidth = 500) +
+    scale_fill_discrete()
+  
 ```
 
 Add a new chunk by clicking the *Insert Chunk* button on the toolbar or by pressing *Ctrl+Alt+I*.

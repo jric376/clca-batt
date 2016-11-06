@@ -87,6 +87,7 @@ get_batt_lsc = function(batt, interest_rt) {
 }
 
 get_pv_cost = function(pv, interest_rt) {
+  # cap_cost is in $, om_cost is in $ / yr
   
   calendar_life = 25
   cost.lo = pv$cap_cost.lo + calendar_life*pv$om_cost.lo
