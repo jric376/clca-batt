@@ -436,6 +436,29 @@ get_isoterr_donuts <- function(runs = 20, terr = "nyiso", save = FALSE) {
   
   return(donut_plots)
 }
+get_run_results <- function(run_id) {
+  ## MAY WANT TO HAVE FUNCTION TAKE BATT, BLDG, DMD_FRAC
+  ## AND THEN PULL IN CSVs containing "run_results" FROM
+  ## ALL FOLDERS CONTAINING BATT, BLDG, DMD_FRAC
+  tryCatch({
+    results_filenm <- paste(run_id, "run_results.csv", sep = "_")
+    results <- fread(paste0("outputs\\", run_id, "\\", results_filenm)) %>%
+      select(-V1) %>%
+      as.data.frame()
+    
+    prefix <- filter(results, ts_num == 1) %>%
+      select(run_id, bldg, pv_kw, dmd_frac, batt_type)
+    cols_to_summ <- select(results, -(run_id:batt_type)) %>%
+      summarise_all(.funs = c("mean", "sd"))
+    results.summ <- cbind.data.frame(prefix, cols_to_summ)
+    results.list <- list("df" = results,
+                         "summ" = results.summ)
+  },
+  error = function(e) return(e))
+}
+get_run_sampwks <- function(run_id) {
+  return(0)
+}
 get_ts_summ <- function(choice, copies, emish) {
   
   rowSds <- function(x) {
