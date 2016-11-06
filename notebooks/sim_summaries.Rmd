@@ -5,12 +5,88 @@ output: html_notebook
 
 This is an [R Markdown](http://rmarkdown.rstudio.com) Notebook. When you execute code within the notebook, the results appear beneath the code. 
 
-Try executing this chunk by clicking the *Run* button within the chunk or by placing your cursor inside it and pressing *Ctrl+Shift+Enter*. 
+Try executing this chunk by clicking the *Run* button within the chunk or by placing your cursor inside it and pressing *Ctrl+Shift+Enter*.
+
+```{r libs to load, message=FALSE}
+library("animation")
+library("cowplot")
+library("data.table")
+library("plyr")
+library("dplyr")
+library("foreach")
+library("iterators")
+library("doSNOW")
+library("futile.logger")
+library("gganimate")
+library("ggplot2")
+library("ggrepel")
+library("imputeTS")
+library("reshape2")
+library("scales")
+library("tidyr")
+
+```
+
 
 ```{r}
+# having errors with sourcing R files
 # test <- get_run_results("vrf_02")
+test_df <- test$df %>%
+            mutate(del_plc2erta = dr_plc2erta - control_plc2erta,
+                   net_plc2erta = (del_plc2erta + batt_plc2erta + pv_plc2erta),
+                   plc2e_by_kwh = net_plc2erta / batt_cap,
+                   prof_by_kwh.lo = prof_lo / batt_cap,
+                   prof_by_kwh.hi = prof_hi / batt_cap,
+                   prof_by_plc2e.lo = prof_by_kwh.lo / plc2e_by_kwh,
+                   prof_by_plc2e.hi = prof_by_kwh.hi / plc2e_by_kwh)
+# test_summ <- test$summ
+
+# Cost histogram
 ggplot(data = test_df) +
-    geom_line(aes(x = batt_cap, y = curtail_kwh))
+    geom_histogram(aes(x = pv_levcost_lo), fill = "red",  binwidth = 500) +
+    geom_histogram(aes(x = pv_levcost_hi), fill = "red",  binwidth = 500) +
+    geom_histogram(aes(x = lsc_lo), fill = "blue",  binwidth = 500) +
+    geom_histogram(aes(x = lsc_hi), fill = "blue", binwidth = 500) +
+    geom_histogram(aes(x = control_cost), fill = "black", binwidth = 500) +
+    geom_histogram(aes(x = dr_cost), fill = "grey65", binwidth = 500) +
+    scale_fill_discrete()
+
+# Normalized plc2erta and cost figures
+ggplot(data = test_df, mapping = aes(x = dmd_frac)) +
+  geom_jitter(aes(y = plc2e_by_kwh, colour = plc2e_by_kwh),
+              size = 3,
+              position = position_jitter(w = 0.02, h = 0.2)) +
+  expand_limits(x = c(0,1))
+
+ggplot(data = test_df, mapping = aes(x = dmd_frac)) +
+  geom_jitter(aes(y = prof_by_kwh.lo,
+                  fill = prof_by_kwh.lo),
+              shape = 21,
+              size = 3,
+              position = position_jitter(w = 0.02, h = 0.2)) +
+  geom_jitter(aes(y = prof_by_kwh.hi,
+                  fill = prof_by_kwh.hi),
+              shape = 23,
+              size = 3,
+              position = position_jitter(w = 0.02, h = 0.2)) +
+  scale_fill_continuous(name = bquote(scriptstyle("P /"~kWh[scriptscriptstyle(batt)]))) +
+  expand_limits(x = c(0,1))
+
+
+ggplot(data = test_df, mapping = aes(x = dmd_frac)) +
+  geom_jitter(aes(y = prof_by_plc2e.lo,
+                  fill = prof_by_plc2e.lo),
+              shape = 21,
+              size = 3,
+              position = position_jitter(w = 0.02, h = 0.2)) +
+  geom_jitter(aes(y = prof_by_plc2e.hi,
+                  fill = prof_by_plc2e.hi),
+              shape = 23,
+              size = 3,
+              position = position_jitter(w = 0.02, h = 0.2)) +
+  scale_fill_continuous(name = bquote(scriptstyle("P /"~kWh[scriptscriptstyle(batt)]))) +
+  expand_limits(x = c(0,1))
+  
 ```
 
 Add a new chunk by clicking the *Insert Chunk* button on the toolbar or by pressing *Ctrl+Alt+I*.
