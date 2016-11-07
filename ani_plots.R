@@ -440,21 +440,228 @@ get_run_results <- function(run_id) {
   ## MAY WANT TO HAVE FUNCTION TAKE BATT, BLDG, DMD_FRAC
   ## AND THEN PULL IN CSVs containing "run_results" FROM
   ## ALL FOLDERS CONTAINING BATT, BLDG, DMD_FRAC
+  
   tryCatch({
     results_filenm <- paste(run_id, "run_results.csv", sep = "_")
     results <- fread(paste0("outputs\\", run_id, "\\", results_filenm)) %>%
       select(-V1) %>%
-      as.data.frame()
+      as.data.frame() %>%
+      mutate(net_plc2erta = (batt_plc2erta + pv_plc2erta +
+                               dr_plc2erta - control_plc2erta),
+             plc2erta_n = net_plc2erta / batt_cap,
+             prof_lo_n = prof_lo / batt_cap,
+             prof_hi_n = prof_hi / batt_cap)
     
     prefix <- filter(results, ts_num == 1) %>%
       select(run_id, bldg, pv_kw, dmd_frac, batt_type)
     cols_to_summ <- select(results, -(run_id:batt_type)) %>%
       summarise_all(.funs = c("mean", "sd"))
     results.summ <- cbind.data.frame(prefix, cols_to_summ)
+    
+    component <- c(rep("Batt", 2), rep("Grid", 2), rep("PV", 2),
+                   rep("TAC", 2), rep("P", 2), rep("P_n", 2))
+    hi_lo <- rep(c("lo", "hi"), 6)
+    cost_mean <- select(results.summ,
+                         ends_with("mean")) %>%
+                  select(contains("lsc"),
+                         contains("dr_cost"),
+                         contains("control_cost"),
+                         contains("levcost"),
+                         contains("tac"),
+                         contains("prof")) %>%
+                  t() %>%
+                  as.data.frame()
+    names(cost_mean) <- "mean"
+    cost_sd <- select(results.summ,
+                        ends_with("sd")) %>%
+                  select(contains("lsc"),
+                         contains("_cost"),
+                         contains("levcost"),
+                         contains("tac"),
+                         contains("prof")) %>%
+                  t() %>%
+                  as.data.frame()
+    names(cost_sd) <- "sd"
+    costs <- data.frame(component, hi_lo, cost_mean, cost_sd) %>%
+              filter(component != "P_n")
+    
+    component <- c(rep("Grid", 1), rep("Grid, DR", 1),
+                   rep("PV", 1), rep("Batt", 1),
+                   rep("Net", 1))
+    plc2e_mean <- select(results.summ,
+                          ends_with("mean")) %>%
+                    select(contains("plc2erta")) %>%
+                    select(contains("control"),
+                           contains("dr"),
+                           contains("pv"),
+                           contains("batt"),
+                           contains("net")) %>%
+                    t() %>%
+                    as.data.frame()
+    names(plc2e_mean) <- "mean"
+    plc2e_sd <- select(results.summ,
+                         ends_with("sd")) %>%
+                    select(contains("plc2erta")) %>%
+                    select(contains("control"),
+                           contains("dr"),
+                           contains("pv"),
+                           contains("batt"),
+                           contains("net")) %>%
+                    t() %>%
+                    as.data.frame()
+    names(plc2e_sd) <- "sd"
+    plc2e <- data.frame(component, plc2e_mean, plc2e_sd)
+    gc()
     results.list <- list("df" = results,
-                         "summ" = results.summ)
+                         "summ" = results.summ,
+                         "costs" = costs,
+                         "plc2e" = plc2e)
   },
   error = function(e) return(e))
+}
+get_run_prof_plc2e <- function(run_id, save = FALSE) {
+  
+  run_results <- get_run_results(run_id)
+  df <- run_results$df
+  costs <- run_results$costs
+  plc2e <- run_results$plc2e
+  summ <- run_results$summ
+  plc2e_leg_txt = c(as.expression(bquote(scriptstyle("lb"~CO[scriptscriptstyle(2)]~"eq"))),
+                    as.expression(bquote("/"~kWh[scriptscriptstyle(batt)])))
+  
+  plc2e_plot <- ggplot(data = df, mapping = aes(x = dmd_frac)) +
+    geom_jitter(aes(y = plc2erta_n,
+                    fill = plc2erta_n),
+                shape = 21,
+                alpha = 1/1.2,
+                size = 3,
+                position = position_jitter(w = 0.02, h = 0.2)) +
+    labs(x = bquote(scriptstyle("1 - ("~kW[peak][",dr"]~"/"~kW[peak][",ctrl"]~")")),
+         y = NULL) +
+    scale_fill_gradient2(name = plc2e_leg_txt,
+                         low = "#f7fcfd",
+                         high = "#00441b") +
+    expand_limits(x = c(0,1)) +
+    theme(panel.background = element_rect(colour = "gray75", fill = "gray80")) +
+    theme(panel.grid.major = element_line(colour = "gray85")) +
+    theme(panel.grid.minor = element_line(colour = "gray85"))
+  
+  prof_plot <- ggplot(data = df, mapping = aes(x = dmd_frac)) +
+    geom_jitter(aes(y = prof_lo_n,
+                    fill = prof_lo_n,
+                    shape = 21),
+                alpha = 1/1.2,
+                size = 3,
+                position = position_jitter(w = 0.02, h = 0.2)) +
+    geom_jitter(aes(y = prof_hi_n,
+                    fill = prof_hi_n,
+                    shape = 23),
+                size = 3,
+                alpha = 1/1.2,
+                position = position_jitter(w = 0.02, h = 0.2)) +
+    labs(x = NULL,
+         y = NULL) +
+    scale_shape_identity() +
+    scale_fill_gradient2(name = bquote(scriptstyle(P[dr]~"/"~kWh[scriptscriptstyle(batt)])),
+                         low = "#b2182b",
+                         mid = "#f7f7f7", high = "#2166ac",
+                         midpoint = 0) +
+    expand_limits(x = c(0,1)) +
+    theme(panel.background = element_rect(colour = "gray75", fill = "gray80")) +
+    theme(panel.grid.major = element_line(colour = "gray85")) +
+    theme(panel.grid.minor = element_line(colour = "gray85")) +
+    theme(axis.line.x = element_blank(),
+          axis.ticks.x = element_blank(),
+          axis.text.x = element_blank())
+  
+  combine_plot <- plot_grid(prof_plot, plc2e_plot,
+                            nrow = 2, align = "v")
+  
+  compare_plot <- ggplot(data = df, mapping = aes(x = plc2erta_n)) +
+    geom_point(aes(y = prof_lo_n,
+                   fill = dmd_frac,
+                   shape = batt_type),
+               size = 3,
+               alpha = 1/1.2) +
+    labs(x = bquote(scriptstyle("lb"~CO[scriptscriptstyle(2)]~"eq /"~kWh[scriptscriptstyle(batt)])),
+         y = bquote(scriptstyle(P[dr]~"/"~kWh[scriptscriptstyle(batt)]))) + 
+    scale_shape_manual(name = NULL,
+                       values = 21, labels = "VRF") +
+    scale_fill_continuous(name = bquote(scriptstyle("Reduced frac."~kW[scriptscriptstyle(peak)]))) +
+    expand_limits(x = c(-2500, 35000),
+                  y = c(-5000, 5000)) +
+    theme(panel.background = element_rect(colour = "gray75", fill = "gray80")) +
+    theme(panel.grid.major = element_line(colour = "gray85")) +
+    theme(panel.grid.minor = element_line(colour = "gray85"))
+  
+  plot_list <- list("combine" = combine_plot, "compare" = compare_plot)
+  
+  if (save) {
+    save_plot(filename = paste0("outputs\\plots\\", run_id, "_comb_results.png"),
+              combine_plot,
+              base_height = 6.25, base_width = 8)
+    save_plot(filename = paste0("outputs\\plots\\", run_id, "_comp_results.png"),
+              compare_plot,
+              base_height = 6.25, base_width = 8)
+  }
+  
+  return(plot_list)
+}
+get_run_barplots <- function(run_id, save = FALSE) {
+  
+  run_results <- get_run_results(run_id)
+  costs <- run_results$costs
+  plc2e <- run_results$plc2e
+  summ <- run_results$summ
+  
+  costs$component <- factor(costs$component, levels = c("Grid", "PV",
+                                                        "Batt", "TAC",
+                                                        "P"))
+  plc2e$component <- factor(plc2e$component, levels = c("Grid", "Grid, DR",
+                                                        "PV", "Batt",
+                                                        "Net"))
+  cost_plot <- ggplot(data = costs,
+                       aes(x = component,
+                           fill = hi_lo)) +
+                  geom_bar(aes(y = mean),
+                           position = "dodge", stat = "identity") +
+                  geom_errorbar(aes(ymax = mean + sd, ymin = mean - sd),
+                                colour = "black", width = 0.3,
+                                position = position_dodge(width = 0.9)) +
+                  labs(y = NULL) +
+                  scale_x_discrete(name = NULL) +
+                  scale_y_continuous(labels = dollar) +
+                  scale_fill_manual(name = NULL, values = cbb_qual[c(3,4)]) +
+                  theme(panel.background = element_rect(colour = "gray75", fill = "gray80")) +
+                  theme(panel.grid.major = element_line(colour = "gray85")) +
+                  theme(panel.grid.minor = element_line(colour = "gray85"))
+  
+  
+  plc2e_plot <- ggplot(data = plc2e,
+                       aes(x = component)) +
+                  geom_bar(aes(y = mean,
+                               fill = component),
+                           position = "dodge", stat = "identity") +
+                  geom_errorbar(aes(ymax = mean + sd, ymin = mean - sd),
+                                colour = "black", width = 0.3) +
+                  labs(y = bquote("lb"~CO[scriptscriptstyle(2)]~"eq")) +
+                  scale_fill_manual(name = NULL, values = cbb_qual[c(2,6,8,4,3)]) +
+                  theme(panel.background = element_rect(colour = "gray75", fill = "gray80")) +
+                  theme(panel.grid.major = element_line(colour = "gray85")) +
+                  theme(panel.grid.minor = element_line(colour = "gray85")) +
+                  theme(legend.position = "none")
+  plot_list <- list("cost" = cost_plot, "plc2e" = plc2e_plot)
+  
+  if (save) {
+    ggsave(paste0("outputs\\plots\\", run_id, "_cost_bar.png"),
+           cost_plot,
+           width = 10, height = 6.25, units = "in")
+    ggsave(paste0("outputs\\plots\\", run_id, "_plc2e_bar.png"),
+           plc2e_plot,
+           width = 10, height = 6.25, units = "in")
+  }
+  
+  return(plot_list)
 }
 get_run_sampwks <- function(run_id) {
   return(0)
