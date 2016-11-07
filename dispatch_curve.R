@@ -159,6 +159,7 @@ disp_curv <- R6Class("Dispatch",
                         name = "disp"
             )
           }
+          private$iso_plants$plc2erta = private$iso_plants$plc2erta*0.454 # lb to kg
           private$iso_plants = subset(self$all_plants, self$all_plants$isorto == self$iso_terr)
           
           if (self$iso_terr == "NYISO") {
