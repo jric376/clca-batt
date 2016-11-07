@@ -32,11 +32,52 @@ library("tidyr")
 
 
 ```{r}
-# load up run data with ani_plots.R -> get_run_results
-df <- run_results$df
-costs <- run_results$costs
-plc2e <- run_results$plc2e
-summ <- run_results$summ
+run_id = "vrf_02"
+path = paste0("E:\\GitHub\\clca-batt\\outputs\\", run_id, "\\df")
+temp = list.files(path = path, full.names = TRUE)
+all_df = lapply(temp, read.csv) %>%
+            as.data.frame() %>%
+            mutate_if(is.factor, function(x) as.POSIXct(x, format = "%m/%d/%Y %H:%M")) %>%
+            mutate(day_ind = as.numeric(strftime(date_time, format = "%j"))) %>%
+            select(-X)
+```
+
+```{r}
+
+fill_labels <- c("Battery", "Bldg", "Curtail", "PV", "Unmet")
+hr_labels <- unlist(lapply(seq(6,21,3), function(x) ifelse(x>10, paste0(x, ":00"),
+                                                           paste0("0", x, ":00"))))
+design_days <- c(37,202)
+design_days.df <- filter(all_df, day_ind %in% design_days) %>%
+                    mutate(season = ifelse(day_ind == design_days[1], "Winter", "Summer"),
+                           min = as.numeric(strftime(date_time, format = "%M")),
+                           hr = as.numeric(strftime(date_time, format = "%H")),
+                           dt = (hr + min/60)/24) %>%
+                    # select(season:dt, bldg_kw:curtail_kw) %>%
+                    select(season, dt, bldg_kw, pv_kw:curtail_kw) %>%
+                    gather(component, load, -season, -dt)
+
+ggplot(data = design_days.df,
+       mapping = aes(x = dt)) +
+  facet_grid(season ~ .) +
+  stat_smooth(aes(y = load, fill = component),
+              colour = "grey95",
+              geom = "area", span = 0.2) +
+  scale_x_continuous(breaks = seq(0.15,1.02,0.15),
+                     labels = hr_labels,
+                      expand=c(0,0)) +
+  scale_fill_manual(name = NULL,
+                    labels = fill_labels,
+                    values = cbb_qual[c(9,2,1,8,6)]) +
+  labs(x = NULL,
+       y = "kW") +
+  theme(panel.background = element_rect(fill = "gray80"),
+        panel.grid.major = element_line(colour = "gray85"),
+        panel.grid.minor = element_line(colour = "gray85")) +
+  theme(axis.line = element_blank(),
+        axis.ticks = element_line(colour = "gray85"),
+        axis.text.y = element_text(angle = 33, hjust = 1, size = 11),
+        axis.text.x =  element_text(angle = 33, vjust = 1, hjust = 1))
 ```
 
 Add a new chunk by clicking the *Insert Chunk* button on the toolbar or by pressing *Ctrl+Alt+I*.

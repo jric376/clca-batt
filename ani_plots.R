@@ -446,7 +446,9 @@ get_run_results <- function(run_id) {
     results <- fread(paste0("outputs\\", run_id, "\\", results_filenm)) %>%
       select(-V1) %>%
       as.data.frame() %>%
-      mutate(net_plc2erta = (batt_plc2erta + pv_plc2erta +
+      mutate(control_plc2erta = control_plc2erta*(life_hi + life_lo)/2,
+             dr_plc2erta = dr_plc2erta*(life_hi + life_lo)/2,
+             net_plc2erta = (batt_plc2erta + pv_plc2erta +
                                dr_plc2erta - control_plc2erta),
              plc2erta_n = net_plc2erta / batt_cap,
              prof_lo_n = prof_lo / batt_cap,
@@ -458,7 +460,7 @@ get_run_results <- function(run_id) {
       summarise_all(.funs = c("mean", "sd"))
     results.summ <- cbind.data.frame(prefix, cols_to_summ)
     
-    component <- c(rep("Batt", 2), rep("Grid", 2), rep("PV", 2),
+    component <- c(rep("Batt", 2), rep("Grid / Grid, DR", 2), rep("PV", 2),
                    rep("TAC", 2), rep("P", 2), rep("P_n", 2))
     hi_lo <- rep(c("lo", "hi"), 6)
     cost_mean <- select(results.summ,
@@ -613,10 +615,19 @@ get_run_barplots <- function(run_id, save = FALSE) {
   costs <- run_results$costs
   plc2e <- run_results$plc2e
   summ <- run_results$summ
+  mean_batt_life <- select(summ, contains("life")) %>%
+                    select(ends_with("mean")) %>%
+                    rowMeans()
+  sd_batt_life <- select(summ, contains("life")) %>%
+                    select(ends_with("sd")) %>%
+                    rowMeans()
+  sd_n <- sd_batt_life / mean_batt_life
+  costs$sd <- costs$sd*(1+sd_n)
+  plc2e$sd <- plc2e$sd*(1+sd_n)
   
-  costs$component <- factor(costs$component, levels = c("Grid", "PV",
-                                                        "Batt", "TAC",
-                                                        "P"))
+  costs$component <- factor(costs$component, levels = c("Grid / Grid, DR",
+                                                        "PV", "Batt",
+                                                        "TAC", "P"))
   plc2e$component <- factor(plc2e$component, levels = c("Grid", "Grid, DR",
                                                         "PV", "Batt",
                                                         "Net"))
@@ -624,32 +635,34 @@ get_run_barplots <- function(run_id, save = FALSE) {
                        aes(x = component,
                            fill = hi_lo)) +
                   geom_bar(aes(y = mean),
+                           colour = "grey65",
                            position = "dodge", stat = "identity") +
                   geom_errorbar(aes(ymax = mean + sd, ymin = mean - sd),
                                 colour = "black", width = 0.3,
                                 position = position_dodge(width = 0.9)) +
-                  labs(y = NULL) +
                   scale_x_discrete(name = NULL) +
-                  scale_y_continuous(labels = dollar) +
+                  scale_y_continuous(name = NULL, labels = dollar) +
                   scale_fill_manual(name = NULL, values = cbb_qual[c(3,4)]) +
                   theme(panel.background = element_rect(colour = "gray75", fill = "gray80")) +
                   theme(panel.grid.major = element_line(colour = "gray85")) +
                   theme(panel.grid.minor = element_line(colour = "gray85"))
   
-  
   plc2e_plot <- ggplot(data = plc2e,
                        aes(x = component)) +
                   geom_bar(aes(y = mean,
                                fill = component),
+                           colour = "grey65",
                            position = "dodge", stat = "identity") +
                   geom_errorbar(aes(ymax = mean + sd, ymin = mean - sd),
                                 colour = "black", width = 0.3) +
-                  labs(y = bquote("lb"~CO[scriptscriptstyle(2)]~"eq")) +
+                  labs(x = NULL,
+                       y = bquote("lb"~CO[scriptscriptstyle(2)]~"eq")) +
                   scale_fill_manual(name = NULL, values = cbb_qual[c(2,6,8,4,3)]) +
                   theme(panel.background = element_rect(colour = "gray75", fill = "gray80")) +
                   theme(panel.grid.major = element_line(colour = "gray85")) +
                   theme(panel.grid.minor = element_line(colour = "gray85")) +
                   theme(legend.position = "none")
+    
   plot_list <- list("cost" = cost_plot, "plc2e" = plc2e_plot)
   
   if (save) {
@@ -663,8 +676,56 @@ get_run_barplots <- function(run_id, save = FALSE) {
   
   return(plot_list)
 }
-get_run_sampwks <- function(run_id) {
-  return(0)
+get_run_sampwks <- function(run_id, save = FALSE) {
+  path = paste0("outputs\\", run_id, "\\df")
+  temp = list.files(path = path, full.names = TRUE)
+  all_df = lapply(temp, read.csv) %>%
+    as.data.frame() %>%
+    mutate_if(is.factor, function(x) as.POSIXct(x, format = "%m/%d/%Y %H:%M")) %>%
+    mutate(day_ind = as.numeric(strftime(date_time, format = "%j"))) %>%
+    select(-X)
+  
+  fill_labels <- c("Battery", "Bldg", "Curtail", "PV", "Unmet")
+  hr_labels <- unlist(lapply(seq(6,21,3), function(x) ifelse(x>10, paste0(x, ":00"),
+                                                             paste0("0", x, ":00"))))
+  design_days <- c(37,202)
+  design_days.df <- filter(all_df, day_ind %in% design_days) %>%
+    mutate(season = ifelse(day_ind == design_days[1], "Winter", "Summer"),
+           min = as.numeric(strftime(date_time, format = "%M")),
+           hr = as.numeric(strftime(date_time, format = "%H")),
+           dt = (hr + min/60)/24) %>%
+    select(season, dt, bldg_kw, pv_kw:curtail_kw) %>%
+    gather(component, load, -season, -dt)
+  
+  sample_wk_plot <- ggplot(data = design_days.df,
+                           mapping = aes(x = dt)) +
+                      facet_grid(season ~ .) +
+                      stat_smooth(aes(y = load, fill = component),
+                                  colour = "grey95",
+                                  geom = "area", span = 0.2) +
+                      scale_x_continuous(breaks = seq(0.15,1.02,0.15),
+                                         labels = hr_labels,
+                                         expand=c(0,0)) +
+                      scale_fill_manual(name = NULL,
+                                        labels = fill_labels,
+                                        values = cbb_qual[c(9,2,1,8,6)]) +
+                      labs(x = NULL,
+                           y = "kW") +
+                      theme(panel.background = element_rect(fill = "gray80"),
+                            panel.grid.major = element_line(colour = "gray85"),
+                            panel.grid.minor = element_line(colour = "gray85")) +
+                      theme(axis.line = element_blank(),
+                            axis.ticks = element_line(colour = "gray85"),
+                            axis.text.y = element_text(angle = 33, hjust = 1, size = 11),
+                            axis.text.x =  element_text(angle = 33, vjust = 1, hjust = 1))
+  
+  if (save) {
+    ggsave(paste0("outputs\\plots\\", run_id, "_sample_wk.png"),
+           sample_wk_plot,
+           width = 10, height = 8, units = "in")
+  }
+  
+  return(sample_wk_plot)
 }
 get_ts_summ <- function(choice, copies, emish) {
   
@@ -702,7 +763,7 @@ get_ts_summ <- function(choice, copies, emish) {
   full_df <- Reduce(function(x, y) inner_join(x, y, by = "date_time"), full_df) %>%
               mutate(hr = as.numeric(strftime(date_time, format = "%H")),
                       day_ind = as.numeric(strftime(date_time, format = "%j")),
-                     dayhr_ind = day_ind + hr/24)
+                      dayhr_ind = day_ind + hr/24)
   
   if (choice != "nyiso") {
     summ_df <- mutate(full_df,
