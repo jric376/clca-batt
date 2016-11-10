@@ -33,6 +33,13 @@ cbb_qual.n <- c("Biomass" = "#E69F00", "Coal-based" = "#999999",
                 "Nat. Gas" = "#F0E442", "Nuclear" = "#000000", 
                 "Petro-fuels" = "#0072B2", "PV" = "#D55E00",
                 "Wind" = "#56B4E9")
+reverselog_trans <- function(base = exp(1)) {
+  trans <- function(x) -log(x, base)
+  inv <- function(x) base^(-x)
+  trans_new(paste0("reverselog-", format(base)), trans, inv, 
+            log_breaks(base = base), 
+            domain = c(1e-100, Inf))
+}
 
 get_bldg_ani <- function(copies) {
   source("bldg_load.R")
@@ -436,14 +443,12 @@ get_isoterr_donuts <- function(runs = 20, terr = "nyiso", save = FALSE) {
   
   return(donut_plots)
 }
-get_run_results <- function(run_id) {
-  ## MAY WANT TO HAVE FUNCTION TAKE BATT, BLDG, DMD_FRAC
-  ## AND THEN PULL IN CSVs containing "run_results" FROM
-  ## ALL FOLDERS CONTAINING BATT, BLDG, DMD_FRAC
+get_combined_runs <- function(runs) {
   
-  tryCatch({
+  results <- data.frame()
+  for (run_id in runs) {
     results_filenm <- paste(run_id, "run_results.csv", sep = "_")
-    results <- fread(paste0("outputs/", run_id, "/", results_filenm)) %>%
+    results.0 <- fread(paste0("outputs/", run_id, "/", results_filenm)) %>%
       select(-V1) %>%
       as.data.frame() %>%
       mutate(control_plc2erta = control_plc2erta*(life_hi + life_lo)/2,
@@ -454,7 +459,37 @@ get_run_results <- function(run_id) {
              prof_lo_n = prof_lo / batt_cap,
              
              prof_hi_n = prof_hi / batt_cap)
+    results <- rbind.data.frame(results, results.0)
+  }
+  
+  return(results)
+}
+get_run_results <- function(run_id) {
+  ## MAY WANT TO HAVE FUNCTION TAKE BATT, BLDG, DMD_FRAC
+  ## AND THEN PULL IN CSVs containing "run_results" FROM
+  ## ALL FOLDERS CONTAINING BATT, BLDG, DMD_FRAC
+  
+  tryCatch({
     
+    if (length(run_list) > 1) {
+      # accommodates combined run_ids from get_combined_runs
+      results <- get_combined_runs(run_id)
+    }
+    
+    else {
+      results_filenm <- paste(run_id, "run_results.csv", sep = "_")
+      results <- fread(paste0("outputs/", run_id, "/", results_filenm)) %>%
+        select(-V1) %>%
+        as.data.frame() %>%
+        mutate(control_plc2erta = control_plc2erta*(life_hi + life_lo)/2,
+               dr_plc2erta = dr_plc2erta*(life_hi + life_lo)/2,
+               net_plc2erta = (batt_plc2erta + pv_plc2erta +
+                                 dr_plc2erta - control_plc2erta),
+               plc2erta_n = net_plc2erta / batt_cap,
+               prof_lo_n = prof_lo / batt_cap,
+               
+               prof_hi_n = prof_hi / batt_cap)
+    }
     results.summ <- select(results, -ts_num) %>%
       group_by(dmd_frac, batt_type) %>%
       summarise_if(is.numeric, .funs = c("mean", "sd"))
@@ -541,17 +576,19 @@ get_run_results <- function(run_id) {
   },
   error = function(e) return(e))
 }
-get_run_prof_plc2e <- function(run_id, save = FALSE) {
+get_run_prof_plc2e <- function(run_results, run_id, save = FALSE) {
   
-  run_results <- get_run_results(run_id)
-  df <- run_results$df
+  df <- run_results$df %>%
+            mutate(plc2e_s = (plc2erta_n - min(plc2erta_n)),
+                   prof_lo_s = (prof_lo_n - min(prof_lo_n)),
+                   prof_hi_s = (prof_hi_n - min(prof_hi_n)))
   costs <- run_results$costs
   plc2e <- run_results$plc2e
   summ <- run_results$summ
   plc2e_leg_txt = bquote(scriptstyle("lb"~CO[scriptscriptstyle(2)]~"eq/"~kWh[scriptscriptstyle(batt)]))
   
   plc2e_plot <- ggplot(data = df, mapping = aes(x = dmd_frac)) +
-    geom_jitter(aes(y = plc2erta_n,
+    geom_jitter(aes(y = -plc2erta_n,
                     fill = plc2erta_n),
                 shape = 21,
                 alpha = 1/1.2,
@@ -559,11 +596,13 @@ get_run_prof_plc2e <- function(run_id, save = FALSE) {
                 position = position_jitter(w = 0.02, h = 0.2)) +
     labs(x = bquote(scriptstyle("1 - ("~kW[peak][",dr"]~"/"~kW[peak][",ctrl"]~")")),
          y = NULL) +
+    scale_y_continuous(trans = reverselog_trans(base=10),
+                       labels = trans_format("identity", function(x) -x)) +
     scale_fill_gradient2(name = plc2e_leg_txt,
                          labels = scientific,
                          low = "#00441b",
                          mid = "#74c476", high = "#f7fcf5",
-                         midpoint = mean(df$plc2erta_n)) +
+                         midpoint = median(df$plc2erta_n)) +
     expand_limits(x = c(0,1)) +
     theme(panel.background = element_rect(colour = "gray75", fill = "gray80")) +
     theme(panel.grid.major = element_line(colour = "gray85")) +
@@ -571,13 +610,13 @@ get_run_prof_plc2e <- function(run_id, save = FALSE) {
     theme(legend.text = element_text(size = 8))
   
   prof_plot <- ggplot(data = df, mapping = aes(x = dmd_frac)) +
-    geom_jitter(aes(y = prof_lo_n,
+    geom_jitter(aes(y = -prof_lo_n,
                     fill = prof_lo_n,
                     shape = 21),
                 alpha = 1/1.2,
                 size = 3,
                 position = position_jitter(w = 0.02, h = 0.2)) +
-    geom_jitter(aes(y = prof_hi_n,
+    geom_jitter(aes(y = -prof_hi_n,
                     fill = prof_hi_n,
                     shape = 23),
                 size = 3,
@@ -585,10 +624,13 @@ get_run_prof_plc2e <- function(run_id, save = FALSE) {
                 position = position_jitter(w = 0.02, h = 0.2)) +
     labs(x = NULL,
          y = NULL) +
+    scale_y_continuous(trans = reverselog_trans(base=10),
+                       labels = trans_format("identity",
+                                             function(x) dollar(-x))) +
     scale_shape_identity() +
     scale_fill_gradient2(name = bquote(scriptstyle(P[dr]~"/"~kWh[scriptscriptstyle(batt)])),
-                         low = "#b2182b",
-                         mid = "#f7f7f7", high = "#2166ac",
+                         low = "#67000d",
+                         mid = "#fb6a4a", high = "#fff5f0",
                          midpoint = 0) +
     expand_limits(x = c(0,1)) +
     theme(panel.background = element_rect(colour = "gray75", fill = "gray80")) +
@@ -602,14 +644,17 @@ get_run_prof_plc2e <- function(run_id, save = FALSE) {
   combine_plot <- plot_grid(prof_plot, plc2e_plot,
                             nrow = 2, align = "v")
   
-  compare_plot <- ggplot(data = df, mapping = aes(x = plc2erta_n)) +
+  compare_plot <- ggplot(data = df, mapping = aes(x = -plc2erta_n)) +
     geom_point(aes(y = prof_lo_n,
                    fill = dmd_frac,
                    shape = batt_type),
                size = 3,
                alpha = 1/1.2) +
     labs(x = bquote(scriptstyle("lb"~CO[scriptscriptstyle(2)]~"eq /"~kWh[scriptscriptstyle(batt)])),
-         y = bquote(scriptstyle(P[dr]~"/"~kWh[scriptscriptstyle(batt)]))) + 
+         y = bquote(scriptstyle(P[dr]~"/"~kWh[scriptscriptstyle(batt)]))) +
+    scale_x_continuous(trans=log_trans(base=10),
+                       labels=trans_format("identity", function(x) -x)) +
+    scale_y_continuous(labels = dollar) +
     scale_shape_manual(name = NULL,
                        values = 21, labels = "VRF") +
     scale_fill_continuous(name = bquote(scriptstyle("Reduced frac."~kW[scriptscriptstyle(peak)]))) +
@@ -630,9 +675,8 @@ get_run_prof_plc2e <- function(run_id, save = FALSE) {
   
   return(plot_list)
 }
-get_run_barplots <- function(run_id, save = FALSE) {
+get_run_barplots <- function(run_results, run_id, save = FALSE) {
   
-  run_results <- get_run_results(run_id)
   costs <- run_results$costs
   plc2e <- run_results$plc2e
   summ <- run_results$summ
@@ -702,9 +746,9 @@ get_run_barplots <- function(run_id, save = FALSE) {
 get_run_sampwks <- function(run_id, save = FALSE) {
   path = paste0("outputs/", run_id, "/df")
   temp = list.files(path = path, full.names = TRUE)
-  all_df = lapply(temp, read.csv) %>%
-    as.data.frame() %>%
-    mutate_if(is.factor, function(x) as.POSIXct(x, format = "%m/%d/%Y %H:%M")) %>%
+  
+  all_df = read.csv(sample(temp, 1)) %>%
+    mutate_if(is.factor, function(x) as.POSIXct(x, format = "%Y-%m-%d %H:%M")) %>%
     mutate(day_ind = as.numeric(strftime(date_time, format = "%j"))) %>%
     select(-X)
   
@@ -725,7 +769,7 @@ get_run_sampwks <- function(run_id, save = FALSE) {
                       facet_grid(season ~ .) +
                       stat_smooth(aes(y = load, fill = component),
                                   colour = "grey95",
-                                  geom = "area", span = 0.2) +
+                                  geom = "area", span = 0.15) +
                       scale_x_continuous(breaks = seq(0.15,1.02,0.15),
                                          labels = hr_labels,
                                          expand=c(0,0)) +
