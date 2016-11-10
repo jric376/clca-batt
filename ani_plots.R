@@ -752,7 +752,7 @@ get_run_sampwks <- function(run_id, save = FALSE) {
     mutate(day_ind = as.numeric(strftime(date_time, format = "%j"))) %>%
     select(-X)
   
-  fill_labels <- c("Battery", "Bldg", "Curtail", "PV", "Unmet")
+  fill_labels <- c("Battery", "Bldg", "Curtail", "DR",  "PV", "Unmet")
   hr_labels <- unlist(lapply(seq(6,21,3), function(x) ifelse(x>10, paste0(x, ":00"),
                                                              paste0("0", x, ":00"))))
   design_days <- c(37,202)
@@ -762,6 +762,7 @@ get_run_sampwks <- function(run_id, save = FALSE) {
            hr = as.numeric(strftime(date_time, format = "%H")),
            dt = (hr + min/60)/24) %>%
     select(season, dt, bldg_kw, pv_kw:curtail_kw) %>%
+    mutate(dr_kw = bldg_kw + batt_kw) %>%
     gather(component, load, -season, -dt)
   
   sample_wk_plot <- ggplot(data = design_days.df,
@@ -775,7 +776,7 @@ get_run_sampwks <- function(run_id, save = FALSE) {
                                          expand=c(0,0)) +
                       scale_fill_manual(name = NULL,
                                         labels = fill_labels,
-                                        values = cbb_qual[c(9,2,1,8,6)]) +
+                                        values = cbb_qual[c(9,2,4,1,8,6)]) +
                       labs(x = NULL,
                            y = "kW") +
                       theme(panel.background = element_rect(fill = "gray80"),
