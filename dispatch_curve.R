@@ -3,9 +3,9 @@
 # This object can be called to operate like a dispatch curve, simulating
 # the operation of grid resources in time, based on marginal cost
 
-# wd_path = paste(Sys.getenv("USERPROFILE"), "\\OneDrive\\School\\Thesis\\program2", sep = "")
+# wd_path = paste(Sys.getenv("USERPROFILE"), "/OneDrive/School/Thesis/program2", sep = "")
 # setwd(as.character(wd_path))
-# setwd("E:\\GitHub\\clca-batt")
+# setwd("E:/GitHub/clca-batt")
 library("dplyr")
 library("futile.logger")
 library("R6")
@@ -19,8 +19,8 @@ disp_curv <- R6Class("Dispatch",
       initialize = function(meta = NULL, terr = NULL) {
         
         if (terr == "nyiso") {
-          mc_path = "inputs\\marg_costs.csv"
-          plts_path = "inputs\\plants_all.csv"
+          mc_path = "inputs/marg_costs.csv"
+          plts_path = "inputs/plants_all.csv"
           terr = toupper(terr)
         }
         else {
@@ -34,7 +34,7 @@ disp_curv <- R6Class("Dispatch",
         # units:
         # heat_rt Btu/kWh, FC $/MMBtu, VOM $/kWh
         log_path = paste(
-                          "outputs\\", meta[["run_id"]], "\\",
+                          "outputs/", meta[["run_id"]], "/",
                           meta[["name"]], "_", meta[["ctrl_id"]], "_",  
                           strftime(Sys.time(), format = "%d%m%y_%H%M%S"),
                           ".log", sep = ""

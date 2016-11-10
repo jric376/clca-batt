@@ -23,13 +23,13 @@ get_nyc_solar = function(type = "read") {
   if (type == "new" | type == "write") {
     ## THIS BLOCK IS ONLY NEEDED ONCE, TO COMPILE DIFFERENT CSV FILES
     
-    # nsrdb_files = list.files("inputs\\nsrdb_raw", pattern = "*.csv", full.names = TRUE)
+    # nsrdb_files = list.files("inputs/nsrdb_raw", pattern = "*.csv", full.names = TRUE)
     # nsrdb_df = rbindlist(lapply(nsrdb_files, fread))
     # colnames(nsrdb_df) = c("year","mo","day","hr","min","dhi","dni","ghi",
     #                        "clr_dhi", "clr_dni", "clr_ghi", "tempC", "pressure")
-    # nsrdb_df = write.csv(nsrdb_df, "inputs\\solar_nsrdb.csv")
+    # nsrdb_df = write.csv(nsrdb_df, "inputs/solar_nsrdb.csv")
   
-    nsrdb_df = read.csv("inputs\\solar_nsrdb.csv") %>%
+    nsrdb_df = read.csv("inputs/solar_nsrdb.csv") %>%
       mutate(date_time = as.POSIXct(strptime(paste(year,"-",mo,"-",day," ",
                                                    hr,":",0, sep = ""),
                                              format = "%Y-%m-%d %H:%M")),
@@ -47,14 +47,14 @@ get_nyc_solar = function(type = "read") {
       add_weather()
     
     if (type == "write") {
-      temp_file_name = paste0("inputs\\solar_nsrdb_2014",
+      temp_file_name = paste0("inputs/solar_nsrdb_2014",
                               strftime(Sys.time(), format = "%y%m%d_%H%M"),
                               ".csv")
       write.csv(nsrdb_df, temp_file_name)
     }
   }
   if(type == "read") {
-    nsrdb_df = read.csv("inputs\\solar_nsrdb_2014.csv")  %>% 
+    nsrdb_df = read.csv("inputs/solar_nsrdb_2014.csv")  %>% 
       select(-X) %>%
       mutate(date_time = as.POSIXct(date_time)) %>%
       mutate_if(is.factor, as.character) %>%
@@ -204,14 +204,14 @@ get_bsrn.larc = function(type = "read") {
       #                            tally(group_by(bsrn_df.larc.days, day_ind)),
       #                            by = "day_ind")
       if (type == "write") {
-        temp_file_name = paste0("inputs\\solar_bsrn_larc_",
+        temp_file_name = paste0("inputs/solar_bsrn_larc_",
                               strftime(Sys.time(), format = "%y%m%d_%H%M"),
                              ".csv")
         write.csv(bsrn_df.larc.days, temp_file_name)
       }
   }
   if (type == "read") {
-    bsrn_df.larc.days = read.csv("inputs\\solar_bsrn_larc.csv") %>% 
+    bsrn_df.larc.days = read.csv("inputs/solar_bsrn_larc.csv") %>% 
       select(-X) %>%
       mutate_if(is.integer, as.numeric) %>%
       mutate(date_time = as.POSIXct(date_time))
@@ -221,7 +221,7 @@ get_bsrn.larc = function(type = "read") {
 # Combining COVE dat file, or reading the csv
 get_bsrn.cove = function(type = "read") {
   if (type == "new" | type == "write") {
-    bsrn_df.cove.days = readLines("inputs\\bsrn_raw\\2014001-2014365_COVEdata.DAT")
+    bsrn_df.cove.days = readLines("inputs/bsrn_raw/2014001-2014365_COVEdata.DAT")
     # cove.cols = strsplit(bsrn_df.cove.days[14], "\"")
     # cove.cols = cove.cols[[1]][sapply(cove.cols, function(x) !(x == ","))][2:8]
     cove.cols <- c("day", "yr_day", "time", "zenith", "azi", "tempC", "ghi")
@@ -252,14 +252,14 @@ get_bsrn.cove = function(type = "read") {
     bsrn_df.cove.days = bsrn_df.cove.days[2:nrow(bsrn_df.cove.days),] %>%
                           add_weather()
     if (type == "write") {
-      temp_file_name = paste0("inputs\\solar_bsrn_cove_",
+      temp_file_name = paste0("inputs/solar_bsrn_cove_",
                               strftime(Sys.time(), format = "%y%m%d_%H%M"),
                               ".csv")
       write.csv(bsrn_df.cove.days, temp_file_name)
     }
   }
   if (type == "read") {
-    bsrn_df.cove.days = read.csv("inputs\\solar_bsrn_cove.csv") %>% 
+    bsrn_df.cove.days = read.csv("inputs/solar_bsrn_cove.csv") %>% 
       select(-X) %>%
       mutate_if(is.integer, as.numeric) %>%
       mutate(date_time = as.POSIXct(date_time))
@@ -268,7 +268,7 @@ get_bsrn.cove = function(type = "read") {
 }
 # Adding clearsky, weather types to BSRN
 get_bsrn_clearsky = function() {
-  bsrn_df.clearsky = fread("inputs\\bsrn_raw\\1155277_37.01_-76.34_2014.csv")
+  bsrn_df.clearsky = fread("inputs/bsrn_raw/1155277_37.01_-76.34_2014.csv")
   colnames(bsrn_df.clearsky) = c("year","mo","day","hr","min","ghi",
                                  "clr_ghi", "tempC")
   bsrn_df.clearsky = bsrn_df.clearsky %>%
@@ -503,7 +503,7 @@ get_1yr_markov = function(src_df = list("cove", "larc"), cop = 2, interval,
   stopCluster(cl)
   
   all_min <- fill(all_min, weather, contains("_min"), .direction = "up")
-  if(save_rds) saveRDS(all_min, "inputs\\solar_min.rds")
+  if(save_rds) saveRDS(all_min, "inputs/solar_min.rds")
   return(all_min)
 }
 validate_markov_df <- function(df, save_rds) {
@@ -541,7 +541,7 @@ validate_markov_df <- function(df, save_rds) {
                   summarize_if(is.numeric, mean) %>%
                   select(date_time, contains("var"))
   
-  if(save_rds) saveRDS(output_df, "inputs\\solar_min_freq.rds")
+  if(save_rds) saveRDS(output_df, "inputs/solar_min_freq.rds")
   return(output_df)
 }
 

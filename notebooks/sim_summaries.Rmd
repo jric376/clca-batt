@@ -33,7 +33,7 @@ library("tidyr")
 
 ```{r}
 run_id = "vrf_02"
-path = paste0("E:\\GitHub\\clca-batt\\outputs\\", run_id, "\\df")
+path = paste0("E:/GitHub/clca-batt/outputs/", run_id, "/df")
 temp = list.files(path = path, full.names = TRUE)
 all_df = lapply(temp, read.csv) %>%
             as.data.frame() %>%

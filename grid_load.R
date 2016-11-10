@@ -4,9 +4,9 @@
 # plus metadata about the grid territory / energy mix, and
 # get methods for stats describing the load profile.
 
-# wd_path = paste(Sys.getenv("USERPROFILE"), "\\OneDrive\\School\\Thesis\\program2", sep = "")
+# wd_path = paste(Sys.getenv("USERPROFILE"), "/OneDrive/School/Thesis/program2", sep = "")
 # setwd(as.character(wd_path))
-# setwd("E:\\GitHub\\clca-batt")
+# setwd("E:/GitHub/clca-batt")
 library("plyr")
 library("dplyr")
 library('foreach')
@@ -122,7 +122,7 @@ get_grid <- function(run_id, terr, copies = 0, factor = 0.1) {
     "factor" = factor
   )
   if (terr == "nyiso") {
-    path = "inputs\\2014pal_combined.csv"
+    path = "inputs/2014pal_combined.csv"
   }
     
   grid_test <- grid_load$new(

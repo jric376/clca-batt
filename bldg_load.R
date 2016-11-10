@@ -4,9 +4,9 @@
 # consumption, plus metadata about the building, and
 # get methods for stats describing the load profile.
 
-# wd_path = paste(Sys.getenv("USERPROFILE"), "\\OneDrive\\School\\Thesis\\program2", sep = "")
+# wd_path = paste(Sys.getenv("USERPROFILE"), "/OneDrive/School/Thesis/program2", sep = "")
 # setwd(as.character(wd_path))
-# setwd("E:\\GitHub\\clca-batt")
+# setwd("E:/GitHub/clca-batt")
 library("plyr")
 library("dplyr")
 library("foreach")
@@ -116,7 +116,7 @@ bldg_load <- R6Class("Bldg Load",
 
 get_bldg <- function(run_id, type, copies = 0, factor = 0.1) {
   if (type == "office") {
-    path = "inputs\\office_med_160929.csv"
+    path = "inputs/office_med_160929.csv"
   }
   
   metadat = list(

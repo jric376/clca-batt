@@ -14,9 +14,9 @@
 # the bldg + pv ts, using the grid ts and
 # dispatch curves
 
-# wd_path = paste(Sys.getenv("USERPROFILE"), "\\OneDrive\\School\\Thesis\\program2", sep = "")
+# wd_path = paste(Sys.getenv("USERPROFILE"), "/OneDrive/School/Thesis/program2", sep = "")
 # setwd(as.character(wd_path))
-# setwd("E:\\GitHub\\clca-batt")
+# setwd("E:/GitHub/clca-batt")
 library(dplyr)
 library(futile.logger)
 library(R6)
@@ -33,7 +33,7 @@ sys_ctrlr <- R6Class("System Controller",
                                              ) {
                          
                          log_path = paste(
-                           "outputs\\", meta[["run_id"]], "\\",
+                           "outputs/", meta[["run_id"]], "/",
                            meta[["ctrl_id"]],
                            ".log", sep = ""
                          )
@@ -153,12 +153,16 @@ sys_ctrlr <- R6Class("System Controller",
                            else {
                              
                              # atm, timestep is a chr w format "%Y-%m-%d %H:%M:%S"
-                             # THIS IS WHERE BATT WOULD CHARGE FROM GRID
-                             # GIVEN TEMPORAL AND OTHER CONSTRAINTS
-                             # i.e. using timestep and maybe SoC
-                             
-                             grid_kw = bldg_kw
-                             batt_kw = 0
+                             hr <- as.numeric(strftime(timestep, format = "%H"))
+                             if ((hr >= 1 | hr <= 5) & private$batt$soc <= 0.5) {
+                                 max_draw = (private$dmd_targ - bldg_kw)*0.5
+                                 batt_kw = self$draw_batt(max_draw)
+                                 grid_kw = bldg_kw + max_draw
+                             }
+                             else {
+                                   grid_kw = bldg_kw
+                                   batt_kw = 0
+                             }
                              curtail_kw = 0
                            }
                            unmet_kw = 0
@@ -233,9 +237,9 @@ sys_ctrlr <- R6Class("System Controller",
                          private$sim_df = sim_df
                          
                          if (save_df) {
-                           sim_path <- list(paste("outputs\\", private$metadata[["run_id"]],
+                           sim_path <- list(paste("outputs/", private$metadata[["run_id"]],
                                              sep = ""),
-                                            "\\df")
+                                            "/df")
                            for (i in 1:length(sim_path)) {
                              curr_path = paste(sim_path[1:i], collapse ="")
                              if(!dir.exists(file.path(curr_path))) {
@@ -244,7 +248,7 @@ sys_ctrlr <- R6Class("System Controller",
                            }
                            nameplt_abrv <- paste(round(private$batt$nameplate, 2)*1000, "W", sep = "")
                            targ_abrv <- 100 - round(private$dmd_targ/max(bldg_kw), 2)*100
-                           write.csv(sim_df, paste(curr_path, "\\", private$metadata[["ctrl_id"]],
+                           write.csv(sim_df, paste(curr_path, "/", private$metadata[["ctrl_id"]],
                                                    "_", private$batt$chem, nameplt_abrv, "_shave", targ_abrv,
                                                    ".csv", sep = ""))
                          }

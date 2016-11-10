@@ -1,8 +1,8 @@
 # Cost and Emissions Calculator
 
-# wd_path = paste(Sys.getenv("USERPROFILE"), "\\OneDrive\\School\\Thesis\\program2", sep = "")
+# wd_path = paste(Sys.getenv("USERPROFILE"), "/OneDrive/School/Thesis/program2", sep = "")
 # setwd(as.character(wd_path))
-# setwd("E:\\GitHub\\clca-batt")
+# setwd("E:/GitHub/clca-batt")
 library("dplyr")
 library("futile.logger")
 library("R6")

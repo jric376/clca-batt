@@ -3,7 +3,7 @@
 # All plots and animations based on custom objects
 # are created here. Objects are imported as needed
 
-# wd_path = paste(Sys.getenv("USERPROFILE"), "\\OneDrive\\School\\Thesis\\program2", sep = "")
+# wd_path = paste(Sys.getenv("USERPROFILE"), "/OneDrive/School/Thesis/program2", sep = "")
 # setwd(as.character(wd_path))
 library("animation")
 library("cowplot")
@@ -22,8 +22,8 @@ library("reshape2")
 library("scales")
 library("tidyr")
 
-# if (!dir.exists(file.path("outputs\\plots"))) {
-#   dir.create(file.path("outputs\\plots"))
+# if (!dir.exists(file.path("outputs/plots"))) {
+#   dir.create(file.path("outputs/plots"))
 # }
 cbb_qual <- c("#E69F00", "#999999","#CC79A7", "#009E73", "#F0E442",
               "#000000", "#0072B2", "#D55E00", "#56B4E9")
@@ -68,7 +68,7 @@ get_bldg_ani <- function(copies) {
                                       data = subset(jul_df, jul_df$run == 1),
                                       colour = "#e31a1c", size = 1)
   
-  ggsave(filename = "outputs\\plots\\bldg_load.png",
+  ggsave(filename = "outputs/plots/bldg_load.png",
          width = 10, height = 6.25, units = "in")
   
   ani_jul_plt <- jul_plt.bare + geom_line(
@@ -79,7 +79,7 @@ get_bldg_ani <- function(copies) {
                                             colour = "#e31a1c", size = 1.5)
   
   ani.options(outdir = getwd(), ani.width = 960, ani.height = 600)
-  ani_jul_plt <- gg_animate(ani_jul_plt, "outputs\\plots\\bldg_load.gif")
+  ani_jul_plt <- gg_animate(ani_jul_plt, "outputs/plots/bldg_load.gif")
 }
 get_grid_ani <- function(copies) {
   source("grid_load.R")
@@ -115,7 +115,7 @@ get_grid_ani <- function(copies) {
                                       data = subset(jul_df, jul_df$run == 1),
                                       colour = "#e31a1c", size = 1)
   
-  ggsave(filename = "outputs\\plots\\grid_load.png",
+  ggsave(filename = "outputs/plots/grid_load.png",
          width = 10, height = 6.25, units = "in")
   
   ani_jul_plt <- jul_plt.bare + geom_line(
@@ -127,7 +127,7 @@ get_grid_ani <- function(copies) {
   
   
   ani.options(outdir = getwd(), ani.width = 960, ani.height = 600)
-  ani_jul_plt <- gg_animate(ani_jul_plt, "outputs\\plots\\grid_load.gif")}
+  ani_jul_plt <- gg_animate(ani_jul_plt, "outputs/plots/grid_load.gif")}
 get_pv_ani <- function(copies) {
   source("pv_load.R")
   pv <- get_pv(run_id = "plot", copies = copies, type = "office")
@@ -164,7 +164,7 @@ get_pv_ani <- function(copies) {
                                       data = subset(jul_df, jul_df$run == 1),
                                       colour = "e31a1c", size = 1)
   
-  ggsave(filename = "outputs\\plots\\pv_load.png",
+  ggsave(filename = "outputs/plots/pv_load.png",
          width = 10, height = 6.25, units = "in")
   
   ani_jul_plt <- jul_plt.bare + geom_line(
@@ -176,7 +176,7 @@ get_pv_ani <- function(copies) {
   
   
   ani.options(outdir = getwd(), ani.width = 960, ani.height = 600)
-  ani_jul_plt <- gg_animate(ani_jul_plt, "outputs\\plots\\pv_load.gif")
+  ani_jul_plt <- gg_animate(ani_jul_plt, "outputs/plots/pv_load.gif")
 }
 get_disp_ani <- function(runs = 20, save = FALSE) {
   source("dispatch_curve.R")
@@ -257,15 +257,15 @@ get_disp_ani <- function(runs = 20, save = FALSE) {
   
   ### For saving combined plot
   if (save) {
-    save_plot(filename = "outputs\\plots\\disp_nyiso_combined.png",
+    save_plot(filename = "outputs/plots/disp_nyiso_combined.png",
               disp_plt, ncol = 1, nrow = 2,
               base_height = 6.25, base_width = 10)
   }
   ### For saving individual ggplot objects
   if (save) {
-    ggsave(disp_cost, filename = "outputs\\plots\\disp_nyiso.png",
+    ggsave(disp_cost, filename = "outputs/plots/disp_nyiso.png",
            width = 10, height = 6.25, units = "in")
-    # ggsave(disp_emish, filename = "outputs\\plots\\disp_nyiso_emish.png",
+    # ggsave(disp_emish, filename = "outputs/plots/disp_nyiso_emish.png",
     #        width = 10, height = 6.25, units = "in")
   }
   ani_disp_cost <- disp_plt.bare + labs(y = "Marg. Cost ($ / kWh)",
@@ -319,8 +319,8 @@ get_disp_ani <- function(runs = 20, save = FALSE) {
 
   ani.options(outdir = getwd(), ani.width = 960, ani.height = 600)
   if (save) {
-    gg_animate(ani_disp_cost, "outputs\\plots\\disp_nyiso_cost.gif")
-    gg_animate(ani_disp_emish, "outputs\\plots\\disp_nyiso_emish.gif")
+    gg_animate(ani_disp_cost, "outputs/plots/disp_nyiso_cost.gif")
+    gg_animate(ani_disp_emish, "outputs/plots/disp_nyiso_emish.gif")
   }
   
   return(full_df)
@@ -429,7 +429,7 @@ get_isoterr_donuts <- function(runs = 20, terr = "nyiso", save = FALSE) {
                               rel_heights = c(1, 0.5))
   
   if (save) {
-    save_plot(filename = paste0("outputs\\plots\\", terr, "_donut.png"),
+    save_plot(filename = paste0("outputs/plots/", terr, "_donut.png"),
               donut_plots, ncol = 1, nrow = 2,
               base_height = 3, base_width = 10)
   }
@@ -443,7 +443,7 @@ get_run_results <- function(run_id) {
   
   tryCatch({
     results_filenm <- paste(run_id, "run_results.csv", sep = "_")
-    results <- fread(paste0("outputs\\", run_id, "\\", results_filenm)) %>%
+    results <- fread(paste0("outputs/", run_id, "/", results_filenm)) %>%
       select(-V1) %>%
       as.data.frame() %>%
       mutate(control_plc2erta = control_plc2erta*(life_hi + life_lo)/2,
@@ -452,19 +452,19 @@ get_run_results <- function(run_id) {
                                dr_plc2erta - control_plc2erta),
              plc2erta_n = net_plc2erta / batt_cap,
              prof_lo_n = prof_lo / batt_cap,
+             
              prof_hi_n = prof_hi / batt_cap)
     
-    prefix <- filter(results, ts_num == 1) %>%
-      select(run_id, bldg, pv_kw, dmd_frac, batt_type)
-    cols_to_summ <- select(results, -(run_id:batt_type)) %>%
-      summarise_all(.funs = c("mean", "sd"))
-    results.summ <- cbind.data.frame(prefix, cols_to_summ)
+    results.summ <- select(results, -ts_num) %>%
+      group_by(dmd_frac, batt_type) %>%
+      summarise_if(is.numeric, .funs = c("mean", "sd"))
     
-    component <- c(rep("Batt", 2), rep("Grid / Grid, DR", 2), rep("PV", 2),
-                   rep("TAC", 2), rep("P", 2), rep("P_n", 2))
-    hi_lo <- rep(c("lo", "hi"), 6)
-    cost_mean <- select(results.summ,
-                         ends_with("mean")) %>%
+    num_fracs <- length(unique(results.summ$dmd_frac))
+    component <- rep(c(rep("Batt", 2), rep("Grid / Grid, DR", 2), rep("PV", 2),
+                   rep("TAC", 2), rep("P", 2), rep("P_n", 2)), num_fracs)
+    hi_lo <- rep(rep(c("lo", "hi"), 6), num_fracs)
+    cost_mean <- results.summ %>%
+                  select(ends_with("mean")) %>%
                   select(contains("lsc"),
                          contains("dr_cost"),
                          contains("control_cost"),
@@ -473,9 +473,13 @@ get_run_results <- function(run_id) {
                          contains("prof")) %>%
                   t() %>%
                   as.data.frame()
-    names(cost_mean) <- "mean"
-    cost_sd <- select(results.summ,
-                        ends_with("sd")) %>%
+    colnames(cost_mean) <- cost_mean["dmd_frac",]
+    rows_to_keep <- which(rownames(cost_mean) != "dmd_frac")
+    cost_mean <- cost_mean[rows_to_keep,] %>%
+                  gather(dmd_frac) %>%
+                  rename(mean = value)
+    cost_sd <- results.summ %>%
+                  select(ends_with("sd")) %>%
                   select(contains("lsc"),
                          contains("_cost"),
                          contains("levcost"),
@@ -483,13 +487,20 @@ get_run_results <- function(run_id) {
                          contains("prof")) %>%
                   t() %>%
                   as.data.frame()
-    names(cost_sd) <- "sd"
-    costs <- data.frame(component, hi_lo, cost_mean, cost_sd) %>%
+    colnames(cost_sd) <- cost_sd["dmd_frac",]
+    rows_to_keep <- which(rownames(cost_sd) != "dmd_frac")
+    cost_sd <- cost_sd[rows_to_keep,] %>%
+                  gather(dmd_frac) %>%
+                  select(-dmd_frac) %>%
+                  rename(sd = value)
+    costs <- data.frame(component, hi_lo,
+                        cost_mean,
+                        cost_sd) %>%
               filter(component != "P_n")
     
-    component <- c(rep("Grid", 1), rep("Grid, DR", 1),
+    component <- rep(c(rep("Grid", 1), rep("Grid, DR", 1),
                    rep("PV", 1), rep("Batt", 1),
-                   rep("Net", 1))
+                   rep("Net", 1)), num_fracs)
     plc2e_mean <- select(results.summ,
                           ends_with("mean")) %>%
                     select(contains("plc2erta")) %>%
@@ -500,7 +511,11 @@ get_run_results <- function(run_id) {
                            contains("net")) %>%
                     t() %>%
                     as.data.frame()
-    names(plc2e_mean) <- "mean"
+    colnames(plc2e_mean) <- plc2e_mean["dmd_frac",]
+    rows_to_keep <- which(rownames(plc2e_mean) != "dmd_frac")
+    plc2e_mean <- plc2e_mean[rows_to_keep,] %>%
+                    gather(dmd_frac) %>%
+                    rename(mean = value)
     plc2e_sd <- select(results.summ,
                          ends_with("sd")) %>%
                     select(contains("plc2erta")) %>%
@@ -511,9 +526,14 @@ get_run_results <- function(run_id) {
                            contains("net")) %>%
                     t() %>%
                     as.data.frame()
-    names(plc2e_sd) <- "sd"
+    colnames(plc2e_sd) <- plc2e_sd["dmd_frac",]
+    rows_to_keep <- which(rownames(plc2e_sd) != "dmd_frac")
+    plc2e_sd <- plc2e_sd[rows_to_keep,] %>%
+                  gather(dmd_frac) %>%
+                  select(-dmd_frac) %>%
+                  rename(sd = value)
     plc2e <- data.frame(component, plc2e_mean, plc2e_sd)
-    gc()
+    
     results.list <- list("df" = results,
                          "summ" = results.summ,
                          "costs" = costs,
@@ -528,8 +548,7 @@ get_run_prof_plc2e <- function(run_id, save = FALSE) {
   costs <- run_results$costs
   plc2e <- run_results$plc2e
   summ <- run_results$summ
-  plc2e_leg_txt = c(as.expression(bquote(scriptstyle("lb"~CO[scriptscriptstyle(2)]~"eq"))),
-                    as.expression(bquote("/"~kWh[scriptscriptstyle(batt)])))
+  plc2e_leg_txt = bquote(scriptstyle("lb"~CO[scriptscriptstyle(2)]~"eq/"~kWh[scriptscriptstyle(batt)]))
   
   plc2e_plot <- ggplot(data = df, mapping = aes(x = dmd_frac)) +
     geom_jitter(aes(y = plc2erta_n,
@@ -541,12 +560,15 @@ get_run_prof_plc2e <- function(run_id, save = FALSE) {
     labs(x = bquote(scriptstyle("1 - ("~kW[peak][",dr"]~"/"~kW[peak][",ctrl"]~")")),
          y = NULL) +
     scale_fill_gradient2(name = plc2e_leg_txt,
-                         low = "#f7fcfd",
-                         high = "#00441b") +
+                         labels = scientific,
+                         low = "#00441b",
+                         mid = "#74c476", high = "#f7fcf5",
+                         midpoint = mean(df$plc2erta_n)) +
     expand_limits(x = c(0,1)) +
     theme(panel.background = element_rect(colour = "gray75", fill = "gray80")) +
     theme(panel.grid.major = element_line(colour = "gray85")) +
-    theme(panel.grid.minor = element_line(colour = "gray85"))
+    theme(panel.grid.minor = element_line(colour = "gray85")) +
+    theme(legend.text = element_text(size = 8))
   
   prof_plot <- ggplot(data = df, mapping = aes(x = dmd_frac)) +
     geom_jitter(aes(y = prof_lo_n,
@@ -574,7 +596,8 @@ get_run_prof_plc2e <- function(run_id, save = FALSE) {
     theme(panel.grid.minor = element_line(colour = "gray85")) +
     theme(axis.line.x = element_blank(),
           axis.ticks.x = element_blank(),
-          axis.text.x = element_blank())
+          axis.text.x = element_blank(),
+          legend.text = element_text(size = 8))
   
   combine_plot <- plot_grid(prof_plot, plc2e_plot,
                             nrow = 2, align = "v")
@@ -590,8 +613,6 @@ get_run_prof_plc2e <- function(run_id, save = FALSE) {
     scale_shape_manual(name = NULL,
                        values = 21, labels = "VRF") +
     scale_fill_continuous(name = bquote(scriptstyle("Reduced frac."~kW[scriptscriptstyle(peak)]))) +
-    expand_limits(x = c(-2500, 35000),
-                  y = c(-5000, 5000)) +
     theme(panel.background = element_rect(colour = "gray75", fill = "gray80")) +
     theme(panel.grid.major = element_line(colour = "gray85")) +
     theme(panel.grid.minor = element_line(colour = "gray85"))
@@ -599,10 +620,10 @@ get_run_prof_plc2e <- function(run_id, save = FALSE) {
   plot_list <- list("combine" = combine_plot, "compare" = compare_plot)
   
   if (save) {
-    save_plot(filename = paste0("outputs\\plots\\", run_id, "_comb_results.png"),
+    save_plot(filename = paste0("outputs/plots/", run_id, "_comb_results.png"),
               combine_plot,
               base_height = 6.25, base_width = 8)
-    save_plot(filename = paste0("outputs\\plots\\", run_id, "_comp_results.png"),
+    save_plot(filename = paste0("outputs/plots/", run_id, "_comp_results.png"),
               compare_plot,
               base_height = 6.25, base_width = 8)
   }
@@ -621,7 +642,7 @@ get_run_barplots <- function(run_id, save = FALSE) {
   sd_batt_life <- select(summ, contains("life")) %>%
                     select(ends_with("sd")) %>%
                     rowMeans()
-  sd_n <- sd_batt_life / mean_batt_life
+  sd_n <- mean(sd_batt_life / mean_batt_life)
   costs$sd <- costs$sd*(1+sd_n)
   plc2e$sd <- plc2e$sd*(1+sd_n)
   
@@ -634,6 +655,7 @@ get_run_barplots <- function(run_id, save = FALSE) {
   cost_plot <- ggplot(data = costs,
                        aes(x = component,
                            fill = hi_lo)) +
+                  facet_grid(dmd_frac ~ .) +
                   geom_bar(aes(y = mean),
                            colour = "grey65",
                            position = "dodge", stat = "identity") +
@@ -649,6 +671,7 @@ get_run_barplots <- function(run_id, save = FALSE) {
   
   plc2e_plot <- ggplot(data = plc2e,
                        aes(x = component)) +
+                  facet_grid(dmd_frac ~ .) +
                   geom_bar(aes(y = mean,
                                fill = component),
                            colour = "grey65",
@@ -666,10 +689,10 @@ get_run_barplots <- function(run_id, save = FALSE) {
   plot_list <- list("cost" = cost_plot, "plc2e" = plc2e_plot)
   
   if (save) {
-    ggsave(paste0("outputs\\plots\\", run_id, "_cost_bar.png"),
+    ggsave(paste0("outputs/plots/", run_id, "_cost_bar.png"),
            cost_plot,
            width = 10, height = 6.25, units = "in")
-    ggsave(paste0("outputs\\plots\\", run_id, "_plc2e_bar.png"),
+    ggsave(paste0("outputs/plots/", run_id, "_plc2e_bar.png"),
            plc2e_plot,
            width = 10, height = 6.25, units = "in")
   }
@@ -677,7 +700,7 @@ get_run_barplots <- function(run_id, save = FALSE) {
   return(plot_list)
 }
 get_run_sampwks <- function(run_id, save = FALSE) {
-  path = paste0("outputs\\", run_id, "\\df")
+  path = paste0("outputs/", run_id, "/df")
   temp = list.files(path = path, full.names = TRUE)
   all_df = lapply(temp, read.csv) %>%
     as.data.frame() %>%
@@ -720,7 +743,7 @@ get_run_sampwks <- function(run_id, save = FALSE) {
                             axis.text.x =  element_text(angle = 33, vjust = 1, hjust = 1))
   
   if (save) {
-    ggsave(paste0("outputs\\plots\\", run_id, "_sample_wk.png"),
+    ggsave(paste0("outputs/plots/", run_id, "_sample_wk.png"),
            sample_wk_plot,
            width = 10, height = 8, units = "in")
   }
@@ -840,7 +863,7 @@ get_ts_heatmap <- function(choice, copies, save = FALSE) {
     title_txt = bquote("NYISO Weekly"~ CO[scriptstyle(2)]~ "eq Emissions Profile (2014)")
   }
   
-  chdd_df <- fread("inputs\\2014_chdd.csv", header = TRUE, stringsAsFactors = FALSE) %>%
+  chdd_df <- fread("inputs/2014_chdd.csv", header = TRUE, stringsAsFactors = FALSE) %>%
               select(date_time, cl) %>%
               mutate(day_ind = as.numeric(strftime(date_time, format = "%j"))) %>%
               select(-date_time)
@@ -980,13 +1003,13 @@ get_ts_heatmap <- function(choice, copies, save = FALSE) {
                               ncol = 1, rel_heights = c(0.05, 1))
   
   if (save) {
-    # ggsave(paste0("outputs\\plots\\", choice, "_heatmap_mean.png"),
+    # ggsave(paste0("outputs/plots/", choice, "_heatmap_mean.png"),
     #        mean_plot,
     #        width = 12, height = 8, units = "in")
-    # ggsave(paste0("outputs\\plots\\", choice, "_heatmap_sd.png"),
+    # ggsave(paste0("outputs/plots/", choice, "_heatmap_sd.png"),
     #        sd_plot,
     #        width = 12, height = 8, units = "in")
-    save_plot(filename = paste0("outputs\\plots\\", choice, "_heatmap.png"),
+    save_plot(filename = paste0("outputs/plots/", choice, "_heatmap.png"),
               heatmap_plot,
               base_height = 12, base_width = 8)
   }
@@ -1061,13 +1084,13 @@ get_isoterr_plots <- function(terr = "nyiso", save = FALSE) {
                                 ncol = 1, rel_heights = c(0.075, 1))
   
   if (save) {
-      # ggsave(paste0("outputs\\plots\\", terr, "_namepcap.png"),
+      # ggsave(paste0("outputs/plots/", terr, "_namepcap.png"),
       #        disp_plot.cap,
       #        width = 10, height = 6.25, units = "in")
-      # ggsave(paste0("outputs\\plots\\", terr, "_plc2erta.png"),
+      # ggsave(paste0("outputs/plots/", terr, "_plc2erta.png"),
       #        disp_plot.plc2erta,
       #        width = 10, height = 6.25, units = "in")
-      save_plot(filename = paste0("outputs\\plots\\", terr, "_cap_co2eq.png"),
+      save_plot(filename = paste0("outputs/plots/", terr, "_cap_co2eq.png"),
                 isoterr_boxplot, ncol = 1, nrow = 2,
                 base_height = 6.25, base_width = 10)
     }
@@ -1075,7 +1098,7 @@ get_isoterr_plots <- function(terr = "nyiso", save = FALSE) {
   return(isoterr_boxplot)
 }
 get_bldg_comp <- function() {
-  bldg_df <- read.csv("inputs\\bldg_summ.csv",
+  bldg_df <- read.csv("inputs/bldg_summ.csv",
                       stringsAsFactors = FALSE)
   bldg_df$ci <- bldg_df$kwh*0.05
   stop("Need to account for different cats that show in hospital validation")
@@ -1117,7 +1140,7 @@ get_bldg_comp <- function() {
           legend.background = element_rect(colour = "gray75")) +
     expand_limits(y = c(0,310000))
   
-  ggsave(filename = "outputs\\plots\\office_compare.png",
+  ggsave(filename = "outputs/plots/office_compare.png",
          summ_plot,
          width = 10, height = 6.25, units = "in")
 }
@@ -1148,7 +1171,7 @@ get_bldg_ldc <- function(type, copies, save = FALSE) {
                 theme(panel.grid.minor = element_line(colour = "gray85"))
   
   if (save) {
-    ggsave(filename = paste0("outputs\\plots\\", type, "_ldc.png"),
+    ggsave(filename = paste0("outputs/plots/", type, "_ldc.png"),
            ldc_plot,
            width = 10, height = 6.25, units = "in")
   }
@@ -1157,7 +1180,7 @@ get_bldg_ldc <- function(type, copies, save = FALSE) {
 }
 get_kt_dist <- function(which_df, save = FALSE) {
   if(which_df == "nyc_nsrdb") {
-    solar_df = read.csv("inputs\\solar_nsrdb_2014.csv") %>%
+    solar_df = read.csv("inputs/solar_nsrdb_2014.csv") %>%
       mutate(df = "NYC") %>%
       select(-X)
     cbb_qual = cbb_qual[2:3]
@@ -1165,10 +1188,10 @@ get_kt_dist <- function(which_df, save = FALSE) {
     y_max = 0.75
   }
   else {
-    cove = read.csv("inputs\\solar_bsrn_cove.csv") %>%
+    cove = read.csv("inputs/solar_bsrn_cove.csv") %>%
       mutate(date_time = strftime(as.POSIXct(date_time), format = "%Y-%m-%d"),
              df = "COVE")
-    larc = read.csv("inputs\\solar_bsrn_larc.csv") %>%
+    larc = read.csv("inputs/solar_bsrn_larc.csv") %>%
       mutate(date_time = strftime(as.POSIXct(date_time), format = "%Y-%m-%d"),
              df = "LARC")
     solar_df = bind_rows(cove, larc) %>%
@@ -1219,7 +1242,7 @@ get_kt_dist <- function(which_df, save = FALSE) {
           legend.background = element_rect(fill = "white", colour = "gray75"))
   
   if(save) {
-    ggsave(filename = paste0("outputs\\plots\\kt_dist_", which_df, ".png"),
+    ggsave(filename = paste0("outputs/plots/kt_dist_", which_df, ".png"),
            kt_plot, 
            width = 10, height = 6.25, units = "in")
   }
@@ -1279,7 +1302,7 @@ get_markov_sample <- function(sample, save = FALSE) {
   
   ### For saving combined plot
   if (save) {
-    save_plot(filename = "outputs\\plots\\markov_sample.png",
+    save_plot(filename = "outputs/plots/markov_sample.png",
               mC_plt.combined, ncol = 1, nrow = 2,
               base_height = 6.25, base_width = 10)
   }
@@ -1316,7 +1339,7 @@ get_markov_freqpoly <- function(mC_freq, save = FALSE) {
                           legend.background = element_rect(fill = "white", colour = "gray75"))
   
   if(save) {
-    ggsave(filename = paste0("outputs\\plots\\mC_freq.png"),
+    ggsave(filename = paste0("outputs/plots/mC_freq.png"),
            mC_freq.plot, 
            width = 10, height = 6.25, units = "in")
   }

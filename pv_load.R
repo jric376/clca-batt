@@ -3,24 +3,22 @@
 # This object contains a time-series of generated solar power
 # plus metadata.
 
-# wd_path = paste(Sys.getenv("USERPROFILE"), "\\OneDrive\\School\\Thesis\\program2", sep = "")
+# wd_path = paste(Sys.getenv("USERPROFILE"), "/OneDrive/School/Thesis/program2", sep = "")
 # setwd(as.character(wd_path))
-# setwd("E:\\GitHub\\clca-batt")
+# setwd("E:/GitHub/clca-batt")
 library("data.table")
 library("plyr")
-library("dtplyr")
-# library("dplyr")
+library("dplyr")
 library("foreach")
 library("iterators")
 library("doSNOW")
 library("R6")
-library("RSQLite")
 
 pv_load <- R6Class("PV Load",
                      public = list(
                        
                        cell_eff = 0.17,
-                       inv_eff = 0.96,
+                       inv_eff = 0.93,
                        nameplate = 0.0,
                        sys_loss = 1 - 0.1408, # from NREL System Advisor Model
                        self_shade = 0.3644, # to avoid panels shading panels
@@ -49,7 +47,7 @@ pv_load <- R6Class("PV Load",
                          self$cap_cost.lo <- self$cap_cost.lo*self$nameplate
                          self$cap_cost.hi <- self$cap_cost.hi*self$nameplate
                         
-                         self$add_ts_df(readRDS("inputs\\solar_min.rds"),
+                         self$add_ts_df(readRDS("inputs/solar_min.rds"),
                                         rand_copies,
                                         array_area)
                          self$add_metadata(meta)

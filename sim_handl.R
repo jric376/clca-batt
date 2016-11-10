@@ -1,8 +1,8 @@
 # Simulation Handler - GHG Changes from Demand Response w PV + Battery Storage
 
-# wd_path = paste(Sys.getenv("USERPROFILE"), "\\OneDrive\\School\\Thesis\\program2", sep = "")
+# wd_path = paste(Sys.getenv("USERPROFILE"), "/OneDrive/School/Thesis/program2", sep = "")
 # setwd(as.character(wd_path))
-# setwd("E:\\GitHub\\clca-batt")
+# setwd("E:/GitHub/clca-batt")
 library("data.table")
 library("plyr")
 library("dplyr")
@@ -20,7 +20,7 @@ if(!exists("pv_load", mode = "function")) source("pv_load.R")
 if(!exists("sys_ctrl.R", mode = "function")) source("sys_ctrl.R")
 
 make_run_folder = function(run_id) {
-  try_path = paste("outputs\\", run_id, sep = "")
+  try_path = paste("outputs/", run_id, sep = "")
   if (dir.exists(file.path(try_path))) {
     copy_val = 1
     copy_txt = paste("_copy_",copy_val, sep = "")
@@ -44,12 +44,13 @@ size_batt <- function(run_id, bldg_nm = NULL, bldg_ts = NULL, pv_ts = NULL, inte
                       dmd_frac = NULL, batt_type = NULL, terr = NULL, guess = NULL) {
   
   log_path = paste(
-                  "outputs\\", run_id, "\\batt_sizer_",
+                  "outputs/", run_id, "/batt_sizer_",
                   batt_type, "_", dmd_frac, # "_",
                   # strftime(Sys.time(), format = "%d%m%y_%H%M%S"),
                   ".log", sep = ""
   )
   flog.appender(appender.file(log_path), name = "sizer")
+  flog.threshold(ERROR)
 
   max_step <- bldg_ts[which(bldg_ts$kw == max(bldg_ts$kw)),]
   flog.info(paste("Max (", max_step$kw, "kW ) happens at", max_step$date_time), name = "sizer")
@@ -97,7 +98,7 @@ size_batt <- function(run_id, bldg_nm = NULL, bldg_ts = NULL, pv_ts = NULL, inte
                                 )
     temp_ctrlr$traverse_ts(save_df = FALSE)
     unmet_kwh <- sum(temp_ctrlr$get_sim_df()$unmet_kw)*interval
-    flog.info(paste("Unmet kWh -", round(unmet_kwh, 2), "kWh,",
+    flog.error(paste("Unmet kWh -", round(unmet_kwh, 2), "kWh,",
                     "cap", round(test_capacity, 2), "kwh,"),
               name = "sizer")
 
@@ -115,7 +116,7 @@ size_batt <- function(run_id, bldg_nm = NULL, bldg_ts = NULL, pv_ts = NULL, inte
     log_state = paste("Unmet kWh -", round(unmet_kwh, 2),
                       "/", round(unmet_thresh, 2),
                       "- incr", incr_sci)
-    flog.info(log_state, name = "sizer")
+    flog.error(log_state, name = "sizer")
     # noquote(print(log_state))
   }
   test_capacity <- test_capacity/0.8 # to account for capacity degradation in the future
@@ -132,7 +133,7 @@ run_one_sim <- function(run_id, ctrl_id, bldg_nm = NULL, bldg_ts = NULL, pv_ts =
                         rate = NULL, steps = NULL, save_df = NULL) {
   
   log_path = paste(
-    "outputs\\", run_id, "\\sim_", ctrl_id, "_",
+    "outputs/", run_id, "/sim_", ctrl_id, "_",
     batt_type, # "_",
     # strftime(Sys.time(), format = "%d%m%y_%H%M%S"),
     ".log", sep = ""
@@ -226,12 +227,12 @@ sim_year <- function(run_id, bldg = NULL, cop = 1, batt_type = NULL, terr = NULL
   
   # figure out what demand_frac range to use based on LDC
   
-  dmd_fracs = seq(0.2,0.2,0.025)
-  rates = seq(0.05, 0.05, 0.05)
-  param_combns = as.vector((expand.grid(dmd_fracs, rates)))
+  dmd_fracs = seq(0.2,0.3,0.1)
+  ts_index = seq.int(cop + 1)
+  param_combns = as.vector((expand.grid(dmd_fracs, ts_index)))
   
   bldg <- get_bldg(run_id = run_id, copies = cop, type = bldg)
-  log_path = paste("outputs\\", run_id,"\\sim_", bldg$get_metadata()[["bldg"]], "_",
+  log_path = paste("outputs/", run_id,"/sim_", bldg$get_metadata()[["bldg"]], "_",
                    batt_type,
                    # rand_factors[["bldg"]], "_",
                    # rand_factors[["grid"]], "_",
@@ -241,148 +242,138 @@ sim_year <- function(run_id, bldg = NULL, cop = 1, batt_type = NULL, terr = NULL
   
   grid_df = get_grid(run_id, copies = bldg$get_ts_count() - 1,
                      terr = terr)
+  
   if (is_pv) {
     pv = get_pv(run_id, copies = bldg$get_ts_count(), # pv copies counted differently
                 type = bldg$get_metadata()[["bldg"]])
   }
-  else {
+  if (!is_pv) { # else not working for some reason
     pv = get_pv(run_id, copies = bldg$get_ts_count(), # pv copies counted differently
                 type = "empty")
   }
   flog.info(paste("Intialized PV with", pv$nameplate, "kw"), name = "sim_1yr")
   flog.info(paste("Intialized grid as", grid_df$get_metadata()[["territory"]]), name = "sim_1yr")
   
+  cl <- makeCluster(3)
+  registerDoSNOW(cl)
+  funs_to_pass = c("run_one_sim", "size_batt")
+  pkgs_to_pass = c("dplyr", "futile.logger", "imputeTS")
+
+  run_to_save <- sample(1:bldg$get_ts_count(), 2)
+  
   output_df = foreach(i = 1:(nrow(param_combns)),
-                      .combine = "rbind.data.frame",
-                      .verbose = TRUE) %do% {
-    tryCatch({
-      cl <- makeCluster(3)
-      registerDoSNOW(cl)
-  
-      test_dmd = param_combns[i,1]
-      test_rt = param_combns[i,2]
-      funs_to_pass = c("run_one_sim", "size_batt")
-      pkgs_to_pass = c("dplyr", "futile.logger", "imputeTS")
-  
-      flog.info(paste0("Sim @ dmd_frac ", test_dmd,
-                        # ", ", i, " / ", nrow(param_combns),
-                        ". Interest rt is ", test_rt, 
-                        # ", ", ceiling(i/(nrow(param_combns)*ncol(param_combns))),
-                        # " / ", ncol(param_combns),
-                        ". No rand factors yet. Total ",
-                        bldg$get_ts_count()*nrow(param_combns), " sims."),
-                name = "sim_1yr")
-      
-      run_to_save <- sample(1:bldg$get_ts_count(), 1)
-      
-      sim_df = foreach(j = 1:(bldg$get_ts_count()),
-                       .combine = "rbind.data.frame",
-                       .multicombine = TRUE,
-                       .errorhandling = "remove",
-                       .export = funs_to_pass, .packages = pkgs_to_pass,
-                       .verbose = TRUE) %dopar% {
-                  if(!exists("batt_bank", mode = "function")) source("battery_bank.R")
-                  if(!exists("disp_curv", mode = "function")) source("dispatch_curve.R")
-                  if(!exists("bldg_load", mode = "function")) source("bldg_load.R")
-                  if(!exists("grid_load", mode = "function")) source("grid_load.R")
-                  if(!exists("pv_load", mode = "function")) source("pv_load.R")
-                  if(!exists("sys_ctrl.R", mode = "function")) source("sys_ctrl.R")
-                  tryCatch({
-                    
-                    log_path = paste("outputs\\", run_id,"\\sim_",
-                                     bldg$get_metadata()[["bldg"]], "_",
-                                     batt_type, # "_", 
-                                     # rand_factors[["bldg"]], "_",
-                                     # rand_factor[["pv"]], "_",
-                                     # rand_factors[["grid"]],
-                                     ".log", sep = ""
-                    )
-                    flog.appender(appender.file(log_path), name = "sim_1yr")
-                    c_id = paste("ctrlr", i, j, sep = "_")
-                  
-                    
-                    bldg_ts = bldg$get_ts_df(j) %>%
-                      mutate(date_time = strftime(date_time,
-                                                  format = "2014-%m-%d %H:%M:%S")) %>%
-                      na.omit() %>%
-                      arrange(date_time)
-                    grid_ts = grid_df$get_ts_df(j) %>%
-                      mutate(date_time = strftime(date_time,
-                                                  format = "2014-%m-%d %H:%M:%S")) %>%
-                      filter(date_time %in% bldg_ts$date_time) %>% 
-                      group_by(date_time) %>%
-                      summarise_if(is.numeric, "mean") %>%
-                      full_join(select(bldg_ts, date_time), by = "date_time") %>%
-                      mutate(mw = na.ma(mw, k = 4)) %>%
-                      arrange(date_time)
-                    pv_ts = pv$get_ts_df(j) %>%
-                      mutate(date_time = strftime(date_time,
-                                                  format = "2014-%m-%d %H:%M:%S")) %>%
-                      group_by(date_time) %>%
-                      summarise_if(is.numeric, "mean") %>%
-                      full_join(select(bldg_ts, date_time), by = "date_time") %>%
-                      mutate(kw = na.ma(kw, k = 4)) %>%
-                      filter(date_time %in% bldg_ts$date_time)
-                    interval = bldg$get_metadata()[["time_int"]]
-                    
-                    flog.info(paste("Time-series", j, "length:", nrow(bldg_ts), "- bldg,",
-                                    nrow(grid_ts), "- grid,", nrow(pv_ts), "- pv,"), name = "sim_1yr")
-                    flog.info(paste("Interval is", interval), name = "sim_1yr")
-                    
-                    batt_cap = size_batt(run_id = run_id,
-                                         bldg_nm = bldg$get_metadata()[["bldg"]],
-                                         bldg_ts = bldg_ts,
-                                         pv_ts = pv_ts,
-                                         interval = interval,
-                                         dmd_frac = test_dmd,
-                                         batt_type = batt_type,
-                                         terr = terr,
-                                         guess = guess)$batt_cap
-                    flog.info(paste("Running", c_id,
-                                    "out of", bldg$get_ts_count()*nrow(param_combns)),
-                              name = "sim_1yr")
-                    
-                    if (j == run_to_save) {
-                      save_df = TRUE
-                    }
-                    else {
-                      save_df = FALSE
-                    }
-                    one_output = list("run_id" = run_id, bldg = bldg$get_metadata()[["bldg"]],
-                                      pv_kw = pv$nameplate,
-                                      dmd_frac = test_dmd, ts_num = j,
-                                      batt_type = batt_type, batt_cap = batt_cap)
-                    pv_cost = get_pv_cost(pv, test_rt)
-                    c2g_impacts <- get_pv_batt_plc2erta(pv, batt_type, batt_cap)
-                    one_sim = run_one_sim(run_id = run_id, ctrl_id = c_id,
-                                          bldg_nm = bldg$get_metadata()[["bldg"]],
-                                          bldg_ts = bldg_ts, pv_ts = pv_ts,
-                                          grid_ts = grid_ts, terr = terr,
-                                          dmd_frac = test_dmd, batt_type = batt_type,
-                                          batt_cap = batt_cap, rate = test_rt,
-                                          steps = steps, save_df = save_df)
-                    
-                    one_output = append(one_output, pv_cost)
-                    one_output = append(one_output, c2g_impacts)
-                    one_output = append(one_output, one_sim)
-                    gc()
-                    one_output
-                    },
-                    
-                    error = function(e) {err_msg = paste("Error:", e)
-                                         flog.info(e, name = "sim_1yr")
-                                         return(err_msg)
-                    })
-        }
-      stopCluster(cl)
-      sim_df
-      },
-  
-    error = function(e) {err_msg = paste("Error:", e)
-                          flog.info(e, name = "sim_1yr")
-                          return(err_msg)
-                          })
+                   .combine = "rbind.data.frame",
+                   .multicombine = TRUE,
+                   .errorhandling = "remove",
+                   .export = funs_to_pass,
+                   .packages = pkgs_to_pass,
+                   .verbose = TRUE) %dopar% {
+              if(!exists("batt_bank", mode = "function")) source("battery_bank.R")
+              if(!exists("disp_curv", mode = "function")) source("dispatch_curve.R")
+              if(!exists("bldg_load", mode = "function")) source("bldg_load.R")
+              if(!exists("grid_load", mode = "function")) source("grid_load.R")
+              if(!exists("pv_load", mode = "function")) source("pv_load.R")
+              if(!exists("sys_ctrl.R", mode = "function")) source("sys_ctrl.R")
+              tryCatch({
+                
+                
+                log_path = paste("outputs/", run_id,"/sim_",
+                                 bldg$get_metadata()[["bldg"]], "_",
+                                 batt_type, # "_", 
+                                 # rand_factors[["bldg"]], "_",
+                                 # rand_factor[["pv"]], "_",
+                                 # rand_factors[["grid"]],
+                                 ".log", sep = ""
+                )
+                flog.appender(appender.file(log_path), name = "sim_1yr")
+                
+                test_dmd = param_combns[i,1]
+                test_ts = param_combns[i,2]
+                test_rt = 0.05
+                c_id = paste("ctrlr", test_dmd, test_ts, sep = "_")
+                
+                flog.info(paste0("Sim @ dmd_frac ", test_dmd,
+                                 # ", ", i, " / ", nrow(param_combns),
+                                 ". Interest rt is ", test_rt, 
+                                 # ", ", ceiling(i/(nrow(param_combns)*ncol(param_combns))),
+                                 # " / ", ncol(param_combns),
+                                 ". No rand factors yet. Total ",
+                                 bldg$get_ts_count()*nrow(param_combns), " sims."),
+                          name = "sim_1yr")
+                
+                bldg_ts = bldg$get_ts_df(test_ts) %>%
+                  mutate(date_time = strftime(date_time,
+                                              format = "2014-%m-%d %H:%M:%S")) %>%
+                  na.omit() %>%
+                  arrange(date_time)
+                grid_ts = grid_df$get_ts_df(test_ts) %>%
+                  mutate(date_time = strftime(date_time,
+                                              format = "2014-%m-%d %H:%M:%S")) %>%
+                  filter(date_time %in% bldg_ts$date_time) %>% 
+                  group_by(date_time) %>%
+                  summarise_if(is.numeric, "mean") %>%
+                  full_join(select(bldg_ts, date_time), by = "date_time") %>%
+                  mutate(mw = na.ma(mw, k = 4)) %>%
+                  arrange(date_time)
+                pv_ts = pv$get_ts_df(test_ts) %>%
+                  mutate(date_time = strftime(date_time,
+                                              format = "2014-%m-%d %H:%M:%S")) %>%
+                  group_by(date_time) %>%
+                  summarise_if(is.numeric, "mean") %>%
+                  full_join(select(bldg_ts, date_time), by = "date_time") %>%
+                  mutate(kw = na.ma(kw, k = 4)) %>%
+                  filter(date_time %in% bldg_ts$date_time)
+                interval = bldg$get_metadata()[["time_int"]]
+                
+                flog.info(paste("Time-series", test_ts, "length:", nrow(bldg_ts), "- bldg,",
+                                nrow(grid_ts), "- grid,", nrow(pv_ts), "- pv,"), name = "sim_1yr")
+                flog.info(paste("Interval is", interval), name = "sim_1yr")
+                
+                batt_cap = size_batt(run_id = run_id,
+                                     bldg_nm = bldg$get_metadata()[["bldg"]],
+                                     bldg_ts = bldg_ts,
+                                     pv_ts = pv_ts,
+                                     interval = interval,
+                                     dmd_frac = test_dmd,
+                                     batt_type = batt_type,
+                                     terr = terr,
+                                     guess = guess)$batt_cap
+                flog.info(paste("Running", c_id, ".", i, 
+                                "out of", nrow(param_combns)),
+                          name = "sim_1yr")
+                
+                if (test_ts == run_to_save) {
+                  save_df = TRUE
+                }
+                else {
+                  save_df = FALSE
+                }
+                one_output <- list("run_id" = run_id, bldg = bldg$get_metadata()[["bldg"]],
+                                  pv_kw = pv$nameplate,
+                                  dmd_frac = test_dmd, ts_num = test_ts,
+                                  batt_type = batt_type, batt_cap = batt_cap)
+                pv_cost <- get_pv_cost(pv, test_rt)
+                c2g_impacts <- get_pv_batt_plc2erta(pv, batt_type, batt_cap)
+                one_sim <- run_one_sim(run_id = run_id, ctrl_id = c_id,
+                                      bldg_nm = bldg$get_metadata()[["bldg"]],
+                                      bldg_ts = bldg_ts, pv_ts = pv_ts,
+                                      grid_ts = grid_ts, terr = terr,
+                                      dmd_frac = test_dmd, batt_type = batt_type,
+                                      batt_cap = batt_cap, rate = test_rt,
+                                      steps = steps, save_df = save_df)
+                
+                one_output = append(one_output, pv_cost)
+                one_output = append(one_output, c2g_impacts)
+                one_output = append(one_output, one_sim)
+                one_output
+                },
+                
+                error = function(e) {err_msg = paste("Error:", e)
+                                     flog.info(e, name = "sim_1yr")
+                                     return(err_msg)
+                })
   }
+  stopCluster(cl)
   
   output_df <- output_df %>%
                 mutate(tac_lo = lsc_lo + pv_levcost_lo + dr_cost,
@@ -391,14 +382,24 @@ sim_year <- function(run_id, bldg = NULL, cop = 1, batt_type = NULL, terr = NULL
                        prof_hi = control_cost - tac_hi) %>%
                 select(-(kw_cost:kwh_dr_cost),-mtr_cost)
                      
-  write.csv(output_df, paste0("outputs\\", run_id, "\\",
+  write.csv(output_df, paste0("outputs/", run_id, "/",
             run_id, "_run_results.csv"))
   return(output_df)
 }
 
-size_results <- sim_year("warm_up", bldg = "office", cop = 2,
+## FOR USE IN REMOTE SESSIONS
+# ipak <- function(pkg){
+#   new.pkg <- pkg[!(pkg %in% installed.packages()[, "Package"])]
+#   if (length(new.pkg)) 
+#     install.packages(new.pkg, dependencies = TRUE)
+#   sapply(pkg, require, character.only = TRUE)
+# }
+# 
+# # usage
+# packages <- c("data.table", "doSNOW", "foreach",
+#               "futile.logger", "imputeTS")
+# ipak(packages)
+
+size_results <- sim_year("new_parallel", bldg = "office", cop = 2,
                           batt_type = "vrf", terr = "nyiso", guess = 2.5,
-                          steps = 20)
-one_sim <- fread("***",
-                 nrows = 1000) %>%
-              select(-V1)
+                          steps = 1000, is_pv = FALSE)
