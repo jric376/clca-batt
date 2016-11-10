@@ -776,7 +776,7 @@ get_run_sampwks <- function(run_id, save = FALSE) {
                                          expand=c(0,0)) +
                       scale_fill_manual(name = NULL,
                                         labels = fill_labels,
-                                        values = cbb_qual[c(9,2,4,1,8,6)]) +
+                                        values = cbb_qual[c(9,2,1,4,8,6)]) +
                       labs(x = NULL,
                            y = "kW") +
                       theme(panel.background = element_rect(fill = "gray80"),
