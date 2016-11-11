@@ -471,7 +471,7 @@ get_run_results <- function(run_id) {
   
   tryCatch({
     
-    if (length(run_list) > 1) {
+    if (length(run_id) > 1) {
       # accommodates combined run_ids from get_combined_runs
       results <- get_combined_runs(run_id)
     }
@@ -576,6 +576,8 @@ get_run_results <- function(run_id) {
   },
   error = function(e) return(e))
 }
+# BELOW FUNCTION
+# NEEDS TO ACCOMMODATE BATT TYPE LABELS WHEN PASSED MULTIPLE FOR PLOTTING TOGETHER
 get_run_prof_plc2e <- function(run_results, run_id, save = FALSE) {
   
   df <- run_results$df %>%
@@ -656,7 +658,7 @@ get_run_prof_plc2e <- function(run_results, run_id, save = FALSE) {
                        labels=trans_format("identity", function(x) -x)) +
     scale_y_continuous(labels = dollar) +
     scale_shape_manual(name = NULL,
-                       values = 21, labels = "VRF") +
+                       values = 21, labels = "Li-ion") +
     scale_fill_continuous(name = bquote(scriptstyle("Reduced frac."~kW[scriptscriptstyle(peak)]))) +
     theme(panel.background = element_rect(colour = "gray75", fill = "gray80")) +
     theme(panel.grid.major = element_line(colour = "gray85")) +
