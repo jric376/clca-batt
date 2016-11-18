@@ -40,6 +40,12 @@ reverselog_trans <- function(base = exp(1)) {
             log_breaks(base = base), 
             domain = c(1e-100, Inf))
 }
+office_runs <- c("office_lion_02_085_by005",
+                 "office_pba_02_085_by005",
+                 # "office_nas_02_075_by005",
+                 "office_vrf_02_03_by01",
+                 "office_vrf_04_07_by01")
+nopv_runs <- c("office_lion_nopv")
 
 get_bldg_ani <- function(copies) {
   source("bldg_load.R")
@@ -490,84 +496,101 @@ get_run_results <- function(run_id) {
                
                prof_hi_n = prof_hi / batt_cap)
     }
+    results <- results %>%
+                  mutate(batt_type = ifelse(grepl("_nopv", run_id),
+                                            paste0(batt_type, "_nopv"),
+                                            batt_type)) %>%
+                  filter(dmd_frac <= 0.75)
     results.summ <- select(results, -ts_num) %>%
-      group_by(dmd_frac, batt_type) %>%
-      summarise_if(is.numeric, .funs = c("mean", "sd"))
+                      filter(!grepl("_nopv_", run_id)) %>%
+                      group_by(dmd_frac, batt_type) %>%
+                      summarise_if(is.numeric, .funs = c("mean", "sd"))
     
-    num_fracs <- length(unique(results.summ$dmd_frac))
-    component <- rep(c(rep("Batt", 2), rep("Grid / Grid, DR", 2), rep("PV", 2),
-                   rep("TAC", 2), rep("P", 2), rep("P_n", 2)), num_fracs)
-    hi_lo <- rep(rep(c("lo", "hi"), 6), num_fracs)
     cost_mean <- results.summ %>%
-                  select(ends_with("mean")) %>%
-                  select(contains("lsc"),
+                  group_by(dmd_frac, batt_type) %>%
+                  select(dmd_frac, batt_type, ends_with("mean")) %>% 
+                  select(dmd_frac, batt_type,
+                         contains("lsc"),
                          contains("dr_cost"),
                          contains("control_cost"),
                          contains("levcost"),
                          contains("tac"),
-                         contains("prof")) %>%
-                  t() %>%
-                  as.data.frame()
-    colnames(cost_mean) <- cost_mean["dmd_frac",]
-    rows_to_keep <- which(rownames(cost_mean) != "dmd_frac")
-    cost_mean <- cost_mean[rows_to_keep,] %>%
-                  gather(dmd_frac) %>%
-                  rename(mean = value)
+                         contains("prof"))
+    cost_mean <- cost_mean %>%
+                  gather(cat, value, -dmd_frac, -batt_type) %>%
+                  rename(mean = value) %>%
+                  arrange(batt_type, dmd_frac) %>%
+                  ungroup()
     cost_sd <- results.summ %>%
-                  select(ends_with("sd")) %>%
-                  select(contains("lsc"),
-                         contains("_cost"),
-                         contains("levcost"),
-                         contains("tac"),
-                         contains("prof")) %>%
-                  t() %>%
-                  as.data.frame()
-    colnames(cost_sd) <- cost_sd["dmd_frac",]
-    rows_to_keep <- which(rownames(cost_sd) != "dmd_frac")
-    cost_sd <- cost_sd[rows_to_keep,] %>%
-                  gather(dmd_frac) %>%
-                  select(-dmd_frac) %>%
-                  rename(sd = value)
-    costs <- data.frame(component, hi_lo,
-                        cost_mean,
-                        cost_sd) %>%
-              filter(component != "P_n")
+                group_by(dmd_frac, batt_type) %>%
+                select(dmd_frac, batt_type, ends_with("sd")) %>% 
+                select(dmd_frac, batt_type,
+                       contains("lsc"),
+                       contains("dr_cost"),
+                       contains("control_cost"),
+                       contains("levcost"),
+                       contains("tac"),
+                       contains("prof"))
+    cost_sd <- cost_sd %>%
+                  gather(cat, value, -dmd_frac, -batt_type) %>%
+                  rename(sd = value) %>%
+                  arrange(batt_type, dmd_frac) %>%
+                  ungroup() %>%
+                  select(sd)
+    costs <- cbind.data.frame(cost_mean, cost_sd) %>%
+              mutate(label = ifelse(grepl("lsc_", cat), "Batt",
+                                ifelse(grepl("*_cost_*", cat), "Grid / Grid + DR",
+                                    ifelse(grepl("*levcost_", cat), "PV",
+                                        ifelse(grepl("tac_", cat), "TAC",
+                                            ifelse(grepl("*_n_", cat), "P_n",
+                                                   "P"))))),
+                     hi_lo = ifelse(grepl("_hi_", cat), "hi",
+                                ifelse(grepl("_lo_", cat), "lo",
+                                    ifelse(grepl("control_*", cat), "hi",
+                                        ifelse(grepl("dr_*", cat), "lo", "none"))))) %>%
+              filter(cat != "P_n") %>%
+              select(-cat)
     
-    component <- rep(c(rep("Grid", 1), rep("Grid, DR", 1),
-                   rep("PV", 1), rep("Batt", 1),
-                   rep("Net", 1)), num_fracs)
-    plc2e_mean <- select(results.summ,
-                          ends_with("mean")) %>%
-                    select(contains("plc2erta")) %>%
-                    select(contains("control"),
+    plc2e_mean <- results.summ %>%
+                    group_by(dmd_frac, batt_type) %>%
+                    select(dmd_frac, batt_type,
+                           ends_with("mean")) %>%
+                    select(dmd_frac, batt_type,
+                           contains("plc2erta")) %>%
+                    select(dmd_frac, batt_type,
+                           contains("control"),
                            contains("dr"),
                            contains("pv"),
                            contains("batt"),
-                           contains("net")) %>%
-                    t() %>%
-                    as.data.frame()
-    colnames(plc2e_mean) <- plc2e_mean["dmd_frac",]
-    rows_to_keep <- which(rownames(plc2e_mean) != "dmd_frac")
-    plc2e_mean <- plc2e_mean[rows_to_keep,] %>%
-                    gather(dmd_frac) %>%
+                           contains("net"))
+    plc2e_mean <- plc2e_mean %>%
+                    gather(cat, value, -dmd_frac, -batt_type) %>%
                     rename(mean = value)
-    plc2e_sd <- select(results.summ,
-                         ends_with("sd")) %>%
-                    select(contains("plc2erta")) %>%
-                    select(contains("control"),
+    plc2e_sd <- results.summ %>%
+                    group_by(dmd_frac, batt_type) %>%
+                    select(dmd_frac, batt_type,
+                           ends_with("sd")) %>%
+                    select(dmd_frac, batt_type,
+                           contains("plc2erta")) %>%
+                    select(dmd_frac, batt_type,
+                           contains("control"),
                            contains("dr"),
                            contains("pv"),
                            contains("batt"),
-                           contains("net")) %>%
-                    t() %>%
-                    as.data.frame()
-    colnames(plc2e_sd) <- plc2e_sd["dmd_frac",]
-    rows_to_keep <- which(rownames(plc2e_sd) != "dmd_frac")
-    plc2e_sd <- plc2e_sd[rows_to_keep,] %>%
-                  gather(dmd_frac) %>%
-                  select(-dmd_frac) %>%
-                  rename(sd = value)
-    plc2e <- data.frame(component, plc2e_mean, plc2e_sd)
+                           contains("net"))
+    plc2e_sd <- plc2e_sd %>%
+                  gather(cat, value, -dmd_frac, -batt_type) %>%
+                  rename(sd = value) %>%
+                  ungroup() %>%
+                  select(sd)
+    plc2e <- cbind.data.frame(plc2e_mean, plc2e_sd) %>%
+                mutate(label = ifelse(grepl("control_*", cat), "Grid",
+                                  ifelse(grepl("dr_*", cat), "Grid + DR",
+                                     ifelse(grepl("pv_*", cat), "PV",
+                                        ifelse(grepl("net_*", cat), "Net",
+                                           ifelse(grepl("batt_*", cat), "Batt",
+                                                  "none")))))) %>%
+                select(-cat)
     
     results.list <- list("df" = results,
                          "summ" = results.summ,
@@ -576,8 +599,6 @@ get_run_results <- function(run_id) {
   },
   error = function(e) return(e))
 }
-# BELOW FUNCTION
-# NEEDS TO ACCOMMODATE BATT TYPE LABELS WHEN PASSED MULTIPLE FOR PLOTTING TOGETHER
 get_run_prof_plc2e <- function(run_results, run_id, save = FALSE) {
   
   df <- run_results$df %>%
@@ -589,7 +610,9 @@ get_run_prof_plc2e <- function(run_results, run_id, save = FALSE) {
   summ <- run_results$summ
   plc2e_leg_txt = bquote(scriptstyle("lb"~CO[scriptscriptstyle(2)]~"eq/"~kWh[scriptscriptstyle(batt)]))
   
-  plc2e_plot <- ggplot(data = df, mapping = aes(x = dmd_frac)) +
+  plc2e_plot <- ggplot(data = df,
+                       mapping = aes(x = dmd_frac)) +
+    facet_grid(batt_type ~ .) +
     geom_jitter(aes(y = -plc2erta_n,
                     fill = plc2erta_n),
                 shape = 21,
@@ -609,9 +632,12 @@ get_run_prof_plc2e <- function(run_results, run_id, save = FALSE) {
     theme(panel.background = element_rect(colour = "gray75", fill = "gray80")) +
     theme(panel.grid.major = element_line(colour = "gray85")) +
     theme(panel.grid.minor = element_line(colour = "gray85")) +
-    theme(legend.text = element_text(size = 8))
+    theme(legend.text = element_text(size = 8),
+          legend.box = "horizontal",
+          legend.position = "bottom")
   
   prof_plot <- ggplot(data = df, mapping = aes(x = dmd_frac)) +
+    facet_grid(batt_type ~ .) +
     geom_jitter(aes(y = -prof_lo_n,
                     fill = prof_lo_n,
                     shape = 21),
@@ -624,7 +650,7 @@ get_run_prof_plc2e <- function(run_results, run_id, save = FALSE) {
                 size = 3,
                 alpha = 1/1.2,
                 position = position_jitter(w = 0.02, h = 0.2)) +
-    labs(x = NULL,
+    labs(x = bquote(scriptstyle("1 - ("~kW[peak][",dr"]~"/"~kW[peak][",ctrl"]~")")),
          y = NULL) +
     scale_y_continuous(trans = reverselog_trans(base=10),
                        labels = trans_format("identity",
@@ -638,40 +664,129 @@ get_run_prof_plc2e <- function(run_results, run_id, save = FALSE) {
     theme(panel.background = element_rect(colour = "gray75", fill = "gray80")) +
     theme(panel.grid.major = element_line(colour = "gray85")) +
     theme(panel.grid.minor = element_line(colour = "gray85")) +
-    theme(axis.line.x = element_blank(),
-          axis.ticks.x = element_blank(),
-          axis.text.x = element_blank(),
-          legend.text = element_text(size = 8))
+    theme(legend.text = element_text(size = 8),
+          legend.box = "horizontal",
+          legend.position = "bottom")
   
   combine_plot <- plot_grid(prof_plot, plc2e_plot,
-                            nrow = 2, align = "v")
+                            nrow = 1, align = "h")
   
-  compare_plot <- ggplot(data = df, mapping = aes(x = -plc2erta_n)) +
-    geom_point(aes(y = prof_lo_n,
-                   fill = dmd_frac,
+  net_neg_plc2e_plot <- ggplot() +
+    geom_line(data = summ,
+              aes(x = -plc2erta_n_mean,
+                  y = prof_lo_n_mean,
+                  colour = batt_type,
+                  linetype = "lo"),
+              size = 1.2) +
+    geom_line(data = summ,
+              aes(x = -plc2erta_n_mean,
+                  y = prof_hi_n_mean,
+                  colour = batt_type,
+                  linetype = "hi"),
+              size = 1.2) +
+    geom_point(data = filter(df, plc2erta_n < 0),
+               aes(x = -plc2erta_n,
+                   y = prof_lo_n,
+                   size = batt_cap,
+                   fill = batt_type,
                    shape = batt_type),
-               size = 3,
-               alpha = 1/1.2) +
-    labs(x = bquote(scriptstyle("lb"~CO[scriptscriptstyle(2)]~"eq /"~kWh[scriptscriptstyle(batt)])),
-         y = bquote(scriptstyle(P[dr]~"/"~kWh[scriptscriptstyle(batt)]))) +
+               alpha = 1/2.5) +
     scale_x_continuous(trans=log_trans(base=10),
                        labels=trans_format("identity", function(x) -x)) +
-    scale_y_continuous(labels = dollar) +
-    scale_shape_manual(name = NULL,
-                       values = 21, labels = "Li-ion") +
-    scale_fill_continuous(name = bquote(scriptstyle("Reduced frac."~kW[scriptscriptstyle(peak)]))) +
+    scale_y_continuous(labels = dollar,
+                       limits = c(-3000,50)) +
+    labs(x = bquote(scriptstyle("lb"~CO[scriptscriptstyle(2)]~"eq /"~kWh[scriptscriptstyle(batt)])),
+         y = bquote(scriptstyle(P[dr]~"/"~kWh[scriptscriptstyle(batt)]))) +
     theme(panel.background = element_rect(colour = "gray75", fill = "gray80")) +
     theme(panel.grid.major = element_line(colour = "gray85")) +
-    theme(panel.grid.minor = element_line(colour = "gray85"))
+    theme(panel.grid.minor = element_line(colour = "gray85")) +
+    scale_size(name = bquote(scriptstyle(kWh[batt])),
+               breaks = c(5,500,2500),
+               range = c(2,5),
+               guide = guide_legend(override.aes = list(shape = 21,
+                                                        fill = "black"))) +
+    scale_fill_manual(name = NULL,
+                         values = cbb_qual[c(3,7,4)],
+                         labels = c("Li-ion", "Pb-a", "VRF"),
+                      guide = guide_legend(override.aes = list(colour = cbb_qual[c(3,7,4)],
+                                                               shape = c(21,24,25),
+                                                               size = 3,
+                                                               alpha = 1,
+                                                               linetype = 0))) +
+    scale_colour_manual(name = NULL,
+                      values = cbb_qual[c(3,7,4)],
+                      labels = c("Li-ion", "Pb-a", "VRF")) +
+    scale_shape_manual(name = NULL, 
+                       values = c(21,24,25),
+                       guide = "none") +
+    scale_linetype_manual(name = NULL,
+                        values = c(2,1),
+                        labels = c(bquote(P[hi]), bquote(P[lo])),
+                        guide = guide_legend(override.aes = list(size = 0.5)))
+  # and explaining that plot only shows data w net_plc2erta < 0
+  net_neg_plc2e_plot
   
-  plot_list <- list("combine" = combine_plot, "compare" = compare_plot)
+  # net_pos_plc2e_plot <- ggplot() +
+  #   geom_line(data = summ,
+  #             aes(x = plc2erta_n_mean,
+  #                 y = prof_lo_n_mean,
+  #                 colour = batt_type,
+  #                 linetype = "lo"),
+  #             size = 1.2) +
+  #   geom_line(data = summ,
+  #             aes(x = plc2erta_n_mean,
+  #                 y = prof_hi_n_mean,
+  #                 colour = batt_type,
+  #                 linetype = "hi"),
+  #             size = 1.2) +
+  #   geom_point(data = filter(df, plc2erta_n > 0),
+  #              aes(x = plc2erta_n,
+  #                  y = prof_lo_n,
+  #                  size = batt_cap,
+  #                  fill = batt_type,
+  #                  shape = batt_type),
+  #              alpha = 1/2.5) +
+  #   scale_x_continuous(limits = c(0,100000)) +
+  #   scale_y_continuous(labels = dollar) +
+  #   labs(x = bquote(scriptstyle("lb"~CO[scriptscriptstyle(2)]~"eq /"~kWh[scriptscriptstyle(batt)])),
+  #        y = bquote(scriptstyle(P[dr]~"/"~kWh[scriptscriptstyle(batt)]))) +
+  #   theme(panel.background = element_rect(colour = "gray75", fill = "gray80")) +
+  #   theme(panel.grid.major = element_line(colour = "gray85")) +
+  #   theme(panel.grid.minor = element_line(colour = "gray85")) +
+  #   scale_size(name = bquote(scriptstyle(kWh[batt])),
+  #              breaks = c(5,500,2500),
+  #              range = c(2,5),
+  #              guide = guide_legend(override.aes = list(shape = 21,
+  #                                                       fill = "black"))) +
+  #   scale_fill_manual(name = NULL,
+  #                     values = cbb_qual[c(3,7,4)],
+  #                     labels = c("Li-ion", "Pb-a", "VRF"),
+  #                     guide = guide_legend(override.aes = list(colour = cbb_qual[c(3,7,4)],
+  #                                                              shape = c(21,24,25),
+  #                                                              size = 3,
+  #                                                              alpha = 1,
+  #                                                              linetype = 0))) +
+  #   scale_colour_manual(name = NULL,
+  #                       values = cbb_qual[c(3,7,4)],
+  #                       labels = c("Li-ion", "Pb-a", "VRF")) +
+  #   scale_shape_manual(name = NULL, 
+  #                      values = c(21,24,25),
+  #                      guide = "none") +
+  #   scale_linetype_manual(name = NULL,
+  #                         values = c(2,1),
+  #                         labels = c(bquote(P[hi]), bquote(P[lo])),
+  #                         guide = guide_legend(override.aes = list(size = 0.5)))
+  # net_pos_plc2e_plot
+  
+  plot_list <- list("combine" = combine_plot,
+                    "net_neg_plc2e" = net_neg_plc2e_plot)
   
   if (save) {
     save_plot(filename = paste0("outputs/plots/", run_id, "_comb_results.png"),
               combine_plot,
               base_height = 6.25, base_width = 8)
-    save_plot(filename = paste0("outputs/plots/", run_id, "_comp_results.png"),
-              compare_plot,
+    save_plot(filename = paste0("outputs/plots/", run_id, "_negplc2e_results.png"),
+              net_neg_plc2e_plot,
               base_height = 6.25, base_width = 8)
   }
   
