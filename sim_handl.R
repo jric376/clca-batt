@@ -221,13 +221,13 @@ run_one_sim <- function(run_id, ctrl_id, bldg_nm = NULL, bldg_ts = NULL, pv_ts =
 }
 
 sim_year <- function(run_id, bldg = NULL, cop = 1, batt_type = NULL, terr = NULL,
-                      guess = NULL, steps = NULL, is_pv = TRUE) {
+                      guess = NULL, steps = NULL, is_pv = TRUE, num_clust = 3) {
   
   run_id = make_run_folder(run_id)
   
   # figure out what demand_frac range to use based on LDC
   
-  dmd_fracs = seq(0.2,0.3,0.1)
+  dmd_fracs = seq(0.2,0.75,0.05)
   ts_index = seq.int(cop + 1)
   param_combns = as.vector((expand.grid(dmd_fracs, ts_index)))
   
@@ -254,7 +254,7 @@ sim_year <- function(run_id, bldg = NULL, cop = 1, batt_type = NULL, terr = NULL
   flog.info(paste("Intialized PV with", pv$nameplate, "kw"), name = "sim_1yr")
   flog.info(paste("Intialized grid as", grid_df$get_metadata()[["territory"]]), name = "sim_1yr")
   
-  cl <- makeCluster(3)
+  cl <- makeCluster(num_clust)
   registerDoSNOW(cl)
   funs_to_pass = c("run_one_sim", "size_batt")
   pkgs_to_pass = c("dplyr", "futile.logger", "imputeTS")
