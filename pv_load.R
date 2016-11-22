@@ -38,6 +38,9 @@ pv_load <- R6Class("PV Load",
                          if (meta[["bldg"]] == "office") {
                            array_area = 1369 # m2
                          }
+                         if (meta[["bldg"]] == "supermarket") {
+                           array_area = 3717 # m2
+                         }
                          if (meta[["bldg"]] == "empty") {
                            array_area = 0 # m2
                          }

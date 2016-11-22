@@ -118,6 +118,9 @@ get_bldg <- function(run_id, type, copies = 0, factor = 0.1) {
   if (type == "office") {
     path = "inputs/office_med_160929.csv"
   }
+  if (type == "supermarket") {
+    path = "inputs/supermarket_161116.csv"
+  }
   
   metadat = list(
     "bldg" = type,

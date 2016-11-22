@@ -3,7 +3,7 @@ Heating,Apt,DOE,672.22222,2.42
 Cooling,Apt,DOE,37647.22,135.53
 Int. Lighting,Apt,DOE,63638.89,229.1
 Ext. Lighting,Apt,DOE,28080.56,101.09
-Int. Equipment,Apt,DOE,124500.00,448.2
+Int. Equipment,Apt,DOE,124500,448.2
 Fans,Apt,DOE,19291.67,69.45
 Heating,Apt,model,0,0
 Cooling,Apt,model,0,0
@@ -51,9 +51,11 @@ Int. Lighting,Supermarket,DOE,420180.56,1512.65
 Ext. Lighting,Supermarket,DOE,71602.78,257.77
 Int. Equipment,Supermarket,DOE,218247.22,785.69
 Fans,Supermarket,DOE,293622.22,1057.04
+Refrigeration,Supermarket,DOE,966541.67,3479.550012
 Heating,Supermarket,model,0,0
-Cooling,Supermarket,model,0,0
-Int. Lighting,Supermarket,model,0,0
-Ext. Lighting,Supermarket,model,0,0
-Int. Equipment,Supermarket,model,0,0
-Fans,Supermarket,model,0,0
+Cooling,Supermarket,model,272406.56,980.663616
+Int. Lighting,Supermarket,model,439853.89,1583.474004
+Ext. Lighting,Supermarket,model,71595.53,257.743908
+Int. Equipment,Supermarket,model,229833.83,827.401788
+Fans,Supermarket,model,53664.06,193.190616
+Refrigeration,Supermarket,model,927228.33,3338.021988

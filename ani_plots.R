@@ -1308,7 +1308,7 @@ get_bldg_comp <- function() {
 }
 get_bldg_ldc <- function(type, copies, save = FALSE) {
   
-  summ_df <- get_bldg_summ(type, copies)
+  summ_df <- get_ts_summ(type, copies, emish = FALSE)
   
   ldc_df <- summ_df %>%
               select(dayhr_ind, kw_mean, kw_sd) %>%
@@ -1321,13 +1321,15 @@ get_bldg_ldc <- function(type, copies, save = FALSE) {
   ldc_df$cumul_hrs = rev(cumsum(ldc_df$hrs))
   ldc_df$rel_kw = ldc_df$kw / max(ldc_df$kw)
   ldc_df$hrs_diff = c(0, diff(ldc_df$hrs)) / 8760
+  title_txt = tools::toTitleCase(type)
+  title_txt = paste(title_txt, "Load Duration Curve")
 
   ldc_plot <- ggplot(data = ldc_df,
                      mapping = aes(x = cumul_hrs)) +
                 geom_line(aes(y = rel_kw), size = 1.1) +
                 labs(x = "Hours of Load",
                      y = bquote("kW /" ~kW[max]),
-                     title = "Office Load Duration Curve") +
+                     title = title_txt) +
                 theme(panel.background = element_rect(colour = "gray75", fill = "gray80")) +
                 theme(panel.grid.major = element_line(colour = "gray85")) +
                 theme(panel.grid.minor = element_line(colour = "gray85"))
