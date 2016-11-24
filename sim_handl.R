@@ -44,22 +44,22 @@ size_batt <- function(run_id, bldg_nm = NULL, bldg_ts = NULL, pv_ts = NULL, inte
                       dmd_frac = NULL, batt_type = NULL, terr = NULL, guess = NULL) {
   
   log_path = paste(
-                  "outputs/", run_id, "/batt_sizer_",
-                  batt_type, "_", dmd_frac, # "_",
-                  # strftime(Sys.time(), format = "%d%m%y_%H%M%S"),
-                  ".log", sep = ""
+    "outputs/", run_id, "/batt_sizer_",
+    batt_type, "_", dmd_frac, # "_",
+    # strftime(Sys.time(), format = "%d%m%y_%H%M%S"),
+    ".log", sep = ""
   )
   flog.appender(appender.file(log_path), name = "sizer")
   flog.threshold(ERROR)
-
+  
   max_step <- bldg_ts[which(bldg_ts$kw == max(bldg_ts$kw)),]
   flog.info(paste("Max (", max_step$kw, "kW ) happens at", max_step$date_time), name = "sizer")
-
+  
   size_ts <- filter(bldg_ts,
                     as.POSIXlt(date_time)$mo == as.POSIXlt(max_step$date_time)$mo)
   pv_ts <- filter(pv_ts,
                   as.POSIXlt(date_time)$mo == as.POSIXlt(max_step$date_time)$mo)
-
+  
   unmet_kwh <- sum(bldg_ts$kwh)
   unmet_thresh <- 0.00005*sum(bldg_ts$kwh)           # max unmet_kwh to trigger adequate size
   targ_kw <- max(max_step$kw)*(1 - dmd_frac)        # fraction of peak demand to be shaved
@@ -67,49 +67,54 @@ size_batt <- function(run_id, bldg_nm = NULL, bldg_ts = NULL, pv_ts = NULL, inte
   incr <- 0.05
   
   # need to check if guess satisfies unmet_kwh > unmet_thresh first
-
-  while ((unmet_kwh > unmet_thresh) & (incr > 0)) {
-
-    test_capacity <- test_capacity + incr*max(bldg_ts$kwh)
+  
+  while ((unmet_kwh > unmet_thresh) & (incr > 0.00019)) {
+    
+    test_capacity <- test_capacity*(1 + incr)
     batt_meta <- list(
-                      "name" = "Boris the Battery",
-                      "run_id" = run_id,
-                      "ctrl_id" = "batt_sizer",
-                      "time_int" = interval
-                      )
+      "name" = "Boris the Battery",
+      "run_id" = run_id,
+      "ctrl_id" = "batt_sizer",
+      "time_int" = interval
+    )
     temp_batt <- batt_bank$new(
-                              meta = batt_meta,
-                              type = batt_type,
-                              nameplate = test_capacity
-                              )
+      meta = batt_meta,
+      type = batt_type,
+      nameplate = test_capacity
+    )
     ctrlr_meta <- list(
-                        "name" = "Sam the System_Controller",
-                        "run_id" = run_id,
-                        "ctrl_id" = "batt_sizer",
-                        "bldg_nm" = bldg_nm,
-                        "time_int" = interval
-                      )
+      "name" = "Sam the System_Controller",
+      "run_id" = run_id,
+      "ctrl_id" = "batt_sizer",
+      "bldg_nm" = bldg_nm,
+      "time_int" = interval
+    )
     temp_ctrlr <- sys_ctrlr$new(
-                                meta = ctrlr_meta,
-                                dmd_targ = targ_kw,
-                                batt = temp_batt,
-                                bldg_ts = size_ts,
-                                pv_ts = pv_ts
-                                )
+      meta = ctrlr_meta,
+      dmd_targ = targ_kw,
+      batt = temp_batt,
+      bldg_ts = size_ts,
+      pv_ts = pv_ts
+    )
     temp_ctrlr$traverse_ts(save_df = FALSE)
     unmet_kwh <- sum(temp_ctrlr$get_sim_df()$unmet_kw)*interval
     flog.error(paste("Unmet kWh -", round(unmet_kwh, 2), "kWh,",
-                    "cap", round(test_capacity, 2), "kwh,"),
-              name = "sizer")
-
-    if ((unmet_kwh < unmet_thresh) & (incr > 0.0019)) {
+                     "cap", round(test_capacity, 2), "kwh,"),
+               name = "sizer")
+    
+    if ((unmet_kwh < unmet_thresh) & (incr > 0.00019)) {
       unmet_kwh <- unmet_thresh + 1
-      test_capacity <- test_capacity - incr*max(bldg_ts$kwh)
-      incr <- incr*0.3333
+      test_capacity <- test_capacity/(1 + incr)
+      incr <- incr*(2/log(unmet_thresh))
     }
     else {
-      if ((unmet_kwh > unmet_thresh) & (incr < 3)) {
-      incr <- incr*3
+      if (unmet_kwh > unmet_thresh) {
+        incr <- incr*log(unmet_kwh)/2
+        if ((test_capacity > 2000000) & (incr > 2)) { # hard cap on capacity at 1GW
+          test_capacity <- 2000000
+          incr <- 0.0001
+          unmet_kwh <- unmet_thresh - 1
+        }
       }
     }
     incr_sci <- format(incr, digits = 2, scientific = T)
@@ -122,10 +127,11 @@ size_batt <- function(run_id, bldg_nm = NULL, bldg_ts = NULL, pv_ts = NULL, inte
   test_capacity <- test_capacity/0.8 # to account for capacity degradation in the future
   flog.info(paste("Final capacity is", test_capacity, "kwh"),
             name = "sizer")
-
+  
   out_vec <- list("batt_cap" = test_capacity, "unmet_kWh" = unmet_kwh)
   return(out_vec)
 }
+
 
 run_one_sim <- function(run_id, ctrl_id, bldg_nm = NULL, bldg_ts = NULL, pv_ts = NULL,
                         grid_ts = NULL, terr = NULL, dmd_frac = NULL,
@@ -400,6 +406,7 @@ sim_year <- function(run_id, bldg = NULL, cop = 1, batt_type = NULL, terr = NULL
 #               "futile.logger", "imputeTS")
 # ipak(packages)
 
-size_results <- sim_year("new_parallel", bldg = "office", cop = 2,
-                          batt_type = "vrf", terr = "nyiso", guess = 2.5,
-                          steps = 1000, is_pv = FALSE)
+size_results <- sim_year("supermarket_try", bldg = "supermarket", cop = 2,
+                          batt_type = "li_ion", terr = "nyiso", guess = 2.5,
+                          steps = 10)
+

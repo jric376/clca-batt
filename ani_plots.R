@@ -471,9 +471,9 @@ get_combined_runs <- function(runs) {
   return(results)
 }
 get_run_results <- function(run_id) {
-  ## MAY WANT TO HAVE FUNCTION TAKE BATT, BLDG, DMD_FRAC
-  ## AND THEN PULL IN CSVs containing "run_results" FROM
-  ## ALL FOLDERS CONTAINING BATT, BLDG, DMD_FRAC
+  ## MAY WANT TO USE BATT_CAP*BATT_CYCEQ
+  ## in place of batt_cap as function unit
+  ## - Spanos et al.
   
   tryCatch({
     
