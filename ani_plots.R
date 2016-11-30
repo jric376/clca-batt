@@ -620,7 +620,11 @@ get_run_prof_plc2e <- function(run_results, run_id, save = FALSE) {
     facet_wrap( ~ batt_type, nrow = 1) +
     geom_line(aes(y = batt_cap_mean,
                   colour = batt_cap_mean),
+<<<<<<< HEAD
               size = 1.5) +
+=======
+              size = 2) +
+>>>>>>> 7e06c5bdd58d2e3355bbfb45369b9c8190103d7e
     labs(x = NULL,
          y = bquote(scriptstyle(NP[scriptscriptstyle(ESS)](kWh)))) +
     scale_shape_identity() +
@@ -647,10 +651,17 @@ get_run_prof_plc2e <- function(run_results, run_id, save = FALSE) {
                 alpha = 1/3) +
     geom_line(aes(y = prof_hi_n_mean,
                   colour = prof_hi_n_mean),
+<<<<<<< HEAD
               size = 1.5) +
     geom_line(aes(y = prof_lo_n_mean,
                   colour = prof_lo_n_mean),
               size = 1.5) +
+=======
+              size = 2) +
+    geom_line(aes(y = prof_lo_n_mean,
+                  colour = prof_lo_n_mean),
+              size = 2) +
+>>>>>>> 7e06c5bdd58d2e3355bbfb45369b9c8190103d7e
     labs(x = NULL,
          y = bquote(scriptstyle(Pr[dr]~"/"~NP[scriptscriptstyle(ESS)]))) +
     scale_y_continuous(trans = "asinh",
@@ -682,7 +693,11 @@ get_run_prof_plc2e <- function(run_results, run_id, save = FALSE) {
     facet_wrap( ~ batt_type, nrow = 1) +
     geom_line(aes(y = plc2erta_n_mean,
                   colour = plc2erta_n_mean),
+<<<<<<< HEAD
               size = 1.5) +
+=======
+              size = 2) +
+>>>>>>> 7e06c5bdd58d2e3355bbfb45369b9c8190103d7e
     # geom_ribbon(aes(ymin = plc2erta_n_mean - plc2erta_n_sd,
     #                 ymax = plc2erta_n_mean + plc2erta_n_sd),
     #             alpha = 1/3,
