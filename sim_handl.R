@@ -110,7 +110,7 @@ size_batt <- function(run_id, bldg_nm = NULL, bldg_ts = NULL, pv_ts = NULL, inte
     else {
       if (unmet_kwh > unmet_thresh) {
         incr <- incr*log(unmet_kwh)/2
-        if ((test_capacity > 2000000) & (incr > 2)) { # hard cap on capacity at 1GW
+        if ((test_capacity > 2000000) & (incr > 2)) { # hard cap on capacity at 2GW
           test_capacity <- 2000000
           incr <- 0.0001
           unmet_kwh <- unmet_thresh - 1
