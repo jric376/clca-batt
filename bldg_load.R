@@ -115,6 +115,9 @@ bldg_load <- R6Class("Bldg Load",
 )
 
 get_bldg <- function(run_id, type, copies = 0, factor = 0.1) {
+  if (type == "apt") {
+    path = "inputs/apt_161202.csv"
+  }
   if (type == "office") {
     path = "inputs/office_med_160929.csv"
   }

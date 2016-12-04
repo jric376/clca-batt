@@ -265,7 +265,7 @@ sim_year <- function(run_id, bldg = NULL, cop = 1, batt_type = NULL, terr = NULL
   funs_to_pass = c("run_one_sim", "size_batt")
   pkgs_to_pass = c("dplyr", "futile.logger", "imputeTS")
 
-  run_to_save <- sample(1:bldg$get_ts_count(), 2)
+  run_to_save <- sample(1:bldg$get_ts_count(), 1)
   
   output_df = foreach(i = 1:(nrow(param_combns)),
                    .combine = "rbind.data.frame",
@@ -406,7 +406,7 @@ sim_year <- function(run_id, bldg = NULL, cop = 1, batt_type = NULL, terr = NULL
 #               "futile.logger", "imputeTS")
 # ipak(packages)
 
-size_results <- sim_year("supermarket_try", bldg = "supermarket", cop = 2,
+size_results <- sim_year("apt_try", bldg = "apt", cop = 2,
                           batt_type = "li_ion", terr = "nyiso", guess = 2.5,
-                          steps = 10)
+                          steps = NULL)
 
