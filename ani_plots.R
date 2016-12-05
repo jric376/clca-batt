@@ -16,6 +16,7 @@ library("doSNOW")
 library("futile.logger")
 library("gganimate")
 library("ggplot2")
+library("ggmap")
 library("ggrepel")
 library("imputeTS")
 library("reshape2")
@@ -44,16 +45,15 @@ reverselog_trans <- function(base = exp(1)) {
             log_breaks(base = base), 
             domain = c(1e-100, Inf))
 }
-office_runs <- c("office_lion_02_085_by005",
-                 "office_pba_02_085_by005",
-                 "office_nas_02_075_by005",
-                 "office_vrf_02_03_by01",
-                 "office_vrf_04_07_by01")
 market_runs <- c("supermarket_lion_02_075_by005",
-                 "supermarket_pba_02_075_by005",
-                 "supermarket_nas_02_075_by005",
-                 "supermarket_vrf_02_075_by005")
-nopv_runs <- c("office_lion_nopv")
+          "supermarket_pba_02_075_by005",
+          "supermarket_nas_02_075_by005",
+          "supermarket_vrf_02_075_by005") 
+office_runs <- c("office_lion_02_085_by005",
+          "office_pba_02_085_by005",
+          "office_nas_02_075_by005",
+          "office_vrf_02_03_by01",
+          "office_vrf_04_07_by01")
 
 get_bldg_ani <- function(copies) {
   source("bldg_load.R")
@@ -460,9 +460,9 @@ get_isoterr_donuts <- function(runs = 20, terr = "nyiso", save = FALSE) {
 get_combined_runs <- function(runs) {
   
   results <- data.frame()
-  for (run_id in runs) {
-    results_filenm <- paste(run_id, "run_results.csv", sep = "_")
-    results.0 <- fread(paste0("outputs/", run_id, "/", results_filenm)) %>%
+  for (runs in runs) {
+    results_filenm <- paste(runs, "run_results.csv", sep = "_")
+    results.0 <- fread(paste0("outputs/", runs, "/", results_filenm)) %>%
       select(-V1) %>%
       as.data.frame() %>%
       mutate(batt_type = ifelse(batt_type == "li_ion", "Li-ion",
@@ -481,17 +481,18 @@ get_combined_runs <- function(runs) {
   
   return(results)
 }
-get_run_results <- function(run_id) {
+get_run_results <- function(runs) {
+  
   tryCatch({
     
-    if (length(run_id) > 1) {
+    if (length(runs) > 1) {
       # accommodates combined run_ids from get_combined_runs
-      results <- get_combined_runs(run_id)
+      results <- get_combined_runs(runs)
     }
     
     else {
-      results_filenm <- paste(run_id, "run_results.csv", sep = "_")
-      results <- fread(paste0("outputs/", run_id, "/", results_filenm)) %>%
+      results_filenm <- paste(runs, "run_results.csv", sep = "_")
+      results <- fread(paste0("outputs/", runs, "/", results_filenm)) %>%
         select(-V1) %>%
         as.data.frame() %>%
         mutate(batt_type = ifelse(batt_type == "li_ion", "Li-ion",
@@ -507,12 +508,8 @@ get_run_results <- function(run_id) {
                prof_hi_n = prof_hi / (batt_cap*batt_cyceq))
     }
     results <- results %>%
-                  mutate(batt_type = ifelse(grepl("_nopv", run_id),
-                                            paste0(batt_type, "_nopv"),
-                                            batt_type)) %>%
                   filter(dmd_frac <= 0.75)
     results.summ <- select(results, -ts_num) %>%
-                      filter(!grepl("_nopv_", run_id)) %>%
                       group_by(dmd_frac, batt_type) %>%
                       summarise_if(is.numeric, .funs = c("mean", "sd"))
     
@@ -1408,36 +1405,48 @@ get_bldg_comp <- function() {
          summ_plot,
          width = 10, height = 6.25, units = "in")
 }
-get_bldg_ldc <- function(type, copies, save = FALSE) {
+get_bldg_ldc <- function(copies, save = FALSE) {
   
-  summ_df <- get_ts_summ(type, copies, emish = FALSE)
+  choices <- c("apt", "office", "supermarket")
+  ldc_df <- data.frame()
+  # "hospital"
   
-  ldc_df <- summ_df %>%
-              select(dayhr_ind, kw_mean, kw_sd) %>%
-              group_by(dayhr_ind) %>%
-              summarise_if(is.numeric, mean)
-  ldc_hist = hist(ldc_df$kw_mean, breaks = floor(max(ldc_df$kw_mean)), plot = FALSE)
-  ldc_df = data.frame(c(0, ldc_hist$counts),
-                       ldc_hist$breaks)
-  colnames(ldc_df) = c("hrs", "kw")
-  ldc_df$cumul_hrs = rev(cumsum(ldc_df$hrs))
-  ldc_df$rel_kw = ldc_df$kw / max(ldc_df$kw)
-  ldc_df$hrs_diff = c(0, diff(ldc_df$hrs)) / 8760
-  title_txt = tools::toTitleCase(type)
-  title_txt = paste(title_txt, "Load Duration Curve")
-
-  ldc_plot <- ggplot(data = ldc_df,
-                     mapping = aes(x = cumul_hrs)) +
-                geom_line(aes(y = rel_kw), size = 1.1) +
-                labs(x = "Hours of Load",
-                     y = bquote("kW /" ~kW[max]),
-                     title = title_txt) +
-                theme(panel.background = element_rect(colour = "gray75", fill = "gray80")) +
-                theme(panel.grid.major = element_line(colour = "gray85")) +
-                theme(panel.grid.minor = element_line(colour = "gray85"))
+  for (choice in choices) {
+    summ_df <- get_ts_summ(choice, copies, emish = FALSE)
+    
+    ldc <- summ_df %>%
+                select(dayhr_ind, kw_mean, kw_sd) %>%
+                group_by(dayhr_ind) %>%
+                summarise_if(is.numeric, mean)
+    ldc_hist = hist(ldc$kw_mean, breaks = floor(max(ldc$kw_mean)), plot = FALSE)
+    ldc = data.frame("hrs" = c(0, ldc_hist$counts),
+                     "kw" = ldc_hist$breaks)  %>%
+            mutate(cumul_hrs = rev(cumsum(hrs)),
+                   rel_kw = kw / max(kw),
+                   hrs_diff = hrs - lag(hrs),
+                   bldg = choice) %>%
+            mutate(bldg = ifelse(bldg == "apt", "Apts",
+                                 ifelse(bldg == "office", "Office",
+                                        ifelse(bldg == "supermarket", "Market",
+                                               "Hospital"))))
+    
+    ldc_df <- rbind.data.frame(ldc_df, ldc)
+  }
+  
+  ldc_plot <- ggplot(data = ldc_df) +
+    geom_line(aes(x = cumul_hrs,
+                  y = kw,
+                  colour = bldg), size = 1.1) +
+    labs(x = "Hours of Load",
+         y = bquote(P[bldg]~"(kW)")) +
+    scale_colour_manual(name = NULL,
+                          values = cbb_qual[c(3,7,4)]) +
+    theme(panel.background = element_rect(colour = "gray75", fill = "gray80")) +
+    theme(panel.grid.major = element_line(colour = "gray85")) +
+    theme(panel.grid.minor = element_line(colour = "gray85"))
   
   if (save) {
-    ggsave(filename = paste0("outputs/plots/", type, "_ldc.png"),
+    ggsave(filename = paste0("outputs/plots/compare_ldc.png"),
            ldc_plot,
            width = 10, height = 6.25, units = "in")
   }
