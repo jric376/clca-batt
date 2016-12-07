@@ -406,7 +406,7 @@ sim_year <- function(run_id, bldg = NULL, cop = 1, batt_type = NULL, terr = NULL
 #               "futile.logger", "imputeTS")
 # ipak(packages)
 
-size_results <- sim_year("apt_try", bldg = "apt", cop = 2,
-                          batt_type = "li_ion", terr = "nyiso", guess = 2.5,
+size_results <- sim_year("apts_vrf_fillin", bldg = "apt", cop = 2,
+                          batt_type = "vrf", terr = "nyiso", guess = 2.5,
                           steps = NULL)
 
