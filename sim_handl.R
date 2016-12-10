@@ -184,7 +184,8 @@ run_one_sim <- function(run_id, ctrl_id, bldg_nm = NULL, bldg_ts = NULL, pv_ts =
                           grid_ts = grid_ts,
                           disp = disp
   )
-  ctrlr$traverse_ts(n = steps, log = TRUE, save_df = save_df)
+  log_rand <- ifelse(sample(4, 1) < 2, TRUE, FALSE)
+  ctrlr$traverse_ts(n = steps, log = log_rand, save_df = save_df)
   sim_df <- ctrlr$get_sim_df()
   batt_kw.max <- max(sim_df$batt_kw)
   batt_kw.min <- min(sim_df$batt_kw)
