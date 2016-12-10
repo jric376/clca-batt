@@ -1,0 +1,55 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+This is an [R Markdown](http://rmarkdown.rstudio.com) Notebook. When you execute code within the notebook, the results appear beneath the code. 
+
+Try executing this chunk by clicking the *Run* button within the chunk or by placing your cursor inside it and pressing *Ctrl+Shift+Enter*. 
+
+```{r}
+# initialize bldg_df in get_bldg_enduse_donuts in ani_plots
+bldg_df.0 <- filter(bldg_df, bldg_type == "Supermarket", model > 0)
+bldg_df.0 <- bldg_df.0 %>%
+                    arrange(frac) %>%
+                    mutate(ymax = cumsum(frac),
+                           ymin = c(0, head(ymax, n = -1)))
+bar.0 <- ggplot(bldg_df.0, aes(fill=slim_cat,
+                               y = model,
+                               x = slim_cat)) +
+            geom_bar(position = "dodge", stat = "identity") +
+            scale_y_log10() +
+            scale_fill_manual(name = NULL, values = cbb_qual.enduse,
+                              guide = guide_legend(nrow = 3)) +
+            theme(panel.grid=element_blank()) +
+            theme(axis.text.x =element_blank()) +
+            theme(axis.ticks.x =element_blank()) +
+            theme(axis.line = element_blank(),
+                  axis.title.x = element_blank()) +
+            theme(legend.direction = "horizontal",
+                  legend.position = "bottom") +
+            labs(y = bquote(E[ann]))
+donut.0 <- ggplot(bldg_df.0, aes(fill=slim_cat,
+                                           ymax=ymax, ymin=ymin,
+                                           xmax=4, xmin=1.5)) +
+                      geom_rect(colour = "gray75", size = 0.25) +
+                      coord_polar(theta="y") +
+                      scale_y_continuous(expand = c(0,0)) +
+                      scale_fill_manual(name = NULL, values = cbb_qual.enduse,
+                                        guide = guide_legend(nrow = 3)) +
+                      xlim(c(0, 4)) +
+                      theme(panel.grid=element_blank()) +
+                      theme(axis.text=element_blank()) +
+                      theme(axis.ticks=element_blank()) +
+                      theme(axis.line = element_blank(),
+                            axis.title = element_blank()) +
+                      theme(legend.direction = "horizontal",
+                            legend.position = "bottom") +
+                      labs(title="")
+bar.0
+donut.0
+```
+
+Add a new chunk by clicking the *Insert Chunk* button on the toolbar or by pressing *Ctrl+Alt+I*.
+
+When you save the notebook, an HTML file containing the code and output will be saved alongside it (click the *Preview* button or press *Ctrl+Shift+K* to preview the HTML file).

@@ -1,61 +1,61 @@
-use_cat,bldg_type,src,kwh,gj
-Heating,Apt,DOE,672.22222,2.42
-Cooling,Apt,DOE,37647.22,135.53
-Int. Lighting,Apt,DOE,63638.89,229.1
-Ext. Lighting,Apt,DOE,28080.56,101.09
-Int. Equipment,Apt,DOE,124500,448.2
-Fans,Apt,DOE,19291.67,69.45
-Heating,Apt,model,0,0
-Cooling,Apt,model,0,0
-Int. Lighting,Apt,model,0,0
-Ext. Lighting,Apt,model,0,0
-Int. Equipment,Apt,model,0,0
-Fans,Apt,model,0,0
-Heating,Hospital,DOE,0,0
-Cooling,Hospital,DOE,0,20316.91
-Int. Lighting,Hospital,DOE,0,8375.01
-Ext. Lighting,Hospital,DOE,0,327.34
-Int. Equipment,Hospital,DOE,0,6541.81
-Ext. Equipment,Hospital,DOE,0,2499.45
-Fans,Hospital,DOE,0,3551.8
-Pumps,Hospital,DOE,0,1563.02
-Heat Rejection,Hospital,DOE,0,1089.74
-Humidification,Hospital,DOE,0,1305.46
-Rerigeration,Hospital,DOE,0,185.15
-Heating,Hospital,model,0,0
-Cooling,Hospital,model,0,0
-Int. Lighting,Hospital,model,0,0
-Ext. Lighting,Hospital,model,0,0
-Int. Equipment,Hospital,model,0,0
-Ext. Equipment,Hospital,model,0,0
-Fans,Hospital,model,0,0
-Pumps,Hospital,model,0,0
-Heat Rejection,Hospital,model,0,0
-Humidification,Hospital,model,0,0
-Rerigeration,Hospital,model,0,0
-Heating,Office,DOE,156750,561.87
-Cooling,Office,DOE,126166.67,454.20001
-Int. Lighting,Office,DOE,264338.89,951.62
-Ext. Lighting,Office,DOE,77702.78,279.73001
-Int. Equipment,Office,DOE,296255.56,1066.52002
-Fans,Office,DOE,20722.22,74.59999
-Heating,Office,model,154222,555.1992
-Cooling,Office,model,129811,467.3196
-Int. Lighting,Office,model,263319,947.9484
-Ext. Lighting,Office,model,77958,280.6488
-Int. Equipment,Office,model,297008,1069.2288
-Fans,Office,model,48778,175.6008
-Heating,Supermarket,DOE,0,0
-Cooling,Supermarket,DOE,49730.56,179.03
-Int. Lighting,Supermarket,DOE,420180.56,1512.65
-Ext. Lighting,Supermarket,DOE,71602.78,257.77
-Int. Equipment,Supermarket,DOE,218247.22,785.69
-Fans,Supermarket,DOE,293622.22,1057.04
-Refrigeration,Supermarket,DOE,966541.67,3479.550012
-Heating,Supermarket,model,0,0
-Cooling,Supermarket,model,272406.56,980.663616
-Int. Lighting,Supermarket,model,439853.89,1583.474004
-Ext. Lighting,Supermarket,model,71595.53,257.743908
-Int. Equipment,Supermarket,model,229833.83,827.401788
-Fans,Supermarket,model,53664.06,193.190616
-Refrigeration,Supermarket,model,927228.33,3338.021988
+use_cat,bldg_type,src,kwh
+Space Heating,Apt,DOE,672.22
+Space Cooling,Apt,DOE,37647.22
+Int. Lighting,Apt,DOE,63638.89
+Ext. Lighting,Apt,DOE,28080.56
+Int. Equipment,Apt,DOE,124500
+Fans,Apt,DOE,19291.67
+Space Heating,Apt,model,657.5
+Space Cooling,Apt,model,32579.3
+Int. Lighting,Apt,model,64277.77
+Ext. Lighting,Apt,model,29048.5
+Int. Equipment,Apt,model,123628
+Fans,Apt,model,27142.33
+Space Heating,Hospital,DOE,0
+Space Cooling,Hospital,DOE,5643586.11
+Int. Lighting,Hospital,DOE,2326391.67
+Ext. Lighting,Hospital,DOE,90927.78
+Int. Equipment,Hospital,DOE,1817169.44
+Ext. Equipment,Hospital,DOE,694291.67
+Fans,Hospital,DOE,986611.11
+Pumps,Hospital,DOE,434172.22
+Heat Rejection,Hospital,DOE,302705.56
+Humidification,Hospital,DOE,362627.78
+Rerigeration,Hospital,DOE,51430.56
+Space Heating,Hospital,model,0
+Space Cooling,Hospital,model,1296681.42
+Int. Lighting,Hospital,model,2326102.22
+Ext. Lighting,Hospital,model,90989.89
+Int. Equipment,Hospital,model,1813509.44
+Ext. Equipment,Hospital,model,722921.39
+Fans,Hospital,model,1843938.89
+Pumps,Hospital,model,412203.89
+Heat Rejection,Hospital,model,721597.11
+Humidification,Hospital,model,3422634.44
+Rerigeration,Hospital,model,52286.46
+Space Heating,Office,DOE,156750
+Space Cooling,Office,DOE,126166.67
+Int. Lighting,Office,DOE,264338.89
+Ext. Lighting,Office,DOE,77702.78
+Int. Equipment,Office,DOE,296255.56
+Fans,Office,DOE,20722.22
+Space Heating,Office,model,157678.44
+Space Cooling,Office,model,135310.55
+Int. Lighting,Office,model,263320.03
+Ext. Lighting,Office,model,77959.31
+Int. Equipment,Office,model,297007.22
+Fans,Office,model,40172.84
+Space Heating,Supermarket,DOE,0
+Space Cooling,Supermarket,DOE,49730.56
+Int. Lighting,Supermarket,DOE,420180.56
+Ext. Lighting,Supermarket,DOE,71602.78
+Int. Equipment,Supermarket,DOE,218247.22
+Fans,Supermarket,DOE,293622.22
+Refrigeration,Supermarket,DOE,966541.67
+Space Heating,Supermarket,model,0
+Space Cooling,Supermarket,model,254640.42
+Int. Lighting,Supermarket,model,434798.33
+Ext. Lighting,Supermarket,model,71595.53
+Int. Equipment,Supermarket,model,219249.5
+Fans,Supermarket,model,78759.83
+Refrigeration,Supermarket,model,927212.22
