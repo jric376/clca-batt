@@ -60,11 +60,15 @@ market_runs <- c("supermarket_lion_02_075_by005",
                   "supermarket_pba_02_075_by005",
                   "supermarket_nas_02_075_by005",
                   "supermarket_vrf_02_075_by005") 
-office_runs <- c("office_lion_02_085_by005",
-                  "office_pba_02_085_by005",
-                  "office_nas_02_075_by005",
-                  "office_vrf_02_03_by01",
-                  "office_vrf_04_07_by01")
+# office_runs <- c("office_lion_02_085_by005",
+#                   "office_pba_02_085_by005",
+#                   "office_nas_02_075_by005",
+#                   "office_vrf_02_03_by01",
+#                   "office_vrf_04_07_by01")
+hospital_runs <- c("hospital_lion_02_075_by005",
+                   "hospital_pba_02_075_by005",
+                   "hospital_nas_02_075_by005",
+                   "hospital_vrf_02_075_by005")
 
 get_bldg_ani <- function(copies) {
   source("bldg_load.R")
@@ -605,7 +609,7 @@ get_run_results <- function(runs) {
                                 ifelse(grepl("*_cost_*", cat), "Grid / Grid + DR",
                                     ifelse(grepl("*levcost_", cat), "PV",
                                         ifelse(grepl("tac_", cat), "TAC",
-                                            ifelse(grepl("*_n_", cat), "Pr/NP",
+                                            ifelse(grepl("*_n_", cat), "Pr/Thru",
                                                    "Pr"))))),
                      hi_lo = ifelse(grepl("_hi_", cat), "hi",
                                 ifelse(grepl("_lo_", cat), "lo",
@@ -870,9 +874,9 @@ get_run_barplots <- function(run_results, run_id, save = FALSE) {
                   geom_bar(aes(y = mean),
                            colour = "grey65",
                            position = "dodge", stat = "identity") +
-                  geom_errorbar(aes(ymax = mean + sd, ymin = mean - sd),
-                                colour = "black", width = 0.3,
-                                position = position_dodge(width = 0.9)) +
+                  # geom_errorbar(aes(ymax = mean + sd, ymin = mean - sd),
+                  #               colour = "black", width = 0.3,
+                  #               position = position_dodge(width = 0.9)) +
                   scale_x_discrete(name = NULL) +
                   scale_y_continuous(name = NULL,
                                      trans = "asinh",
@@ -915,14 +919,15 @@ get_run_barplots <- function(run_results, run_id, save = FALSE) {
   
   return(plot_list)
 }
-get_run_sampwks <- function(run_id, save = FALSE) {
+get_run_sampwks <- function(run_id, dmd_frac, save = FALSE) {
   path = paste0("outputs/", run_id, "/df")
   temp = list.files(path = path, full.names = TRUE)
+  dmd_frac.str = paste0("ctrlr_", dmd_frac, "_")
   
-  all_df = read.csv(sample(temp, 1)) %>%
-    mutate_if(is.factor, function(x) as.POSIXct(x, format = "%Y-%m-%d %H:%M")) %>%
-    mutate(day_ind = as.numeric(strftime(date_time, format = "%j"))) %>%
-    select(-X)
+  all_df = read.csv(temp[grepl(dmd_frac.str, temp)]) %>%
+            mutate_if(is.factor, function(x) as.POSIXct(x, format = "%Y-%m-%d %H:%M")) %>%
+            mutate(day_ind = as.numeric(strftime(date_time, format = "%j"))) %>%
+            select(-X)
   
   fill_labels <- c("Battery", "Bldg", "Curtail", "DR",  "PV", "Unmet")
   hr_labels <- unlist(lapply(seq(6,21,3), function(x) ifelse(x>10, paste0(x, ":00"),
@@ -960,7 +965,8 @@ get_run_sampwks <- function(run_id, save = FALSE) {
                             axis.text.x =  element_text(angle = 33, vjust = 1, hjust = 1))
   
   if (save) {
-    ggsave(paste0("outputs/plots/", run_id, "_sample_wk.png"),
+    ggsave(paste0("outputs/plots/", run_id, 
+                  "_frac", dmd_frac, "_samp_wk.png"),
            sample_wk_plot,
            width = 10, height = 8, units = "in")
   }
@@ -1016,7 +1022,8 @@ get_run_heatmap <- function(run_id, dmd_frac, save = FALSE) {
                        expand=c(0,0)) +
     scale_fill_gradient2(name = lgnd_txt1, low = "#7b3294",
                          mid = "#f7f7f7", high = "#008837",
-                         midpoint = mean(run_df$soc_mean)) +
+                         midpoint = mean(run_df$soc_mean),
+                         breaks = c(0,0.25,0.5,0.75,0.95)) +
     labs(x = NULL,
          y = NULL) +
     theme(panel.background = element_blank(),
@@ -1202,10 +1209,6 @@ get_ts_heatmap <- function(choice, copies, save = FALSE) {
   sd_txt <- paste0(unit_txt, "sd")
   midpt.mean <- median(select(summ_df, contains(mean_txt))[[mean_txt]])
   midpt.sd <- median(select(summ_df, contains(sd_txt))[[sd_txt]])
-  if (choice == "office") {
-    midpt.mean <- mean(select(summ_df, contains(mean_txt))[[mean_txt]])
-    midpt.sd <- mean(select(summ_df, contains(sd_txt))[[sd_txt]])
-  }
   
   heatmap_df.mean <- foreach(k = 1:max(summ_df$cl),
                           .combine = "rbind.data.frame") %do% {
@@ -1334,6 +1337,132 @@ get_ts_heatmap <- function(choice, copies, save = FALSE) {
   
   return(heatmap_plot)
 }
+get_bldg_enduse_bars <- function(save = FALSE) {
+  cooling_cats <- c("Space Cooling", "Fans", "Pumps",
+                    "Heat Rejection", "Humidification")
+  bldg_df <- read.csv("inputs/bldg_summ.csv",
+                      stringsAsFactors = FALSE) %>% 
+    mutate(slim_cat = if_else(use_cat %in% cooling_cats,
+                              "Space Cooling", use_cat)) %>%
+    mutate_if(is.character, as.factor) %>% 
+    group_by(bldg_type, src, slim_cat) %>% 
+    summarise_if(is.numeric, sum) %>%
+    ungroup() %>% 
+    spread(src, kwh) %>% 
+    mutate(cent_diff = (DOE - model) / DOE,
+           frac = model / sum(model)) %>%
+    group_by(bldg_type) %>% 
+    arrange(frac) %>%
+    mutate(ymax = cumsum(frac),
+           ymin = c(0, head(ymax, n = -1)))
+  # initialize bldg_df in get_bldg_enduse_donuts in ani_plots
+  
+  bars <- ggplot(bldg_df, aes(fill=slim_cat,
+                              y = model,
+                              x = slim_cat)) +
+    facet_wrap( ~ bldg_type,
+                scales = "free_x",
+                nrow = 1) +
+    geom_bar(position = "dodge", stat = "identity") +
+    scale_y_log10(expand = c(0,0)) +
+    scale_fill_manual(name = NULL, values = cbb_qual.enduse,
+                      drop = FALSE,
+                      guide = guide_legend(nrow = 3)) +
+    theme(panel.grid=element_blank()) +
+    theme(axis.text.x =element_blank()) +
+    theme(axis.ticks.x =element_blank()) +
+    theme(axis.line = element_blank(),
+          axis.title.x = element_blank()) +
+    theme(legend.direction = "horizontal",
+          legend.position = "bottom") +
+    labs(y = bquote(E[ann]~scriptstyle((kWh))))
+  # legend <- get_legend(bars)
+  # bars <- bars + theme(legend.position = "none")
+  # donuts <- ggplot(bldg_df, aes(fill=slim_cat,
+  #                               ymax=ymax, ymin=ymin,
+  #                               xmax=4, xmin=1.5)) +
+  #   facet_wrap( ~ bldg_type,
+  #               nrow = 1) +
+  #   geom_rect(colour = "white", size = 0.25) +
+  #   coord_polar(theta="y") +
+  #   scale_y_log10() +
+  #   scale_fill_manual(name = NULL, values = cbb_qual.enduse,
+  #                     guide = "none") +
+  #   xlim(c(0, 4)) +
+  #   theme(panel.grid=element_blank()) +
+  #   theme(axis.text=element_blank()) +
+  #   theme(axis.ticks=element_blank()) +
+  #   theme(axis.line = element_blank(),
+  #         axis.title = element_blank()) +
+  #   theme(legend.direction = "horizontal",
+  #         legend.position = "bottom",
+  #         strip.background = element_blank(),
+  #         strip.text.x = element_blank()) +
+  #   labs(title="")
+  # 
+  # bardonut_list <- plot_grid(bars, donuts,
+  #                            ncol = 1,
+  #                            align = "v",
+  #                            rel_heights = c(1,1))
+  # bardonut_list <- plot_grid(bardonut_list, ggplot(), legend, ggplot(),
+  #                            ncol = 1,
+  #                            rel_heights = c(1,0.05,0.1,0.05))
+  if (save) {
+    save_plot(filename = paste0("outputs/plots/bldg_enduse_bars.png"),
+              bars,
+              base_height = 8, base_width = 6.25)
+  }
+  
+  return(bars)
+}
+get_bldg_ldc <- function(copies, save = FALSE) {
+  
+  choices <- c("apt", "office", "hospital", "supermarket")
+  ldc_df <- data.frame()
+  
+  for (choice in choices) {
+    summ_df <- get_ts_summ(choice, copies, emish = FALSE)
+    
+    ldc <- summ_df %>%
+      select(dayhr_ind, kw_mean, kw_sd) %>%
+      group_by(dayhr_ind) %>%
+      summarise_if(is.numeric, mean)
+    ldc_hist = hist(ldc$kw_mean, breaks = floor(max(ldc$kw_mean)), plot = FALSE)
+    ldc = data.frame("hrs" = c(0, ldc_hist$counts),
+                     "kw" = ldc_hist$breaks)  %>%
+      mutate(cumul_hrs = rev(cumsum(hrs)),
+             rel_kw = kw / max(kw),
+             hrs_diff = hrs - lag(hrs),
+             bldg = choice) %>%
+      mutate(bldg = ifelse(bldg == "apt", "Apts",
+                           ifelse(bldg == "office", "Office",
+                                  ifelse(bldg == "supermarket", "Market",
+                                         "Hospital"))))
+    
+    ldc_df <- rbind.data.frame(ldc_df, ldc)
+  }
+  
+  ldc_plot <- ggplot(data = ldc_df) +
+    geom_line(aes(x = cumul_hrs,
+                  y = kw,
+                  colour = bldg), size = 1.1) +
+    labs(x = "Hours of Load",
+         y = bquote(P[bldg]~"(kW)")) +
+    # scale_y_log10() +
+    scale_colour_manual(name = NULL,
+                        values = cbb_qual[c(3,7,4,1)]) +
+    theme(panel.background = element_rect(colour = "gray75", fill = "gray80")) +
+    theme(panel.grid.major = element_line(colour = "gray85")) +
+    theme(panel.grid.minor = element_line(colour = "gray85"))
+  
+  if (save) {
+    ggsave(filename = paste0("outputs/plots/compare_ldc.png"),
+           ldc_plot,
+           width = 10, height = 6.25, units = "in")
+  }
+  
+  return(ldc_plot)
+}
 get_isoterr_plots <- function(terr = "nyiso", save = FALSE) {
   source("dispatch_curve.R")
   # CURRENTLY DROPS TOP AND BOTTOM 1% of EMISSIONS RATES
@@ -1415,132 +1544,6 @@ get_isoterr_plots <- function(terr = "nyiso", save = FALSE) {
     }
   
   return(isoterr_boxplot)
-}
-get_bldg_enduse_bars <- function(save = FALSE) {
-  cooling_cats <- c("Space Cooling", "Fans", "Pumps",
-                    "Heat Rejection", "Humidification")
-  bldg_df <- read.csv("inputs/bldg_summ.csv",
-                      stringsAsFactors = FALSE) %>% 
-    mutate(slim_cat = if_else(use_cat %in% cooling_cats,
-                              "Space Cooling", use_cat)) %>%
-    mutate_if(is.character, as.factor) %>% 
-    group_by(bldg_type, src, slim_cat) %>% 
-    summarise_if(is.numeric, sum) %>%
-    ungroup() %>% 
-    spread(src, kwh) %>% 
-    mutate(cent_diff = (DOE - model) / DOE,
-           frac = model / sum(model)) %>%
-    group_by(bldg_type) %>% 
-    arrange(frac) %>%
-    mutate(ymax = cumsum(frac),
-           ymin = c(0, head(ymax, n = -1)))
-  # initialize bldg_df in get_bldg_enduse_donuts in ani_plots
-  
-  bars <- ggplot(bldg_df, aes(fill=slim_cat,
-                              y = model,
-                              x = slim_cat)) +
-    facet_wrap( ~ bldg_type,
-                scales = "free_x",
-                nrow = 1) +
-    geom_bar(position = "dodge", stat = "identity") +
-    scale_y_log10(expand = c(0,0)) +
-    scale_fill_manual(name = NULL, values = cbb_qual.enduse,
-                      drop = FALSE,
-                      guide = guide_legend(nrow = 3)) +
-    theme(panel.grid=element_blank()) +
-    theme(axis.text.x =element_blank()) +
-    theme(axis.ticks.x =element_blank()) +
-    theme(axis.line = element_blank(),
-          axis.title.x = element_blank()) +
-    theme(legend.direction = "horizontal",
-          legend.position = "bottom") +
-    labs(y = bquote(E[ann]~scriptstyle((kWh))))
-  # legend <- get_legend(bars)
-  # bars <- bars + theme(legend.position = "none")
-  # donuts <- ggplot(bldg_df, aes(fill=slim_cat,
-  #                               ymax=ymax, ymin=ymin,
-  #                               xmax=4, xmin=1.5)) +
-  #   facet_wrap( ~ bldg_type,
-  #               nrow = 1) +
-  #   geom_rect(colour = "white", size = 0.25) +
-  #   coord_polar(theta="y") +
-  #   scale_y_log10() +
-  #   scale_fill_manual(name = NULL, values = cbb_qual.enduse,
-  #                     guide = "none") +
-  #   xlim(c(0, 4)) +
-  #   theme(panel.grid=element_blank()) +
-  #   theme(axis.text=element_blank()) +
-  #   theme(axis.ticks=element_blank()) +
-  #   theme(axis.line = element_blank(),
-  #         axis.title = element_blank()) +
-  #   theme(legend.direction = "horizontal",
-  #         legend.position = "bottom",
-  #         strip.background = element_blank(),
-  #         strip.text.x = element_blank()) +
-  #   labs(title="")
-  # 
-  # bardonut_list <- plot_grid(bars, donuts,
-  #                            ncol = 1,
-  #                            align = "v",
-  #                            rel_heights = c(1,1))
-  # bardonut_list <- plot_grid(bardonut_list, ggplot(), legend, ggplot(),
-  #                            ncol = 1,
-  #                            rel_heights = c(1,0.05,0.1,0.05))
-  if (save) {
-    save_plot(filename = paste0("outputs/plots/bldg_enduse_bars.png"),
-              bars,
-              base_height = 8, base_width = 6.25)
-  }
-  
-  return(bars)
-}
-get_bldg_ldc <- function(copies, save = FALSE) {
-  
-  choices <- c("apt", "office", "supermarket")
-  ldc_df <- data.frame()
-  # "hospital"
-  
-  for (choice in choices) {
-    summ_df <- get_ts_summ(choice, copies, emish = FALSE)
-    
-    ldc <- summ_df %>%
-                select(dayhr_ind, kw_mean, kw_sd) %>%
-                group_by(dayhr_ind) %>%
-                summarise_if(is.numeric, mean)
-    ldc_hist = hist(ldc$kw_mean, breaks = floor(max(ldc$kw_mean)), plot = FALSE)
-    ldc = data.frame("hrs" = c(0, ldc_hist$counts),
-                     "kw" = ldc_hist$breaks)  %>%
-            mutate(cumul_hrs = rev(cumsum(hrs)),
-                   rel_kw = kw / max(kw),
-                   hrs_diff = hrs - lag(hrs),
-                   bldg = choice) %>%
-            mutate(bldg = ifelse(bldg == "apt", "Apts",
-                                 ifelse(bldg == "office", "Office",
-                                        ifelse(bldg == "supermarket", "Market",
-                                               "Hospital"))))
-    
-    ldc_df <- rbind.data.frame(ldc_df, ldc)
-  }
-  
-  ldc_plot <- ggplot(data = ldc_df) +
-    geom_line(aes(x = cumul_hrs,
-                  y = kw,
-                  colour = bldg), size = 1.1) +
-    labs(x = "Hours of Load",
-         y = bquote(P[bldg]~"(kW)")) +
-    scale_colour_manual(name = NULL,
-                          values = cbb_qual[c(3,7,4)]) +
-    theme(panel.background = element_rect(colour = "gray75", fill = "gray80")) +
-    theme(panel.grid.major = element_line(colour = "gray85")) +
-    theme(panel.grid.minor = element_line(colour = "gray85"))
-  
-  if (save) {
-    ggsave(filename = paste0("outputs/plots/compare_ldc.png"),
-           ldc_plot,
-           width = 10, height = 6.25, units = "in")
-  }
-  
-  return(ldc_plot)
 }
 get_kt_dist <- function(which_df, save = FALSE) {
   if(which_df == "nyc_nsrdb") {
