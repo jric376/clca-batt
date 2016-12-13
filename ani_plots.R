@@ -1315,13 +1315,13 @@ get_ts_heatmap <- function(choice, copies, save = FALSE) {
   heatmap_plot <- plot_grid(mean_plot, sd_plot,
                               labels = c("A","B"),
                               ncol = 1, align = "v")
-  title <- ggdraw() + draw_label(paste(title_txt, "Weekly Load Profile (2014)"),
-                                    fontface = "bold")
-  if (choice == "nyiso_plc2erta") {
-    title <- ggdraw() + draw_label(title_txt, fontface = "bold")
-  }
-  heatmap_plot <- plot_grid(title, heatmap_plot,
-                              ncol = 1, rel_heights = c(0.05, 1))
+  # title <- ggdraw() + draw_label(paste(title_txt, "Weekly Load Profile (2014)"),
+  #                                   fontface = "bold")
+  # if (choice == "nyiso_plc2erta") {
+  #   title <- ggdraw() + draw_label(title_txt, fontface = "bold")
+  # }
+  # heatmap_plot <- plot_grid(title, heatmap_plot,
+  #                             ncol = 1, rel_heights = c(0.05, 1))
   
   if (save) {
     # ggsave(paste0("outputs/plots/", choice, "_heatmap_mean.png"),
