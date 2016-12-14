@@ -53,18 +53,17 @@ to_kg <- function(lb_val) {
   return(lb_val/2.205)
 }
 apts_runs <- c("apts_lion_02_075_by005",
-                 "apts_pba_02_075_by005",
-                 "apts_nas_02_075_by005",
-                 "apts_vrf_02_075_by005") 
+               "apts_pba_02_075_by005",
+               "apts_nas_02_075_by005",
+               "apts_vrf_02_075_by005") 
 market_runs <- c("supermarket_lion_02_075_by005",
-                  "supermarket_pba_02_075_by005",
-                  "supermarket_nas_02_075_by005",
-                  "supermarket_vrf_02_075_by005") 
-# office_runs <- c("office_lion_02_085_by005",
-#                   "office_pba_02_085_by005",
-#                   "office_nas_02_075_by005",
-#                   "office_vrf_02_03_by01",
-#                   "office_vrf_04_07_by01")
+                 "supermarket_pba_02_075_by005",
+                 "supermarket_nas_02_075_by005",
+                 "supermarket_vrf_02_075_by005") 
+office_runs <- c("office_lion_02_075_by005",
+                 "office_pba_02_075_by005",
+                 "office_nas_02_075_by005",
+                 "office_vrf_02_075_by005")
 hospital_runs <- c("hospital_lion_02_075_by005",
                    "hospital_pba_02_075_by005",
                    "hospital_nas_02_075_by005",
@@ -775,37 +774,37 @@ get_run_prof_plc2e <- function(run_results, run_id, save = FALSE) {
   plc2e_prof_plot <- ggplot() +
     geom_ribbon(data = summ,
               aes(x = -plc2erta_n_mean,
-                  ymax = -prof_lo_n_mean,
-                  ymin = -prof_hi_n_mean,
+                  ymax = prof_lo_n_mean,
+                  ymin = prof_hi_n_mean,
                   fill = batt_type),
               alpha = 1/6,
               size = 1.2) +
     geom_line(data = summ,
               aes(x = -plc2erta_n_mean,
-                  y = -prof_lo_n_mean,
+                  y = prof_lo_n_mean,
                   colour = batt_type,
                   linetype = "lo"),
               alpha = 1/2,
               size = 1.2) +
     geom_line(data = summ,
               aes(x = -plc2erta_n_mean,
-                  y = -prof_hi_n_mean,
+                  y = prof_hi_n_mean,
                   colour = batt_type,
                   linetype = "lo"),
               alpha = 1/2,
               size = 1.2) +
     geom_point(data = df,
                aes(x = -plc2erta_n,
-                   y = -prof_lo_n,
+                   y = prof_lo_n,
                    size = batt_cap,
                    fill = batt_type,
                    shape = batt_type)) +
     scale_x_continuous(trans = "asinh",
                        labels=trans_format("identity", function(x) -x),
                        breaks = c(1000,10,1,0,-1,-10,-1000)) +
-    scale_y_continuous(trans=reverselog_trans(base=10),
-                       labels= trans_format("identity", function(x) dollar(-x)),
-                       breaks = c(100,5,1,0.1,0.01,0)) +
+    scale_y_continuous(trans = "asinh",
+                       labels= trans_format("identity", function(x) dollar(x)),
+                       breaks = c(-100,-5,-1,0,1)) +
     labs(x = bquote(scriptstyle(GWP[ann]~"/"~Thru[scriptscriptstyle(ESS)])),
          y = bquote(scriptstyle(Pr[dr]~"/"~Thru[scriptscriptstyle(ESS)]))) +
     theme(panel.background = element_rect(colour = "gray75", fill = "gray80")) +
@@ -1450,9 +1449,9 @@ get_bldg_ldc <- function(copies, save = FALSE) {
     geom_line(aes(x = cumul_hrs,
                   y = kw,
                   colour = bldg), size = 1.1) +
-    labs(x = "Hours of Load",
+    labs(x = "hr",
          y = bquote(P[bldg]~"(kW)")) +
-    # scale_y_log10() +
+    scale_x_log10(breaks = c(10,1000,3000,6000)) +
     scale_colour_manual(name = NULL,
                         values = cbb_qual[c(3,7,4,1)]) +
     theme(panel.background = element_rect(colour = "gray75", fill = "gray80")) +
