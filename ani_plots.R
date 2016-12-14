@@ -532,10 +532,10 @@ get_combined_runs <- function(runs) {
              dr_plc2erta = dr_plc2erta*(life_hi + life_lo)/2,
              net_plc2erta = (batt_plc2erta + pv_plc2erta +
                                     dr_plc2erta - control_plc2erta),
-             plc2erta_n = to_kg(net_plc2erta / (batt_cap*batt_cyceq)),
-             prof_lo_n = prof_lo / (batt_cap*batt_cyceq),
+             plc2erta_n = to_kg(net_plc2erta / (batt_cap*batt_cyceq*(life_hi + life_lo)/2)),
+             prof_lo_n = prof_lo / (batt_cap*batt_cyceq*(life_hi + life_lo)/2),
              
-             prof_hi_n = prof_hi /(batt_cap*batt_cyceq))
+             prof_hi_n = prof_hi /(batt_cap*batt_cyceq*(life_hi + life_lo)/2))
     results <- rbind.data.frame(results, results.0)
   }
   
@@ -562,10 +562,10 @@ get_run_results <- function(runs) {
                dr_plc2erta = dr_plc2erta*(life_hi + life_lo)/2,
                net_plc2erta = (batt_plc2erta + pv_plc2erta +
                                       dr_plc2erta - control_plc2erta),
-               plc2erta_n = to_kg(net_plc2erta / (batt_cap*batt_cyceq)),
-               prof_lo_n = prof_lo / (batt_cap*batt_cyceq),
+               plc2erta_n = to_kg(net_plc2erta / (batt_cap*batt_cyceq*(life_hi + life_lo)/2)),
+               prof_lo_n = prof_lo / (batt_cap*batt_cyceq*(life_hi + life_lo)/2),
                
-               prof_hi_n = prof_hi / (batt_cap*batt_cyceq))
+               prof_hi_n = prof_hi / (batt_cap*batt_cyceq*(life_hi + life_lo)/2))
     }
     results <- results %>%
                   filter(dmd_frac <= 0.75)
@@ -681,9 +681,10 @@ get_run_prof_plc2e <- function(run_results, run_id, save = FALSE) {
                   colour = batt_cap_mean),
               size = 1.5) +
     labs(x = NULL,
-         y = bquote(scriptstyle(Thru[scriptscriptstyle(ESS)]))) +
+         y = bquote(scriptstyle(NP[scriptscriptstyle(ESS)](kWh)))) +
+    scale_y_log10(breaks = c(1,10,100,1E3,1E4,1E5)) +
     scale_shape_identity() +
-    scale_fill_gradient2(name = bquote(scriptstyle(Thru[scriptscriptstyle(ESS)])),
+    scale_fill_gradient2(name = bquote(scriptstyle(Thru[scriptscriptstyle(ESS)](kWh))),
                          low = "#253494",
                          mid = "#41b6c4", high = "#ffffcc",
                          midpoint = 0) +
@@ -713,7 +714,7 @@ get_run_prof_plc2e <- function(run_results, run_id, save = FALSE) {
     labs(x = NULL,
          y = bquote(scriptstyle(Pr[dr]~"/"~Thru[scriptscriptstyle(ESS)]))) +
     scale_y_continuous(trans = "asinh",
-                       breaks = c(-10000,-1000,-100,0,100,1000,10000),
+                       breaks = c(-100,-10,-1,0),
                        labels = trans_format("identity",
                                              function(x) dollar(x))) +
     scale_shape_identity() +
@@ -735,7 +736,7 @@ get_run_prof_plc2e <- function(run_results, run_id, save = FALSE) {
     theme(strip.background = element_blank(),
           strip.text.x = element_blank())
   
-  plc2e_leg_txt = bquote(scriptstyle("kg"~CO[scriptscriptstyle(2)]~"eq/"~Thru[scriptscriptstyle(ESS)]))
+  plc2e_leg_txt = bquote(scriptstyle(GWP[ann]~"/"~Thru[scriptscriptstyle(ESS)]))
   plc2e_plot <- ggplot(data = summ,
                        mapping = aes(x = dmd_frac)) +
     facet_wrap( ~ batt_type, nrow = 1) +
@@ -747,10 +748,10 @@ get_run_prof_plc2e <- function(run_results, run_id, save = FALSE) {
     #             alpha = 1/3,
     #             colour = "gray60") +
     labs(x = bquote(alpha),
-         y = bquote(scriptstyle("kg"~CO[scriptscriptstyle(2)]~"eq/"~Thru[scriptscriptstyle(ESS)]))) +
+         y = bquote(scriptstyle(GWP[ann]~"/"~Thru[scriptscriptstyle(ESS)]))) +
     scale_y_continuous(trans = "asinh",
                        labels=trans_format("identity", function(x) x),
-                       breaks = c(1e5,100,0,0,-100,-1e5)) +
+                       breaks = c(1000,10,0,-10,-1000)) +
     scale_colour_gradient2(name = plc2e_leg_txt,
                          labels = scientific,
                          breaks = c(round(min(summ$plc2erta_n_mean)*0.75, 2),
@@ -801,11 +802,11 @@ get_run_prof_plc2e <- function(run_results, run_id, save = FALSE) {
                    shape = batt_type)) +
     scale_x_continuous(trans = "asinh",
                        labels=trans_format("identity", function(x) -x),
-                       breaks = c(1e6,1e5,1000,10,0,-10,-1000,-1e5,-1e6)) +
+                       breaks = c(1000,10,1,0,-1,-10,-1000)) +
     scale_y_continuous(trans=reverselog_trans(base=10),
                        labels= trans_format("identity", function(x) dollar(-x)),
-                       breaks = c(10000,100,5,1,0)) +
-    labs(x = bquote(scriptstyle("kg"~CO[scriptscriptstyle(2)]~"eq /"~Thru[scriptscriptstyle(ESS)])),
+                       breaks = c(100,5,1,0.1,0.01,0)) +
+    labs(x = bquote(scriptstyle(GWP[ann]~"/"~Thru[scriptscriptstyle(ESS)])),
          y = bquote(scriptstyle(Pr[dr]~"/"~Thru[scriptscriptstyle(ESS)]))) +
     theme(panel.background = element_rect(colour = "gray75", fill = "gray80")) +
     theme(panel.grid.major = element_line(colour = "gray85")) +
@@ -973,7 +974,7 @@ get_run_sampwks <- function(run_id, dmd_frac, save = FALSE) {
   
   return(sample_wk_plot)
 }
-get_run_heatmap <- function(run_id, dmd_frac, save = FALSE) {
+get_run_heatmap <- function(run_id, dmd_frac, save = FALSE, include_sd = FALSE) {
   path = paste0("outputs/", run_id, "/df")
   temp = list.files(path = path, full.names = TRUE)
   dmd_frac.str = paste0("ctrlr_", dmd_frac, "_")
@@ -1054,9 +1055,12 @@ get_run_heatmap <- function(run_id, dmd_frac, save = FALSE) {
           axis.text.y = element_text(angle = 33, hjust = 1, size = 8),
           axis.text.x = element_text(angle = 33, vjust = 1, hjust = 1))
   
-  heatmap_plot <- plot_grid(mean_plot, sd_plot,
-                            labels = c("A","B"),
-                            ncol = 1, align = "v")
+  if (include_sd) {
+    heatmap_plot <- plot_grid(mean_plot, sd_plot,
+                              labels = c("A","B"),
+                              ncol = 1, align = "v")
+  } else { heatmap_plot <- mean_plot}
+
   
   if (save) {
     # ggsave(paste0("outputs/plots/", choice, "_heatmap_mean.png"),
@@ -1183,7 +1187,7 @@ get_ts_heatmap <- function(choice, copies, save = FALSE) {
     emish = TRUE
     d_offset = 0
     unit_txt = "plc2erta_"
-    lgnd_txt1 = bquote(bar("kg"~ CO[scriptstyle(2)]~ "eq / MWh"))
+    lgnd_txt1 = bquote(scriptstyle(bar("kg"~ CO[scriptstyle(2)]~ "eq / MWh")))
     lgnd_txt2 = bquote(sigma[scriptscriptstyle("kg"~ CO[scriptscriptstyle(2)]~ "eq / MWh")])
     title_txt = bquote("NYISO Weekly"~ CO[scriptstyle(2)]~ "eq Emissions Profile (2014)")
   }
