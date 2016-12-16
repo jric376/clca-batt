@@ -323,14 +323,14 @@ get_disp_ani <- function(runs = 20, animate = FALSE, save = FALSE) {
   
   ### For saving combined plot
   if (save) {
-    # save_plot(filename = "outputs/plots/disp_nyiso_combined.png",
-    #           disp_plt, ncol = 1, nrow = 2,
-    #           base_height = 6.25, base_width = 10)
+    save_plot(filename = "outputs/plots/disp_nyiso_combined.png",
+              disp_plt, ncol = 1, nrow = 2,
+              base_height = 6.25, base_width = 10)
   }
   ### For saving individual ggplot objects
   if (save) {
-    # ggsave(disp_cost_spread, filename = "outputs/plots/disp_nyiso_cost_spread.png",
-    #        width = 10, height = 6.25, units = "in")
+    ggsave(disp_cost_spread, filename = "outputs/plots/disp_nyiso_cost_spread.png",
+           width = 10, height = 6.25, units = "in")
     ggsave(disp_emish_spread, filename = "outputs/plots/disp_nyiso_emish_spread.png",
            width = 10, height = 6.25, units = "in")
   }
@@ -995,10 +995,11 @@ get_run_sampwks <- function(run_id, dmd_frac, save = FALSE) {
   
   return(sample_wk_plot)
 }
-get_run_heatmap <- function(run_id, dmd_frac, save = FALSE, include_sd = FALSE) {
+get_run_socmap <- function(run_id, dmd_fracs, save = FALSE) { # takes two dmd_fracs
   path = paste0("outputs/", run_id, "/df")
   temp = list.files(path = path, full.names = TRUE)
-  dmd_frac.str = paste0("ctrlr_", dmd_frac, "_")
+  frac_str.A = paste0("ctrlr_", dmd_fracs[1], "_")
+  frac_str.B = paste0("ctrlr_", dmd_fracs[2], "_")
   
   chdd_df <- fread("inputs/2014_chdd.csv", header = TRUE, stringsAsFactors = FALSE) %>%
     select(date_time, cl) %>%
@@ -1013,91 +1014,64 @@ get_run_heatmap <- function(run_id, dmd_frac, save = FALSE, include_sd = FALSE) 
   
   day_labels <- c("0" = "Mon", "1" = "Tues", "2" = "Wed",
                   "3" = "Thur", "4" = "Fri", "5" = "Sat", "6" = "Sun")
-  run_df = read.csv(temp[grepl(dmd_frac.str, temp)]) %>%
-            select(date_time, soc) %>% 
-            mutate_if(is.factor, function(x) as.POSIXct(x, format = "%Y-%m-%d %H:%M")) %>%
-            mutate(day_ind = as.numeric(strftime(date_time, format = "%j")),
-                   day = (as.numeric(strftime(date_time, format = "%u")) + 3)%%7,
-                   hr = as.numeric(strftime(date_time, format = "%H"))) %>%
-            left_join(chdd_df, by = "day_ind") %>%
-            mutate(cl = na.ma(cl, k = 4),
-                   cl = cl_label[cl]) %>%
-            na.omit() %>% 
-            select(-date_time, -day_ind) %>%
-            group_by(day, hr, cl) %>% 
-            summarise(soc_mean = mean(soc),
-                      soc_sd = sd(soc))
+  run_df.part = read.csv(temp[grepl(frac_str.A, temp)]) %>%
+              mutate(dmd_frac = dmd_fracs[1])
+  run_df = read.csv(temp[grepl(frac_str.B, temp)]) %>%
+              mutate(dmd_frac = dmd_fracs[2]) %>% 
+              rbind.data.frame(run_df.part) %>% 
+              select(date_time, dmd_frac, soc) %>% 
+              mutate_if(is.factor, function(x) as.POSIXct(x, format = "%Y-%m-%d %H:%M")) %>%
+              mutate(day_ind = as.numeric(strftime(date_time, format = "%j")),
+                     day = (as.numeric(strftime(date_time, format = "%u")) + 3)%%7,
+                     hr = as.numeric(strftime(date_time, format = "%H"))) %>%
+              left_join(chdd_df, by = "day_ind") %>%
+              mutate(cl = na.ma(cl, k = 4),
+                     cl = cl_label[cl]) %>%
+              na.omit() %>% 
+              select(-date_time, -day_ind) %>%
+              group_by(dmd_frac, day, hr, cl) %>% 
+              summarise(soc_mean = mean(soc),
+                        soc_sd = sd(soc))
   
   hr_labels <- unlist(lapply(seq(3,21,3), function(x) ifelse(x>10, paste0(x, ":00"),
                                                              paste0("0", x, ":00"))))
   lgnd_txt1 = bquote(bar(SoC))
   lgnd_txt2 = bquote(sigma[scriptscriptstyle(SoC)])
   
-  mean_plot <- ggplot(run_df, aes(y = day, x = hr)) + 
-    geom_tile(aes(fill = soc_mean), colour = "gray80") +
-    facet_grid(cl ~ .) +
-    scale_x_continuous(breaks = seq(2,20,3),
-                       labels = hr_labels,
-                       expand=c(0,0)) +
-    scale_y_continuous(breaks = seq.int(0,6),
-                       labels = day_labels,
-                       expand=c(0,0)) +
-    scale_fill_gradient2(name = lgnd_txt1, low = "#7b3294",
-                         mid = "#f7f7f7", high = "#008837",
-                         midpoint = mean(run_df$soc_mean),
-                         breaks = c(0,0.25,0.5,0.75,0.95)) +
-    labs(x = NULL,
-         y = NULL) +
-    theme(panel.background = element_blank(),
-          panel.border = element_blank(),
-          axis.line = element_blank(),
-          axis.ticks = element_blank(),
-          axis.text.y = element_text(angle = 33, hjust = 1, size = 8),
-          axis.text.x =  element_text(angle = 33, vjust = 1, hjust = 1))
-  
-  sd_plot <- ggplot(run_df, aes(y = day, x = hr)) + 
-    geom_tile(aes(fill = soc_sd), colour = "gray80") +
-    facet_grid(cl ~ .) +
-    scale_x_continuous(breaks = seq(2,20,3),
-                       labels = hr_labels,
-                       expand=c(0,0)) +
-    scale_y_continuous(breaks = seq.int(0,6),
-                       labels = day_labels,
-                       expand=c(0,0)) +
-    scale_fill_gradient2(name = lgnd_txt2,
-                         low = "#7b3294", mid = "#f7f7f7", high = "#008837",
-                         midpoint = 0.333*max(run_df$soc_sd)) +
-    labs(x = NULL,
-         y = NULL) +
-    theme(panel.background = element_blank(),
-          panel.border = element_blank(),
-          axis.line = element_blank(),
-          axis.ticks = element_blank(),
-          axis.text.y = element_text(angle = 33, hjust = 1, size = 8),
-          axis.text.x = element_text(angle = 33, vjust = 1, hjust = 1))
-  
-  if (include_sd) {
-    heatmap_plot <- plot_grid(mean_plot, sd_plot,
-                              labels = c("A","B"),
-                              ncol = 1, align = "v")
-  } else { heatmap_plot <- mean_plot}
+  run_socmap <- ggplot(run_df, aes(y = day, x = hr)) + 
+                facet_grid(cl ~ dmd_frac) +
+                geom_tile(aes(fill = soc_mean), colour = "gray80") +
+                scale_x_continuous(breaks = seq(2,20,3),
+                                   labels = hr_labels,
+                                   expand=c(0,0)) +
+                scale_y_continuous(breaks = seq.int(0,6),
+                                   labels = day_labels,
+                                   expand=c(0,0)) +
+                scale_fill_gradient2(name = lgnd_txt1, low = "#7b3294",
+                                     mid = "#f7f7f7", high = "#008837",
+                                     midpoint = mean(run_df$soc_mean),
+                                     breaks = c(0,0.25,0.5,0.75,0.95),
+                                     guide = "none") +
+                labs(x = NULL,
+                     y = NULL) +
+                theme(panel.background = element_blank(),
+                      panel.border = element_blank(),
+                      axis.line = element_blank(),
+                      axis.ticks = element_blank(),
+                      axis.text.y = element_text(angle = 33, hjust = 1, size = 8),
+                      axis.text.x =  element_text(angle = 33, vjust = 1, hjust = 1))
 
   
   if (save) {
-    # ggsave(paste0("outputs/plots/", choice, "_heatmap_mean.png"),
-    #        mean_plot,
-    #        width = 12, height = 8, units = "in")
-    # ggsave(paste0("outputs/plots/", choice, "_heatmap_sd.png"),
-    #        sd_plot,
-    #        width = 12, height = 8, units = "in")
-    dmd_frac <- dmd_frac*100
+    dmd_fracs <- dmd_fracs*100
     save_plot(filename = paste0("outputs/plots/", run_id, 
-                                  "_frac", dmd_frac, "_soc_map.png"),
-              heatmap_plot,
-              base_height = 12, base_width = 8)
+                                  "fracs", dmd_fracs[1], "_",
+                                  dmd_fracs[2], "_soc_map.png"),
+              run_socmap,
+              base_height = 8, base_width = 6)
   }
   
-  return(heatmap_plot)
+  return(run_socmap)
 }
 get_ts_summ <- function(choice, copies, emish) {
   
@@ -1551,10 +1525,10 @@ get_isoterr_plots <- function(terr = "nyiso", save = FALSE) {
                             labels = c("A","B"),
                             nrow = 2, align = "v",
                             rel_heights = c(1, 0.75))
-  title <- ggdraw() + draw_label("NYISO Plant-level Capacity and Emissions Factors",
-                                 fontface = "bold")
-  isoterr_boxplot <- plot_grid(title, isoterr_boxplot,
-                                ncol = 1, rel_heights = c(0.075, 1))
+  # title <- ggdraw() + draw_label("NYISO Plant-level Capacity and Emissions Factors",
+  #                                fontface = "bold")
+  # isoterr_boxplot <- plot_grid(title, isoterr_boxplot,
+  #                               ncol = 1, rel_heights = c(0.075, 1))
   
   if (save) {
       # ggsave(paste0("outputs/plots/", terr, "_namepcap.png"),
