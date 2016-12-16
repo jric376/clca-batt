@@ -68,6 +68,8 @@ hospital_runs <- c("hospital_lion_02_075_by005",
                    "hospital_pba_02_075_by005",
                    "hospital_nas_02_075_by005",
                    "hospital_vrf_02_075_by005")
+all_runs <- unlist(c(apts_runs, market_runs,
+                     office_runs, hospital_runs))
 
 get_bldg_ani <- function(copies) {
   source("bldg_load.R")
@@ -529,6 +531,7 @@ get_combined_runs <- function(runs) {
                                        ifelse(batt_type == "pb_a","Pb-a","VRF"))),
              control_plc2erta = control_plc2erta*(life_hi + life_lo)/2,
              dr_plc2erta = dr_plc2erta*(life_hi + life_lo)/2,
+             disp_plc2e_n = (control_plc2erta -dr_plc2erta)/(batt_cap*batt_cyceq),
              net_plc2erta = (batt_plc2erta + pv_plc2erta +
                                     dr_plc2erta - control_plc2erta),
              plc2erta_n = to_kg(net_plc2erta / (batt_cap*batt_cyceq*(life_hi + life_lo)/2)),
@@ -559,6 +562,7 @@ get_run_results <- function(runs) {
                                          ifelse(batt_type == "pb_a","Pb-a","VRF"))),
                control_plc2erta = control_plc2erta*(life_hi + life_lo)/2,
                dr_plc2erta = dr_plc2erta*(life_hi + life_lo)/2,
+               disp_plc2e_n = (control_plc2erta -dr_plc2erta)/(batt_cap*batt_cyceq),
                net_plc2erta = (batt_plc2erta + pv_plc2erta +
                                       dr_plc2erta - control_plc2erta),
                plc2erta_n = to_kg(net_plc2erta / (batt_cap*batt_cyceq*(life_hi + life_lo)/2)),
@@ -567,9 +571,14 @@ get_run_results <- function(runs) {
                prof_hi_n = prof_hi / (batt_cap*batt_cyceq*(life_hi + life_lo)/2))
     }
     results <- results %>%
-                  filter(dmd_frac <= 0.75)
+                  mutate(bldg = ifelse(bldg == "apt", "Apt",
+                                       ifelse(bldg == "office", "Office",
+                                              ifelse(bldg == "supermarket", "Supermarket",
+                                                     "Hospital")))) %>% 
+                  mutate(bldg = factor(bldg, levels = c("Apt", "Office",
+                                                        "Supermarket", "Hospital")))
     results.summ <- select(results, -ts_num) %>%
-                      group_by(dmd_frac, batt_type) %>%
+                      group_by(bldg, dmd_frac, batt_type) %>%
                       summarise_if(is.numeric, .funs = c("mean", "sd"))
     
     cost_mean <- results.summ %>%
@@ -655,9 +664,9 @@ get_run_results <- function(runs) {
                 mutate(label = ifelse(grepl("control_*", cat), "Grid",
                                   ifelse(grepl("dr_*", cat), "Grid + DR",
                                      ifelse(grepl("pv_*", cat), "PV",
-                                        ifelse(grepl("net_*", cat), "Net",
+                                        ifelse(grepl("net_*", cat), "GWPann",
                                            ifelse(grepl("batt_*", cat), "Batt",
-                                                  "Net/Thru")))))) %>%
+                                                  "GWP/Thru")))))) %>%
                 select(-cat)
     
     results.list <- list("df" = results,
@@ -674,102 +683,104 @@ get_run_prof_plc2e <- function(run_results, run_id, save = FALSE) {
   plc2e <- run_results$plc2e
   summ <- run_results$summ
   
-  size_plot <- ggplot(data = summ, mapping = aes(x = dmd_frac)) +
-    facet_wrap( ~ batt_type, nrow = 1) +
-    geom_line(aes(y = batt_cap_mean,
-                  colour = batt_cap_mean),
-              size = 1.5) +
-    labs(x = NULL,
-         y = bquote(scriptstyle(NP[scriptscriptstyle(ESS)](kWh)))) +
-    scale_y_log10(breaks = c(1,10,100,1E3,1E4,1E5)) +
-    scale_shape_identity() +
-    scale_fill_gradient2(name = bquote(scriptstyle(Thru[scriptscriptstyle(ESS)](kWh))),
-                         low = "#253494",
-                         mid = "#41b6c4", high = "#ffffcc",
-                         midpoint = 0) +
-    expand_limits(x = c(0.2,0.75)) +
-    theme(panel.background = element_rect(colour = "gray75", fill = "gray80")) +
-    theme(panel.grid.major = element_line(colour = "gray85")) +
-    theme(panel.grid.minor = element_line(colour = "gray85")) +
-    theme(axis.text.x = element_blank(),
-          axis.ticks.x = element_blank()) +
-    theme(legend.text = element_text(size = 8),
-          legend.box = "horizontal",
-          legend.position = "none") +
-    theme(strip.text.y = element_text(face = "bold"))
-  
-  prof_plot <- ggplot(data = summ,
-                      mapping = aes(x = dmd_frac)) +
-    facet_wrap( ~ batt_type, nrow = 1) +
-    geom_ribbon(aes(ymin = prof_lo_n_mean,
-                    ymax = prof_hi_n_mean),
-                alpha = 1/3) +
-    geom_line(aes(y = prof_hi_n_mean,
-                  colour = prof_hi_n_mean),
-              size = 1.5) +
-    geom_line(aes(y = prof_lo_n_mean,
-                  colour = prof_lo_n_mean),
-              size = 1.5) +
-    labs(x = NULL,
-         y = bquote(scriptstyle(Pr[dr]~"/"~Thru[scriptscriptstyle(ESS)]))) +
-    scale_y_continuous(trans = "asinh",
-                       breaks = c(-100,-10,-1,0),
-                       labels = trans_format("identity",
-                                             function(x) dollar(x))) +
-    scale_shape_identity() +
-    scale_colour_gradient2(name = bquote(scriptstyle(Pr[dr]~"/"~Thru[scriptscriptstyle(ESS)])),
-                           labels = dollar,
-                           breaks = c(-5000,-500,0),
-                           low = "#67000d",
-                           mid = "#fb6a4a", high = "#fff5f0",
+  if (length(unique(summ$bldg)) == 1) {
+    size_plot <- ggplot(data = summ, mapping = aes(x = dmd_frac)) +
+      facet_wrap( ~ batt_type, nrow = 1) +
+      geom_line(aes(y = batt_cap_mean,
+                    colour = batt_cap_mean),
+                size = 1.5) +
+      labs(x = NULL,
+           y = bquote(scriptstyle(NP[scriptscriptstyle(ESS)](kWh)))) +
+      scale_y_log10(breaks = c(1,10,100,1E3,1E4,1E5)) +
+      scale_shape_identity() +
+      scale_fill_gradient2(name = bquote(scriptstyle(Thru[scriptscriptstyle(ESS)](kWh))),
+                           low = "#253494",
+                           mid = "#41b6c4", high = "#ffffcc",
                            midpoint = 0) +
-    expand_limits(x = c(0.2,0.75)) +
-    theme(panel.background = element_rect(colour = "gray75", fill = "gray80")) +
-    theme(panel.grid.major = element_line(colour = "gray85")) +
-    theme(panel.grid.minor = element_line(colour = "gray85")) +
-    theme(legend.text = element_text(size = 8),
-          legend.box = "horizontal",
-          legend.position = "none") +
-    theme(axis.text.x = element_blank(),
-          axis.ticks.x = element_blank()) +
-    theme(strip.background = element_blank(),
-          strip.text.x = element_blank())
+      expand_limits(x = c(0.2,0.75)) +
+      theme(panel.background = element_rect(colour = "gray75", fill = "gray80")) +
+      theme(panel.grid.major = element_line(colour = "gray85")) +
+      theme(panel.grid.minor = element_line(colour = "gray85")) +
+      theme(axis.text.x = element_blank(),
+            axis.ticks.x = element_blank()) +
+      theme(legend.text = element_text(size = 8),
+            legend.box = "horizontal",
+            legend.position = "none") +
+      theme(strip.text.y = element_text(face = "bold"))
+    
+    prof_plot <- ggplot(data = summ,
+                        mapping = aes(x = dmd_frac)) +
+      facet_wrap( ~ batt_type, nrow = 1) +
+      geom_ribbon(aes(ymin = prof_lo_n_mean,
+                      ymax = prof_hi_n_mean),
+                  alpha = 1/3) +
+      geom_line(aes(y = prof_hi_n_mean,
+                    colour = prof_hi_n_mean),
+                size = 1.5) +
+      geom_line(aes(y = prof_lo_n_mean,
+                    colour = prof_lo_n_mean),
+                size = 1.5) +
+      labs(x = NULL,
+           y = bquote(scriptstyle(Pr[dr]~"/"~Thru[scriptscriptstyle(ESS)]))) +
+      scale_y_continuous(trans = "asinh",
+                         breaks = c(-100,-10,-1,0),
+                         labels = trans_format("identity",
+                                               function(x) dollar(x))) +
+      scale_shape_identity() +
+      scale_colour_gradient2(name = bquote(scriptstyle(Pr[dr]~"/"~Thru[scriptscriptstyle(ESS)])),
+                             labels = dollar,
+                             breaks = c(-5000,-500,0),
+                             low = "#67000d",
+                             mid = "#fb6a4a", high = "#fff5f0",
+                             midpoint = 0) +
+      expand_limits(x = c(0.2,0.75)) +
+      theme(panel.background = element_rect(colour = "gray75", fill = "gray80")) +
+      theme(panel.grid.major = element_line(colour = "gray85")) +
+      theme(panel.grid.minor = element_line(colour = "gray85")) +
+      theme(legend.text = element_text(size = 8),
+            legend.box = "horizontal",
+            legend.position = "none") +
+      theme(axis.text.x = element_blank(),
+            axis.ticks.x = element_blank()) +
+      theme(strip.background = element_blank(),
+            strip.text.x = element_blank())
+    
+    plc2e_leg_txt = bquote(scriptstyle(GWP[ann]~"/"~Thru[scriptscriptstyle(ESS)]))
+    plc2e_plot <- ggplot(data = summ,
+                         mapping = aes(x = dmd_frac)) +
+      facet_wrap( ~ batt_type, nrow = 1) +
+      geom_line(aes(y = plc2erta_n_mean,
+                    colour = plc2erta_n_mean),
+                size = 1.5) +
+      # geom_ribbon(aes(ymin = plc2erta_n_mean - plc2erta_n_sd,
+      #                 ymax = plc2erta_n_mean + plc2erta_n_sd),
+      #             alpha = 1/3,
+      #             colour = "gray60") +
+      labs(x = bquote(alpha),
+           y = bquote(scriptstyle(GWP[ann]~"/"~Thru[scriptscriptstyle(ESS)]))) +
+      scale_y_continuous(trans = "asinh",
+                         labels=trans_format("identity", function(x) x),
+                         breaks = c(1000,10,0,-10,-1000)) +
+      scale_colour_gradient2(name = plc2e_leg_txt,
+                           labels = scientific,
+                           breaks = c(round(min(summ$plc2erta_n_mean)*0.75, 2),
+                                      round(max(summ$plc2erta_n_mean)*0.75, 2)),
+                           low = "#00441b",
+                           mid = "#74c476", high = "#f7fcf5",
+                           midpoint = median(df$plc2erta_n)) +
+      expand_limits(x = c(0.2,0.75)) +
+      theme(panel.background = element_rect(colour = "gray75", fill = "gray80")) +
+      theme(panel.grid.major = element_line(colour = "gray85")) +
+      theme(panel.grid.minor = element_line(colour = "gray85")) +
+      theme(legend.text = element_text(size = 8),
+            legend.box = "horizontal",
+            legend.position = "none") +
+      theme(strip.background = element_blank(),
+            strip.text.x = element_blank())
   
-  plc2e_leg_txt = bquote(scriptstyle(GWP[ann]~"/"~Thru[scriptscriptstyle(ESS)]))
-  plc2e_plot <- ggplot(data = summ,
-                       mapping = aes(x = dmd_frac)) +
-    facet_wrap( ~ batt_type, nrow = 1) +
-    geom_line(aes(y = plc2erta_n_mean,
-                  colour = plc2erta_n_mean),
-              size = 1.5) +
-    # geom_ribbon(aes(ymin = plc2erta_n_mean - plc2erta_n_sd,
-    #                 ymax = plc2erta_n_mean + plc2erta_n_sd),
-    #             alpha = 1/3,
-    #             colour = "gray60") +
-    labs(x = bquote(alpha),
-         y = bquote(scriptstyle(GWP[ann]~"/"~Thru[scriptscriptstyle(ESS)]))) +
-    scale_y_continuous(trans = "asinh",
-                       labels=trans_format("identity", function(x) x),
-                       breaks = c(1000,10,0,-10,-1000)) +
-    scale_colour_gradient2(name = plc2e_leg_txt,
-                         labels = scientific,
-                         breaks = c(round(min(summ$plc2erta_n_mean)*0.75, 2),
-                                    round(max(summ$plc2erta_n_mean)*0.75, 2)),
-                         low = "#00441b",
-                         mid = "#74c476", high = "#f7fcf5",
-                         midpoint = median(df$plc2erta_n)) +
-    expand_limits(x = c(0.2,0.75)) +
-    theme(panel.background = element_rect(colour = "gray75", fill = "gray80")) +
-    theme(panel.grid.major = element_line(colour = "gray85")) +
-    theme(panel.grid.minor = element_line(colour = "gray85")) +
-    theme(legend.text = element_text(size = 8),
-          legend.box = "horizontal",
-          legend.position = "none") +
-    theme(strip.background = element_blank(),
-          strip.text.x = element_blank())
-
-  combine_plot <- plot_grid(size_plot, prof_plot, plc2e_plot,
-                            ncol = 1, align = "v")
+    combine_plot <- plot_grid(size_plot, prof_plot, plc2e_plot,
+                              ncol = 1, align = "v")
+  }
 
   plc2e_prof_plot <- ggplot() +
     geom_ribbon(data = summ,
@@ -798,7 +809,8 @@ get_run_prof_plc2e <- function(run_results, run_id, save = FALSE) {
                    y = prof_lo_n,
                    size = batt_cap,
                    fill = batt_type,
-                   shape = batt_type)) +
+                   shape = batt_type),
+               alpha = 1/1.2) +
     scale_x_continuous(trans = "asinh",
                        labels=trans_format("identity", function(x) -x),
                        breaks = c(1000,10,1,0,-1,-10,-1000)) +
@@ -811,11 +823,11 @@ get_run_prof_plc2e <- function(run_results, run_id, save = FALSE) {
     theme(panel.grid.major = element_line(colour = "gray85")) +
     theme(panel.grid.minor = element_line(colour = "gray85")) +
     scale_size(name = bquote(scriptstyle(NP[ESS])),
-               breaks = c(10,1000,100000),
+               breaks = c(10,1E4,1E6),
                trans = "sqrt",
-               range = c(1,6),
+               range = c(2,7),
                guide = guide_legend(override.aes = list(shape = 21,
-                                                        # size = c(1,3,6),
+                                                        size = c(2,4,7),
                                                         fill = "black"))) +
     scale_fill_manual(name = NULL,
                          values = cbb_qual[c(3,5,7,4)],
@@ -837,13 +849,23 @@ get_run_prof_plc2e <- function(run_results, run_id, save = FALSE) {
                         # labels = c(bquote(P[hi]), bquote(P[lo])),
                         # guide = guide_legend(override.aes = list(size = 0.5)))
   
-  plot_list <- list("combine" = combine_plot,
-                    "plc2e_prof" = plc2e_prof_plot)
+  if (length(unique(summ$bldg)) > 1) {
+    plc2e_prof_plot <- plc2e_prof_plot +
+                        facet_wrap( ~ bldg) +
+                        geom_vline(xintercept = c(0.047,0.67),
+                                   lty = 2)
+    plot_list <- plc2e_prof_plot
+  } else {
+    plot_list <- list("combine" = combine_plot,
+                      "plc2e_prof" = plc2e_prof_plot)
+  }
   
   if (save) {
+    if (length(unique(summ$bldg)) == 1) {
     save_plot(filename = paste0("outputs/plots/", run_id, "_grid.png"),
               combine_plot,
               base_height = 6.25, base_width = 8)
+    }
     save_plot(filename = paste0("outputs/plots/", run_id, "_plc2e_prof.png"),
               plc2e_prof_plot,
               base_height = 6.25, base_width = 8)
@@ -866,7 +888,7 @@ get_run_barplots <- function(run_results, run_id, save = FALSE) {
                                                         "Pr/Thru"))
   plc2e$label <- factor(plc2e$label, levels = c("Grid", "Grid + DR",
                                                         "PV", "Batt",
-                                                        "Net", "Net/Thru"))
+                                                        "GWPann", "GWP/Thru"))
   cost_plot <- ggplot(data = costs,
                        aes(x = label,
                            fill = hi_lo)) +
@@ -895,8 +917,8 @@ get_run_barplots <- function(run_results, run_id, save = FALSE) {
                            colour = "grey65",
                            position = "dodge", stat = "identity") +
                   labs(x = NULL,
-                       y = bquote("lb"~CO[scriptscriptstyle(2)]~"eq")) +
-                  scale_y_continuous(name = bquote("lb"~CO[scriptscriptstyle(2)]~"eq"),
+                       y = bquote("kg"~CO[scriptscriptstyle(2)]~"eq")) +
+                  scale_y_continuous(name = bquote("kg"~CO[scriptscriptstyle(2)]~"eq"),
                                      trans = "asinh",
                                      labels=trans_format("identity", function(x) x),
                                      breaks = c(-1E6,-5E3,0,5E3,1E6,1E9)) +
