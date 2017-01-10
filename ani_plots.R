@@ -543,7 +543,7 @@ get_combined_runs <- function(runs) {
   
   return(results)
 }
-get_run_results <- function(runs) {
+get_run_results <- function(runs, prof_lo_lim = FALSE) {
   
   tryCatch({
     
@@ -571,12 +571,17 @@ get_run_results <- function(runs) {
                prof_hi_n = prof_hi / (batt_cap*batt_cyceq*(life_hi + life_lo)/2))
     }
     results <- results %>%
-                  mutate(bldg = ifelse(bldg == "apt", "Apt",
+                  mutate(bldg = ifelse(bldg == "apt", "Apartments",
                                        ifelse(bldg == "office", "Office",
                                               ifelse(bldg == "supermarket", "Supermarket",
                                                      "Hospital")))) %>% 
-                  mutate(bldg = factor(bldg, levels = c("Apt", "Office",
+                  mutate(bldg = factor(bldg, levels = c("Apartments", "Office",
                                                         "Supermarket", "Hospital")))
+    
+    if (is.numeric(prof_lo_lim)) {
+      results <- filter(results, prof_lo_n > prof_lo_lim)
+    }
+    
     results.summ <- select(results, -ts_num) %>%
                       group_by(bldg, dmd_frac, batt_type) %>%
                       summarise_if(is.numeric, .funs = c("mean", "sd"))
@@ -851,10 +856,12 @@ get_run_prof_plc2e <- function(run_results, run_id, save = FALSE) {
   
   if (length(unique(summ$bldg)) > 1) {
     plc2e_prof_plot <- plc2e_prof_plot +
-                        facet_wrap( ~ bldg) +
-                        geom_vline(xintercept = c(0.047,0.67),
-                                   lty = 2)
-    plot_list <- plc2e_prof_plot
+                        facet_wrap( ~ bldg)
+    plc2e_prof_plot.lines <- plc2e_prof_plot +
+                              geom_vline(xintercept = c(0.047,0.67),
+                                         lty = 2)
+    plot_list <- list("no_lines" = plc2e_prof_plot,
+                      "lines" = plc2e_prof_plot.lines)
   } else {
     plot_list <- list("combine" = combine_plot,
                       "plc2e_prof" = plc2e_prof_plot)
@@ -865,6 +872,11 @@ get_run_prof_plc2e <- function(run_results, run_id, save = FALSE) {
     save_plot(filename = paste0("outputs/plots/", run_id, "_grid.png"),
               combine_plot,
               base_height = 6.25, base_width = 8)
+    } else {
+      save_plot(filename = paste0("outputs/plots/",
+                                  run_id, "_litcompare_plc2e_prof.png"),
+                plc2e_prof_plot.lines,
+                base_height = 6.25, base_width = 8)
     }
     save_plot(filename = paste0("outputs/plots/", run_id, "_plc2e_prof.png"),
               plc2e_prof_plot,
@@ -1033,7 +1045,7 @@ get_run_socmap <- function(run_id, dmd_fracs, save = FALSE) { # takes two dmd_fr
               summarise(soc_mean = mean(soc),
                         soc_sd = sd(soc))
   
-  hr_labels <- unlist(lapply(seq(3,21,3), function(x) ifelse(x>10, paste0(x, ":00"),
+  hr_labels <- unlist(lapply(seq(3,21,9), function(x) ifelse(x>10, paste0(x, ":00"),
                                                              paste0("0", x, ":00"))))
   lgnd_txt1 = bquote(bar(SoC))
   lgnd_txt2 = bquote(sigma[scriptscriptstyle(SoC)])
@@ -1041,7 +1053,7 @@ get_run_socmap <- function(run_id, dmd_fracs, save = FALSE) { # takes two dmd_fr
   run_socmap <- ggplot(run_df, aes(y = day, x = hr)) + 
                 facet_grid(cl ~ dmd_frac) +
                 geom_tile(aes(fill = soc_mean), colour = "gray80") +
-                scale_x_continuous(breaks = seq(2,20,3),
+                scale_x_continuous(breaks = seq(2,20,9),
                                    labels = hr_labels,
                                    expand=c(0,0)) +
                 scale_y_continuous(breaks = seq.int(0,6),
@@ -1050,8 +1062,7 @@ get_run_socmap <- function(run_id, dmd_fracs, save = FALSE) { # takes two dmd_fr
                 scale_fill_gradient2(name = lgnd_txt1, low = "#7b3294",
                                      mid = "#f7f7f7", high = "#008837",
                                      midpoint = mean(run_df$soc_mean),
-                                     breaks = c(0,0.25,0.5,0.75,0.95),
-                                     guide = "none") +
+                                     breaks = c(0,0.25,0.5,0.75,0.95)) +
                 labs(x = NULL,
                      y = NULL) +
                 theme(panel.background = element_blank(),
@@ -1342,7 +1353,10 @@ get_bldg_enduse_bars <- function(save = FALSE) {
   bldg_df <- read.csv("inputs/bldg_summ.csv",
                       stringsAsFactors = FALSE) %>% 
     mutate(slim_cat = if_else(use_cat %in% cooling_cats,
-                              "Space Cooling", use_cat)) %>%
+                              "Space Cooling", use_cat),
+           bldg_type = factor(bldg_type,
+                              levels = c("Apt", "Office",
+                                                    "Supermarket", "Hospital"))) %>%
     mutate_if(is.character, as.factor) %>% 
     group_by(bldg_type, src, slim_cat) %>% 
     summarise_if(is.numeric, sum) %>%
