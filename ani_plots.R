@@ -886,10 +886,10 @@ get_run_sampwks <- function(run_id, save = FALSE) {
   path = paste0("outputs/", run_id, "/df")
   temp = list.files(path = path, full.names = TRUE)
   
-  all_df = read.csv(sample(temp, 1)) %>%
-    mutate_if(is.factor, function(x) as.POSIXct(x, format = "%Y-%m-%d %H:%M")) %>%
-    mutate(day_ind = as.numeric(strftime(date_time, format = "%j"))) %>%
-    select(-X)
+  all_df <- read.csv(sample(temp, 1)) %>%
+              mutate_if(is.factor, function(x) as.POSIXct(x, format = "%Y-%m-%d %H:%M")) %>%
+              mutate(day_ind = as.numeric(strftime(date_time, format = "%j"))) %>%
+              select(-X)
   
   fill_labels <- c("Battery", "Bldg", "Curtail", "DR",  "PV", "Unmet")
   hr_labels <- unlist(lapply(seq(6,21,3), function(x) ifelse(x>10, paste0(x, ":00"),

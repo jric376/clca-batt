@@ -17,18 +17,34 @@ library("R6")
 pv_load <- R6Class("PV Load",
                      public = list(
                        
-                       cell_eff = 0.17,
-                       inv_eff = 0.93,
-                       nameplate = 0.0,
-                       sys_loss = 1 - 0.1408, # from NREL System Advisor Model
-                       self_shade = 0.3644, # to avoid panels shading panels
+                       # cell efficiency, inverter eff., nameplate kWp
+                       # system losses (from NREL SAM), self-shade factor,
+                       # emissions factor inclulding BOS (kg CO2eq / kWp),
+                       # cap costs lo/hi ($/kW), O&M costs lo/hi ($/kW-yr)
+                       
                        # self_shade factor involves solving
-                       # cos(panel_tilt) / (cos(panel_tilt) + sec(panel_tilt))
-                       plc2erta = 1834, # kg CO2eq / kWp, inclulding BOS
-                       cap_cost.lo = 2000,
-                       cap_cost.hi = 5300,
-                       om_cost.lo = 12,
-                       om_cost.hi = 22.50,
+                       # for maximum length of array shadows
+                       # which occurs on winter solstice.
+                       # the value here reflects the avg 
+                       # of shadow length in the morning
+                       
+                       # cos(180-solar_azimuth) / tan(solar_elevation)
+                       
+                       # and in the afternoon
+                       
+                       # cos(solar_azimuth-180) / tan(solar_elevation)
+                       
+                       # for New York City, NY.
+                       
+                       # These values can be accessed for
+                       # locations worldwide at
+                       # https://www.esrl.noaa.gov/gmd/grad/solcalc/
+                       
+                       cell_eff = 0.17, inv_eff = 0.93, nameplate = 0.0,
+                       sys_loss = 1 - 0.1408, self_shade = 0.3644,
+                       plc2erta = 1834,
+                       cap_cost.lo = 2000, cap_cost.hi = 5300,
+                       om_cost.lo = 12, om_cost.hi = 22.50,
                        
                        initialize = function(
                          meta = NA,

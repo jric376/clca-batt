@@ -12,29 +12,33 @@ library('R6')
 
 batt_bank <- R6Class("Batteries",
     public = list(
-      # values + units from Hiremath 2015, Supplementary Information:
-      # round-trip eff, min SoC, cycles to failure (80% cap), 
-      # energy density (Wh / kg), Co2eq_rate (kg CO2eq / kg)
+      # Battery bank has variables that change while (dis)charging:
       
-      chem = 'NaDa',
-      pwr_rt = 0,
-      nameplate = 0,
+      # capacity (kWh), last (dis)charge (kWh)
+      # state-of-charge, equivalent cycles
+      
       cap = 0,
       del_kwh = 0.0,
-      round_eff = 0.0,
-      min_soc = 0.0,
-      cyc_fail.lo = 0,
-      cyc_fail.hi = 0,
-      eng_dens = 0.0,
       soc = 0.0,
       cyc_eq = 0.0,
-      plc2erta = 0.0,
-      cap_cost.lo = 0,
-      cap_cost.hi = 0,
-      om_cost.lo = 0,
-      om_cost.hi = 0,
-      repl_cost.lo = 0,
-      repl_cost.hi = 0,
+      
+      # and constants. These values (units) are
+      # from Hiremath 2015, Supplementary Information:
+      
+      # battery chemistry, power rating (kW), nameplate capacity (kWh)
+      # round-trip eff, min state-of-charge
+      # cycles to failure lo/hi (rated at 80% cap), 
+      # energy density (Wh / kg), emissions factor (kg CO2eq / kg batt),
+      # cap costs lo/hi ($ / kWh), O&M costs lo/hi ($ / kWh),
+      # replacement costs lo/hi (4 / kWh)
+      
+      chem = 'NaDa', pwr_rt = 0, nameplate = 0,
+      round_eff = 0.0, min_soc = 0.0, 
+      cyc_fail.lo = 0, cyc_fail.hi = 0,
+      eng_dens = 0.0, plc2erta = 0.0,
+      cap_cost.lo = 0, cap_cost.hi = 0,
+      om_cost.lo = 0, om_cost.hi = 0,
+      repl_cost.lo = 0, repl_cost.hi = 0,
       
       initialize = function(
                             meta = NULL, type = NULL, nameplate = NULL
@@ -91,7 +95,7 @@ batt_bank <- R6Class("Batteries",
             min_soc = 0,
             cyc_fail.lo = 10000, cyc_fail.hi = 13000,
             eng_dens = 20, plc2erta = 2.7,
-            cap_cost.lo = 150, cap_cost.hi = 1250,
+            cap_cost.lo = 342, cap_cost.hi = 1360,
             om_cost.lo = 3, om_cost.hi = 40,
             repl_cost.lo = 88, repl_cost.hi = 304
           ),
@@ -100,7 +104,7 @@ batt_bank <- R6Class("Batteries",
             min_soc = 0.2,
             cyc_fail.lo = 1000, cyc_fail.hi = 6000,
             eng_dens = 140, plc2erta = 22,
-            cap_cost.lo = 500, cap_cost.hi = 3600,
+            cap_cost.lo = 513, cap_cost.hi = 1263,
             om_cost.lo = 8, om_cost.hi = 13,
             repl_cost.lo = 209, repl_cost.hi = 304
           ),
@@ -109,7 +113,7 @@ batt_bank <- R6Class("Batteries",
             min_soc = 0.2,
             cyc_fail.lo = 2000, cyc_fail.hi = 4500,
             eng_dens = 116, plc2erta = 14.9,
-            cap_cost.lo = 250, cap_cost.hi = 2730,
+            cap_cost.lo = 543, cap_cost.hi = 1600,
             om_cost.lo = 11, om_cost.hi = 32,
             repl_cost.lo = 269, repl_cost.hi = 1033
           ),
@@ -118,7 +122,7 @@ batt_bank <- R6Class("Batteries",
             min_soc = 0.25,
             cyc_fail.lo = 200, cyc_fail.hi = 4500,
             eng_dens = 27, plc2erta = 2.7,
-            cap_cost.lo = 106, cap_cost.hi = 2260,
+            cap_cost.lo = 663, cap_cost.hi = 2255,
             om_cost.lo = 13, om_cost.hi = 56,
             repl_cost.lo = 333, repl_cost.hi = 686
           ),
@@ -127,7 +131,7 @@ batt_bank <- R6Class("Batteries",
             min_soc = 0.25,
             cyc_fail.lo = 200, cyc_fail.hi = 4500,
             eng_dens = 27, plc2erta = 1.9,
-            cap_cost.lo = 106, cap_cost.hi = 2260,
+            cap_cost.lo = 663, cap_cost.hi = 2255,
             om_cost.lo = 13, om_cost.hi = 56,
             repl_cost.lo = 333, repl_cost.hi = 686
           )
