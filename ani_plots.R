@@ -34,6 +34,10 @@ cbb_qual.n <- c("Biomass" = "#E69F00", "Coal-based" = "#999999",
                 "Nat. Gas" = "#F0E442", "Nuclear" = "#000000", 
                 "Petro-fuels" = "#0072B2", "PV" = "#D55E00",
                 "Wind" = "#56B4E9")
+cbb_qual.enduse <- c("Ext. Equipment" = "#E69F00", "Int. Equipment" = "#999999",
+                     "Ext. Lighting" = "#CC79A7", "Int. Lighting" = "#009E73",
+                     "Refrigeration" = "#D55E00", "Space Cooling" = "#F0E442",
+                     "Space Heating" = "#0072B2")
 asinh_trans <- function(){
   trans_new(name = 'asinh', transform = function(x) asinh(x), 
             inverse = function(x) sinh(x))
@@ -49,18 +53,23 @@ to_kg <- function(lb_val) {
   return(lb_val/2.205)
 }
 apts_runs <- c("apts_lion_02_075_by005",
-                 "apts_pba_02_075_by005",
-                 "apts_nas_02_075_by005",
-                 "apts_vrf_02_075_by005") 
+               "apts_pba_02_075_by005",
+               "apts_nas_02_075_by005",
+               "apts_vrf_02_075_by005") 
 market_runs <- c("supermarket_lion_02_075_by005",
-                  "supermarket_pba_02_075_by005",
-                  "supermarket_nas_02_075_by005",
-                  "supermarket_vrf_02_075_by005") 
-office_runs <- c("office_lion_02_085_by005",
-                  "office_pba_02_085_by005",
-                  "office_nas_02_075_by005",
-                  "office_vrf_02_03_by01",
-                  "office_vrf_04_07_by01")
+                 "supermarket_pba_02_075_by005",
+                 "supermarket_nas_02_075_by005",
+                 "supermarket_vrf_02_075_by005") 
+office_runs <- c("office_lion_02_075_by005",
+                 "office_pba_02_075_by005",
+                 "office_nas_02_075_by005",
+                 "office_vrf_02_075_by005")
+hospital_runs <- c("hospital_lion_02_075_by005",
+                   "hospital_pba_02_075_by005",
+                   "hospital_nas_02_075_by005",
+                   "hospital_vrf_02_075_by005")
+all_runs <- unlist(c(apts_runs, market_runs,
+                     office_runs, hospital_runs))
 
 get_bldg_ani <- function(copies) {
   source("bldg_load.R")
@@ -206,7 +215,7 @@ get_pv_ani <- function(copies) {
   ani.options(outdir = getwd(), ani.width = 960, ani.height = 600)
   ani_jul_plt <- gg_animate(ani_jul_plt, "outputs/plots/pv_load.gif")
 }
-get_disp_ani <- function(runs = 20, save = FALSE) {
+get_disp_ani <- function(runs = 20, animate = FALSE, save = FALSE) {
   source("dispatch_curve.R")
   
   disp_meta = list(
@@ -229,6 +238,7 @@ get_disp_ani <- function(runs = 20, save = FALSE) {
   full_df <- mutate(full_df, plc2erta = to_kg(plc2erta),
                              cumul_plc2erta = to_kg(cumul_plc2erta),
                              wtd_plc2erta = to_kg(wtd_plc2erta))
+  single_run <- filter(full_df, run == sample(runs, 1))
   
   disp_plt.bare <- ggplot(data = full_df,
                           mapping = aes(x = cumul_cap)) +
@@ -241,49 +251,75 @@ get_disp_ani <- function(runs = 20, save = FALSE) {
                                 legend.background = element_rect(colour = "gray75", fill = alpha("gray85", 1/4))) +
                           background_grid(major = "xy", minor = "none",
                                           size.major = 0.5, colour.major = "gray85")
-
-
-  disp_cost <- disp_plt.bare + labs(y = "Marg. Cost ($ / kWh)") +
-                                expand_limits(y = c(0, 0.32)) +
-                                geom_errorbar(data = subset(full_df, full_df$run == 1),
-                                              mapping = aes(
-                                                  y = MC_rand, size = namepcap,
-                                                  ymax = MC_rand + se, ymin = MC_rand - se),
-                                              width = 50, colour = "black", size = 1) +
-                                geom_point(data = subset(full_df, full_df$run == 1),
-                                            mapping = aes(
-                                                y = MC_rand, size = namepcap,
-                                                fill = fuel_type),
-                                            alpha = 1/1.2,
-                                            colour = "gray35", shape = 21) +
-                                scale_size(name = bquote(scriptstyle(MW[plant])),
-                                            breaks = c(250,500,1000,2000),
-                                            range = c(3,20)) +
-                                scale_fill_manual(name = NULL, values = cbb_qual,
-                                                  guide = guide_legend(override.aes = list(alpha = 1, size = 5))) +
-                                theme(legend.position = c(0.25, 0.70))
   
-  disp_emish <- disp_plt.bare + labs(y = bquote("kg"~ CO[scriptstyle(2)]~ "eq / MWh")) +
-                                geom_point(data = subset(full_df, full_df$run == 1),
-                                            mapping = aes(
-                                                          y = cumul_plc2erta, size = wtd_plc2erta,
-                                                          fill = fuel_type),
-                                            alpha = 1/1.2,
-                                            colour = "gray35", shape = 21) +
-                                scale_size(name = bquote(scriptstyle("kg"~ CO[scriptscriptstyle(2)]~ "eq / h")),
-                                            breaks = c(0,3E5,3E6),
-                                            range = c(4,15)) +
-                                scale_fill_manual(guide = "none", values = cbb_qual) +
-                                theme(legend.position = c(0.333, 0.70))
-                              
-  disp_plt <- plot_grid(disp_cost, disp_emish,
+  # title <- ggdraw() + draw_label("NYISO Dispatch Curve and Cumulative Emissions Factor",
+  #                                fontface = "bold")
+  # disp_plt <- plot_grid(title, disp_plt,
+  #                       ncol = 1, rel_heights = c(0.075,1))
+  
+  disp_cost_spread <- disp_plt.bare +
+                    labs(y = "Marg. Cost ($ / kWh)") +
+                    expand_limits(y = c(0, 0.32)) +
+                    geom_point(aes(y = MC_rand,
+                                   size = namepcap,
+                                   colour = fuel_type
+                                  ),
+                               alpha = 1/3) +
+                    geom_point(data = single_run,
+                               aes(y = MC_rand,
+                                   size = namepcap,
+                                   fill = fuel_type
+                                  ),
+                               colour = "black",
+                               shape = 21) +
+                    scale_size(name = bquote(scriptstyle(MW[plant])),
+                               breaks = c(250,500,1000,2000),
+                               range = c(3,20)) +
+                    scale_fill_manual(name = NULL, values = cbb_qual,
+                                      guide = guide_legend(override.aes = list(alpha = 1,
+                                                                               size = 5))) +
+                    scale_colour_manual(name = NULL,
+                                        values = cbb_qual,
+                                        guide = "none") +
+                    theme(legend.position = c(0.25, 0.70),
+                          legend.box = "horizontal",
+                          legend.background = element_rect(colour = "gray75",
+                                                           fill = alpha("gray85",
+                                                                        1/2)))
+  
+  disp_emish_spread <- disp_plt.bare +
+                        labs(y = bquote("kg"~ CO[scriptstyle(2)]~ "eq / MWh")) +
+                        expand_limits(y = c(0, 0.32)) +
+                        geom_point(aes(y = cumul_plc2erta,
+                                       size = wtd_plc2erta,
+                                       colour = fuel_type
+                                      ),
+                                   alpha = 1/3) +
+                        geom_point(data = single_run,
+                                   aes(y = cumul_plc2erta,
+                                       size = wtd_plc2erta,
+                                       fill = fuel_type
+                                      ),
+                                   colour = "black",
+                                   shape = 21) +
+                        scale_size(name = bquote(scriptstyle("kg"~ CO[scriptscriptstyle(2)]~ "eq / h")),
+                                   breaks = c(0,3E5,3E6),
+                                   range = c(4,15)) +
+                        scale_fill_manual(name = NULL,
+                                          values = cbb_qual,
+                                          guide = "none") +
+                        scale_colour_manual(name = NULL,
+                                          values = cbb_qual,
+                                          guide = "none") +
+                        theme(legend.position = c(0.25, 0.70),
+                              legend.box = "horizontal",
+                              legend.background = element_rect(colour = "gray75",
+                                                               fill = alpha("gray85",
+                                                                            1/2)))
+  
+  disp_plt <- plot_grid(disp_cost_spread, disp_emish_spread,
                         labels = c("A","B"),
                         nrow = 2, align = "v")
-  
-  title <- ggdraw() + draw_label("NYISO Dispatch Curve and Cumulative Emissions Factor",
-                                 fontface = "bold")
-  disp_plt <- plot_grid(title, disp_plt,
-                        ncol = 1, rel_heights = c(0.075,1))
   
   ### For saving combined plot
   if (save) {
@@ -293,78 +329,80 @@ get_disp_ani <- function(runs = 20, save = FALSE) {
   }
   ### For saving individual ggplot objects
   if (save) {
-    ggsave(disp_cost, filename = "outputs/plots/disp_nyiso.png",
+    ggsave(disp_cost_spread, filename = "outputs/plots/disp_nyiso_cost_spread.png",
            width = 10, height = 6.25, units = "in")
-    # ggsave(disp_emish, filename = "outputs/plots/disp_nyiso_emish.png",
-    #        width = 10, height = 6.25, units = "in")
+    ggsave(disp_emish_spread, filename = "outputs/plots/disp_nyiso_emish_spread.png",
+           width = 10, height = 6.25, units = "in")
   }
-  ani_disp_cost <- disp_plt.bare +
-                    labs(y = "Marg. Cost ($ / kWh)",
-                         title = "NYISO Dispatch Curve") +
-                    expand_limits(y = c(0, 0.32)) +
-                    geom_point(aes(y = MC_rand,
-                                   size = namepcap
-                                   ),
-                                alpha = 1/2,
-                                color = "gray35") +
-                    geom_line(aes(y = MC_rand,
-                                  size = namepcap,
-                                  frame = run
-                                  ),
-                              size = 1,
-                              colour = "gray65") +
-                    geom_point(aes(y = MC_rand,
-                                   size = namepcap,
-                                   fill = fuel_type,
-                                   frame = run
-                                   ),
-                                colour = "black", shape = 21) +
-                    scale_size(name = bquote(scriptstyle(MW[plant])),
-                                breaks = c(250,500,1000,2000),
-                                range = c(3,20)) +
-                    scale_fill_manual(name = NULL, values = cbb_qual,
-                                      guide = guide_legend(override.aes = list(alpha = 1,
-                                                                               size = 5))) +
-                    theme(legend.position = c(0.25, 0.70),
-                          legend.box = "horizontal",
-                          legend.background = element_rect(colour = "gray75",
-                                                           fill = alpha("gray85",
-                                                                        1/2)))
-  
-  ani_disp_emish <- disp_plt.bare +
-                      labs(y = bquote("kg"~ CO[scriptstyle(2)]~ "eq / MWh"),
-                               title = "NYISO Cumulative Emissions Factor") +
-                      geom_point(aes(y = cumul_plc2erta,
-                                     size = wtd_plc2erta
+  if (animate) {
+    ani_disp_cost <- disp_plt.bare +
+                      labs(y = "Marg. Cost ($ / kWh)",
+                           title = "NYISO Dispatch Curve") +
+                      expand_limits(y = c(0, 0.32)) +
+                      geom_point(aes(y = MC_rand,
+                                     size = namepcap
                                      ),
                                   alpha = 1/2,
                                   color = "gray35") +
-                      geom_line(aes(y = cumul_plc2erta,
-                                    size = wtd_plc2erta,
+                      geom_line(aes(y = MC_rand,
+                                    size = namepcap,
                                     frame = run
                                     ),
                                 size = 1,
                                 colour = "gray65") +
-                      geom_point(aes(y = cumul_plc2erta,
-                                     size = wtd_plc2erta,
+                      geom_point(aes(y = MC_rand,
+                                     size = namepcap,
                                      fill = fuel_type,
                                      frame = run
                                      ),
-                                  colour = "black",
-                                  shape = 21) +
-                      scale_size(name = bquote("kg"~ CO[scriptstyle(2)]~ "eq / h"),
-                                  breaks = c(0,3E5,3E6),
-                                  range = c(4,15)) +
+                                  colour = "black", shape = 21) +
+                      scale_size(name = bquote(scriptstyle(MW[plant])),
+                                  breaks = c(250,500,1000,2000),
+                                  range = c(3,20)) +
                       scale_fill_manual(name = NULL, values = cbb_qual,
-                                        guide = guide_legend(override.aes = list(alpha = 1, size = 5))) +
-                      theme(legend.position = c(0.26, 0.70), legend.box = "horizontal",
+                                        guide = guide_legend(override.aes = list(alpha = 1,
+                                                                                 size = 5))) +
+                      theme(legend.position = c(0.25, 0.70),
+                            legend.box = "horizontal",
                             legend.background = element_rect(colour = "gray75",
-                                                             fill = alpha("gray85", 1/4)))
-
-  ani.options(outdir = getwd(), ani.width = 960, ani.height = 600)
-  if (save) {
-    gg_animate(ani_disp_cost, "outputs/plots/disp_nyiso_cost.gif")
-    gg_animate(ani_disp_emish, "outputs/plots/disp_nyiso_emish.gif")
+                                                             fill = alpha("gray85",
+                                                                          1/2)))
+    
+    ani_disp_emish <- disp_plt.bare +
+                        labs(y = bquote("kg"~ CO[scriptstyle(2)]~ "eq / MWh"),
+                                 title = "NYISO Cumulative Emissions Factor") +
+                        geom_point(aes(y = cumul_plc2erta,
+                                       size = wtd_plc2erta
+                                       ),
+                                    alpha = 1/2,
+                                    color = "gray35") +
+                        geom_line(aes(y = cumul_plc2erta,
+                                      size = wtd_plc2erta,
+                                      frame = run
+                                      ),
+                                  size = 1,
+                                  colour = "gray65") +
+                        geom_point(aes(y = cumul_plc2erta,
+                                       size = wtd_plc2erta,
+                                       fill = fuel_type,
+                                       frame = run
+                                       ),
+                                    colour = "black",
+                                    shape = 21) +
+                        scale_size(name = bquote("kg"~ CO[scriptstyle(2)]~ "eq / h"),
+                                    breaks = c(0,3E5,3E6),
+                                    range = c(4,15)) +
+                        scale_fill_manual(name = NULL, values = cbb_qual,
+                                          guide = guide_legend(override.aes = list(alpha = 1, size = 5))) +
+                        theme(legend.position = c(0.26, 0.70), legend.box = "horizontal",
+                              legend.background = element_rect(colour = "gray75",
+                                                               fill = alpha("gray85", 1/4)))
+  
+    ani.options(outdir = getwd(), ani.width = 960, ani.height = 600)
+    if (save) {
+      gg_animate(ani_disp_cost, "outputs/plots/disp_nyiso_cost.gif")
+      gg_animate(ani_disp_emish, "outputs/plots/disp_nyiso_emish.gif")
+    }
   }
   
   return(disp_plt)
@@ -464,13 +502,13 @@ get_isoterr_donuts <- function(runs = 20, terr = "nyiso", save = FALSE) {
   start_ind <- (num_plants*which_disp)+1
   summ_disp <- summ_disp[start_ind:(start_ind+num_plants-1),]
   terr <- toupper(terr)
-  title <- ggdraw() + draw_label(paste(terr, "Energy Mix (2014)"), fontface = "bold")
-  donut_plots <- plot_grid(title, donut_plots, 
-                               nrow = 2,
-                               rel_heights = c(0.1, 1))
+  # title <- ggdraw() + draw_label(paste(terr, "Energy Mix (2014)"), fontface = "bold")
+  # donut_plots <- plot_grid(title, donut_plots, 
+  #                              nrow = 2,
+  #                              rel_heights = c(0.05, 1))
   donut_plots <- plot_grid(donut_plots, legend,
                               nrow = 2,
-                              rel_heights = c(1, 0.5))
+                              rel_heights = c(1, 0.25))
   
   if (save) {
     save_plot(filename = paste0("outputs/plots/", terr, "_donut.png"),
@@ -493,18 +531,19 @@ get_combined_runs <- function(runs) {
                                        ifelse(batt_type == "pb_a","Pb-a","VRF"))),
              control_plc2erta = control_plc2erta*(life_hi + life_lo)/2,
              dr_plc2erta = dr_plc2erta*(life_hi + life_lo)/2,
+             disp_plc2e_n = (control_plc2erta -dr_plc2erta)/(batt_cap*batt_cyceq),
              net_plc2erta = (batt_plc2erta + pv_plc2erta +
                                     dr_plc2erta - control_plc2erta),
-             plc2erta_n = to_kg(net_plc2erta / (batt_cap*batt_cyceq)),
-             prof_lo_n = prof_lo / (batt_cap*batt_cyceq),
+             plc2erta_n = to_kg(net_plc2erta / (batt_cap*batt_cyceq*(life_hi + life_lo)/2)),
+             prof_lo_n = prof_lo / (batt_cap*batt_cyceq*(life_hi + life_lo)/2),
              
-             prof_hi_n = prof_hi /(batt_cap*batt_cyceq))
+             prof_hi_n = prof_hi /(batt_cap*batt_cyceq*(life_hi + life_lo)/2))
     results <- rbind.data.frame(results, results.0)
   }
   
   return(results)
 }
-get_run_results <- function(runs) {
+get_run_results <- function(runs, prof_lo_lim = FALSE) {
   
   tryCatch({
     
@@ -523,17 +562,28 @@ get_run_results <- function(runs) {
                                          ifelse(batt_type == "pb_a","Pb-a","VRF"))),
                control_plc2erta = control_plc2erta*(life_hi + life_lo)/2,
                dr_plc2erta = dr_plc2erta*(life_hi + life_lo)/2,
+               disp_plc2e_n = (control_plc2erta -dr_plc2erta)/(batt_cap*batt_cyceq),
                net_plc2erta = (batt_plc2erta + pv_plc2erta +
                                       dr_plc2erta - control_plc2erta),
-               plc2erta_n = to_kg(net_plc2erta / (batt_cap*batt_cyceq)),
-               prof_lo_n = prof_lo / (batt_cap*batt_cyceq),
+               plc2erta_n = to_kg(net_plc2erta / (batt_cap*batt_cyceq*(life_hi + life_lo)/2)),
+               prof_lo_n = prof_lo / (batt_cap*batt_cyceq*(life_hi + life_lo)/2),
                
-               prof_hi_n = prof_hi / (batt_cap*batt_cyceq))
+               prof_hi_n = prof_hi / (batt_cap*batt_cyceq*(life_hi + life_lo)/2))
     }
     results <- results %>%
-                  filter(dmd_frac <= 0.75)
+                  mutate(bldg = ifelse(bldg == "apt", "Apartments",
+                                       ifelse(bldg == "office", "Office",
+                                              ifelse(bldg == "supermarket", "Supermarket",
+                                                     "Hospital")))) %>% 
+                  mutate(bldg = factor(bldg, levels = c("Apartments", "Office",
+                                                        "Supermarket", "Hospital")))
+    
+    if (is.numeric(prof_lo_lim)) {
+      results <- filter(results, prof_lo_n > prof_lo_lim)
+    }
+    
     results.summ <- select(results, -ts_num) %>%
-                      group_by(dmd_frac, batt_type) %>%
+                      group_by(bldg, dmd_frac, batt_type) %>%
                       summarise_if(is.numeric, .funs = c("mean", "sd"))
     
     cost_mean <- results.summ %>%
@@ -572,7 +622,7 @@ get_run_results <- function(runs) {
                                 ifelse(grepl("*_cost_*", cat), "Grid / Grid + DR",
                                     ifelse(grepl("*levcost_", cat), "PV",
                                         ifelse(grepl("tac_", cat), "TAC",
-                                            ifelse(grepl("*_n_", cat), "Pr/NP",
+                                            ifelse(grepl("*_n_", cat), "Pr/Thru",
                                                    "Pr"))))),
                      hi_lo = ifelse(grepl("_hi_", cat), "hi",
                                 ifelse(grepl("_lo_", cat), "lo",
@@ -619,9 +669,9 @@ get_run_results <- function(runs) {
                 mutate(label = ifelse(grepl("control_*", cat), "Grid",
                                   ifelse(grepl("dr_*", cat), "Grid + DR",
                                      ifelse(grepl("pv_*", cat), "PV",
-                                        ifelse(grepl("net_*", cat), "Net",
+                                        ifelse(grepl("net_*", cat), "GWPann",
                                            ifelse(grepl("batt_*", cat), "Batt",
-                                                  "Net/Thru")))))) %>%
+                                                  "GWP/Thru")))))) %>%
                 select(-cat)
     
     results.list <- list("df" = results,
@@ -638,147 +688,151 @@ get_run_prof_plc2e <- function(run_results, run_id, save = FALSE) {
   plc2e <- run_results$plc2e
   summ <- run_results$summ
   
-  size_plot <- ggplot(data = summ, mapping = aes(x = dmd_frac)) +
-    facet_wrap( ~ batt_type, nrow = 1) +
-    geom_line(aes(y = batt_cap_mean,
-                  colour = batt_cap_mean),
-              size = 1.5) +
-    labs(x = NULL,
-         y = bquote(scriptstyle(Thru[scriptscriptstyle(ESS)]))) +
-    scale_shape_identity() +
-    scale_fill_gradient2(name = bquote(scriptstyle(Thru[scriptscriptstyle(ESS)])),
-                         low = "#253494",
-                         mid = "#41b6c4", high = "#ffffcc",
-                         midpoint = 0) +
-    expand_limits(x = c(0.2,0.75)) +
-    theme(panel.background = element_rect(colour = "gray75", fill = "gray80")) +
-    theme(panel.grid.major = element_line(colour = "gray85")) +
-    theme(panel.grid.minor = element_line(colour = "gray85")) +
-    theme(axis.text.x = element_blank(),
-          axis.ticks.x = element_blank()) +
-    theme(legend.text = element_text(size = 8),
-          legend.box = "horizontal",
-          legend.position = "none") +
-    theme(strip.text.y = element_text(face = "bold"))
-  
-  prof_plot <- ggplot(data = summ,
-                      mapping = aes(x = dmd_frac)) +
-    facet_wrap( ~ batt_type, nrow = 1) +
-    geom_ribbon(aes(ymin = prof_lo_n_mean,
-                    ymax = prof_hi_n_mean),
-                alpha = 1/3) +
-    geom_line(aes(y = prof_hi_n_mean,
-                  colour = prof_hi_n_mean),
-              size = 1.5) +
-    geom_line(aes(y = prof_lo_n_mean,
-                  colour = prof_lo_n_mean),
-              size = 1.5) +
-    labs(x = NULL,
-         y = bquote(scriptstyle(Pr[dr]~"/"~Thru[scriptscriptstyle(ESS)]))) +
-    scale_y_continuous(trans = "asinh",
-                       breaks = c(-10000,-1000,-100,0,100,1000,10000),
-                       labels = trans_format("identity",
-                                             function(x) dollar(x))) +
-    scale_shape_identity() +
-    scale_colour_gradient2(name = bquote(scriptstyle(Pr[dr]~"/"~Thru[scriptscriptstyle(ESS)])),
-                           labels = dollar,
-                           breaks = c(-5000,-500,0),
-                           low = "#67000d",
-                           mid = "#fb6a4a", high = "#fff5f0",
+  if (length(unique(summ$bldg)) == 1) {
+    size_plot <- ggplot(data = summ, mapping = aes(x = dmd_frac)) +
+      facet_wrap( ~ batt_type, nrow = 1) +
+      geom_line(aes(y = batt_cap_mean,
+                    colour = batt_cap_mean),
+                size = 1.5) +
+      labs(x = NULL,
+           y = bquote(scriptstyle(NP[scriptscriptstyle(ESS)](kWh)))) +
+      scale_y_log10(breaks = c(1,10,100,1E3,1E4,1E5)) +
+      scale_shape_identity() +
+      scale_fill_gradient2(name = bquote(scriptstyle(Thru[scriptscriptstyle(ESS)](kWh))),
+                           low = "#253494",
+                           mid = "#41b6c4", high = "#ffffcc",
                            midpoint = 0) +
-    expand_limits(x = c(0.2,0.75)) +
-    theme(panel.background = element_rect(colour = "gray75", fill = "gray80")) +
-    theme(panel.grid.major = element_line(colour = "gray85")) +
-    theme(panel.grid.minor = element_line(colour = "gray85")) +
-    theme(legend.text = element_text(size = 8),
-          legend.box = "horizontal",
-          legend.position = "none") +
-    theme(axis.text.x = element_blank(),
-          axis.ticks.x = element_blank()) +
-    theme(strip.background = element_blank(),
-          strip.text.x = element_blank())
+      expand_limits(x = c(0.2,0.75)) +
+      theme(panel.background = element_rect(colour = "gray75", fill = "gray80")) +
+      theme(panel.grid.major = element_line(colour = "gray85")) +
+      theme(panel.grid.minor = element_line(colour = "gray85")) +
+      theme(axis.text.x = element_blank(),
+            axis.ticks.x = element_blank()) +
+      theme(legend.text = element_text(size = 8),
+            legend.box = "horizontal",
+            legend.position = "none") +
+      theme(strip.text.y = element_text(face = "bold"))
+    
+    prof_plot <- ggplot(data = summ,
+                        mapping = aes(x = dmd_frac)) +
+      facet_wrap( ~ batt_type, nrow = 1) +
+      geom_ribbon(aes(ymin = prof_lo_n_mean,
+                      ymax = prof_hi_n_mean),
+                  alpha = 1/3) +
+      geom_line(aes(y = prof_hi_n_mean,
+                    colour = prof_hi_n_mean),
+                size = 1.5) +
+      geom_line(aes(y = prof_lo_n_mean,
+                    colour = prof_lo_n_mean),
+                size = 1.5) +
+      labs(x = NULL,
+           y = bquote(scriptstyle(Pr[dr]~"/"~Thru[scriptscriptstyle(ESS)]))) +
+      scale_y_continuous(trans = "asinh",
+                         breaks = c(-100,-10,-1,0),
+                         labels = trans_format("identity",
+                                               function(x) dollar(x))) +
+      scale_shape_identity() +
+      scale_colour_gradient2(name = bquote(scriptstyle(Pr[dr]~"/"~Thru[scriptscriptstyle(ESS)])),
+                             labels = dollar,
+                             breaks = c(-5000,-500,0),
+                             low = "#67000d",
+                             mid = "#fb6a4a", high = "#fff5f0",
+                             midpoint = 0) +
+      expand_limits(x = c(0.2,0.75)) +
+      theme(panel.background = element_rect(colour = "gray75", fill = "gray80")) +
+      theme(panel.grid.major = element_line(colour = "gray85")) +
+      theme(panel.grid.minor = element_line(colour = "gray85")) +
+      theme(legend.text = element_text(size = 8),
+            legend.box = "horizontal",
+            legend.position = "none") +
+      theme(axis.text.x = element_blank(),
+            axis.ticks.x = element_blank()) +
+      theme(strip.background = element_blank(),
+            strip.text.x = element_blank())
+    
+    plc2e_leg_txt = bquote(scriptstyle(GWP[ann]~"/"~Thru[scriptscriptstyle(ESS)]))
+    plc2e_plot <- ggplot(data = summ,
+                         mapping = aes(x = dmd_frac)) +
+      facet_wrap( ~ batt_type, nrow = 1) +
+      geom_line(aes(y = plc2erta_n_mean,
+                    colour = plc2erta_n_mean),
+                size = 1.5) +
+      # geom_ribbon(aes(ymin = plc2erta_n_mean - plc2erta_n_sd,
+      #                 ymax = plc2erta_n_mean + plc2erta_n_sd),
+      #             alpha = 1/3,
+      #             colour = "gray60") +
+      labs(x = bquote(alpha),
+           y = bquote(scriptstyle(GWP[ann]~"/"~Thru[scriptscriptstyle(ESS)]))) +
+      scale_y_continuous(trans = "asinh",
+                         labels=trans_format("identity", function(x) x),
+                         breaks = c(1000,10,0,-10,-1000)) +
+      scale_colour_gradient2(name = plc2e_leg_txt,
+                           labels = scientific,
+                           breaks = c(round(min(summ$plc2erta_n_mean)*0.75, 2),
+                                      round(max(summ$plc2erta_n_mean)*0.75, 2)),
+                           low = "#00441b",
+                           mid = "#74c476", high = "#f7fcf5",
+                           midpoint = median(df$plc2erta_n)) +
+      expand_limits(x = c(0.2,0.75)) +
+      theme(panel.background = element_rect(colour = "gray75", fill = "gray80")) +
+      theme(panel.grid.major = element_line(colour = "gray85")) +
+      theme(panel.grid.minor = element_line(colour = "gray85")) +
+      theme(legend.text = element_text(size = 8),
+            legend.box = "horizontal",
+            legend.position = "none") +
+      theme(strip.background = element_blank(),
+            strip.text.x = element_blank())
   
-  plc2e_leg_txt = bquote(scriptstyle("kg"~CO[scriptscriptstyle(2)]~"eq/"~Thru[scriptscriptstyle(ESS)]))
-  plc2e_plot <- ggplot(data = summ,
-                       mapping = aes(x = dmd_frac)) +
-    facet_wrap( ~ batt_type, nrow = 1) +
-    geom_line(aes(y = plc2erta_n_mean,
-                  colour = plc2erta_n_mean),
-              size = 1.5) +
-    # geom_ribbon(aes(ymin = plc2erta_n_mean - plc2erta_n_sd,
-    #                 ymax = plc2erta_n_mean + plc2erta_n_sd),
-    #             alpha = 1/3,
-    #             colour = "gray60") +
-    labs(x = bquote(alpha),
-         y = bquote(scriptstyle("kg"~CO[scriptscriptstyle(2)]~"eq/"~Thru[scriptscriptstyle(ESS)]))) +
-    scale_y_continuous(trans = "asinh",
-                       labels=trans_format("identity", function(x) x),
-                       breaks = c(1e5,100,0,0,-100,-1e5)) +
-    scale_colour_gradient2(name = plc2e_leg_txt,
-                         labels = scientific,
-                         breaks = c(round(min(summ$plc2erta_n_mean)*0.75, 2),
-                                    round(max(summ$plc2erta_n_mean)*0.75, 2)),
-                         low = "#00441b",
-                         mid = "#74c476", high = "#f7fcf5",
-                         midpoint = median(df$plc2erta_n)) +
-    expand_limits(x = c(0.2,0.75)) +
-    theme(panel.background = element_rect(colour = "gray75", fill = "gray80")) +
-    theme(panel.grid.major = element_line(colour = "gray85")) +
-    theme(panel.grid.minor = element_line(colour = "gray85")) +
-    theme(legend.text = element_text(size = 8),
-          legend.box = "horizontal",
-          legend.position = "none") +
-    theme(strip.background = element_blank(),
-          strip.text.x = element_blank())
-
-  combine_plot <- plot_grid(size_plot, prof_plot, plc2e_plot,
-                            ncol = 1, align = "v")
+    combine_plot <- plot_grid(size_plot, prof_plot, plc2e_plot,
+                              ncol = 1, align = "v")
+  }
 
   plc2e_prof_plot <- ggplot() +
     geom_ribbon(data = summ,
               aes(x = -plc2erta_n_mean,
-                  ymax = -prof_lo_n_mean,
-                  ymin = -prof_hi_n_mean,
+                  ymax = prof_lo_n_mean,
+                  ymin = prof_hi_n_mean,
                   fill = batt_type),
               alpha = 1/6,
               size = 1.2) +
     geom_line(data = summ,
               aes(x = -plc2erta_n_mean,
-                  y = -prof_lo_n_mean,
+                  y = prof_lo_n_mean,
                   colour = batt_type,
                   linetype = "lo"),
               alpha = 1/2,
               size = 1.2) +
     geom_line(data = summ,
               aes(x = -plc2erta_n_mean,
-                  y = -prof_hi_n_mean,
+                  y = prof_hi_n_mean,
                   colour = batt_type,
                   linetype = "lo"),
               alpha = 1/2,
               size = 1.2) +
     geom_point(data = df,
                aes(x = -plc2erta_n,
-                   y = -prof_lo_n,
+                   y = prof_lo_n,
                    size = batt_cap,
                    fill = batt_type,
-                   shape = batt_type)) +
+                   shape = batt_type),
+               alpha = 1/1.2) +
     scale_x_continuous(trans = "asinh",
                        labels=trans_format("identity", function(x) -x),
-                       breaks = c(1e6,1e5,1000,10,0,-10,-1000,-1e5,-1e6)) +
-    scale_y_continuous(trans=reverselog_trans(base=10),
-                       labels= trans_format("identity", function(x) dollar(-x)),
-                       breaks = c(10000,100,5,1,0)) +
-    labs(x = bquote(scriptstyle("kg"~CO[scriptscriptstyle(2)]~"eq /"~Thru[scriptscriptstyle(ESS)])),
+                       breaks = c(1000,10,1,0,-1,-10,-1000)) +
+    scale_y_continuous(trans = "asinh",
+                       labels= trans_format("identity", function(x) dollar(x)),
+                       breaks = c(-100,-5,-1,0,1)) +
+    labs(x = bquote(scriptstyle(GWP[ann]~"/"~Thru[scriptscriptstyle(ESS)])),
          y = bquote(scriptstyle(Pr[dr]~"/"~Thru[scriptscriptstyle(ESS)]))) +
     theme(panel.background = element_rect(colour = "gray75", fill = "gray80")) +
     theme(panel.grid.major = element_line(colour = "gray85")) +
     theme(panel.grid.minor = element_line(colour = "gray85")) +
     scale_size(name = bquote(scriptstyle(NP[ESS])),
-               breaks = c(10,1000,100000),
+               breaks = c(10,1E4,1E6),
                trans = "sqrt",
-               range = c(1,6),
+               range = c(2,7),
                guide = guide_legend(override.aes = list(shape = 21,
-                                                        # size = c(1,3,6),
+                                                        size = c(2,4,7),
                                                         fill = "black"))) +
     scale_fill_manual(name = NULL,
                          values = cbb_qual[c(3,5,7,4)],
@@ -800,13 +854,30 @@ get_run_prof_plc2e <- function(run_results, run_id, save = FALSE) {
                         # labels = c(bquote(P[hi]), bquote(P[lo])),
                         # guide = guide_legend(override.aes = list(size = 0.5)))
   
-  plot_list <- list("combine" = combine_plot,
-                    "plc2e_prof" = plc2e_prof_plot)
+  if (length(unique(summ$bldg)) > 1) {
+    plc2e_prof_plot <- plc2e_prof_plot +
+                        facet_wrap( ~ bldg)
+    plc2e_prof_plot.lines <- plc2e_prof_plot +
+                              geom_vline(xintercept = c(0.047,0.67),
+                                         lty = 2)
+    plot_list <- list("no_lines" = plc2e_prof_plot,
+                      "lines" = plc2e_prof_plot.lines)
+  } else {
+    plot_list <- list("combine" = combine_plot,
+                      "plc2e_prof" = plc2e_prof_plot)
+  }
   
   if (save) {
+    if (length(unique(summ$bldg)) == 1) {
     save_plot(filename = paste0("outputs/plots/", run_id, "_grid.png"),
               combine_plot,
               base_height = 6.25, base_width = 8)
+    } else {
+      save_plot(filename = paste0("outputs/plots/",
+                                  run_id, "_litcompare_plc2e_prof.png"),
+                plc2e_prof_plot.lines,
+                base_height = 6.25, base_width = 8)
+    }
     save_plot(filename = paste0("outputs/plots/", run_id, "_plc2e_prof.png"),
               plc2e_prof_plot,
               base_height = 6.25, base_width = 8)
@@ -829,7 +900,7 @@ get_run_barplots <- function(run_results, run_id, save = FALSE) {
                                                         "Pr/Thru"))
   plc2e$label <- factor(plc2e$label, levels = c("Grid", "Grid + DR",
                                                         "PV", "Batt",
-                                                        "Net", "Net/Thru"))
+                                                        "GWPann", "GWP/Thru"))
   cost_plot <- ggplot(data = costs,
                        aes(x = label,
                            fill = hi_lo)) +
@@ -837,9 +908,9 @@ get_run_barplots <- function(run_results, run_id, save = FALSE) {
                   geom_bar(aes(y = mean),
                            colour = "grey65",
                            position = "dodge", stat = "identity") +
-                  geom_errorbar(aes(ymax = mean + sd, ymin = mean - sd),
-                                colour = "black", width = 0.3,
-                                position = position_dodge(width = 0.9)) +
+                  # geom_errorbar(aes(ymax = mean + sd, ymin = mean - sd),
+                  #               colour = "black", width = 0.3,
+                  #               position = position_dodge(width = 0.9)) +
                   scale_x_discrete(name = NULL) +
                   scale_y_continuous(name = NULL,
                                      trans = "asinh",
@@ -858,8 +929,8 @@ get_run_barplots <- function(run_results, run_id, save = FALSE) {
                            colour = "grey65",
                            position = "dodge", stat = "identity") +
                   labs(x = NULL,
-                       y = bquote("lb"~CO[scriptscriptstyle(2)]~"eq")) +
-                  scale_y_continuous(name = bquote("lb"~CO[scriptscriptstyle(2)]~"eq"),
+                       y = bquote("kg"~CO[scriptscriptstyle(2)]~"eq")) +
+                  scale_y_continuous(name = bquote("kg"~CO[scriptscriptstyle(2)]~"eq"),
                                      trans = "asinh",
                                      labels=trans_format("identity", function(x) x),
                                      breaks = c(-1E6,-5E3,0,5E3,1E6,1E9)) +
@@ -882,15 +953,16 @@ get_run_barplots <- function(run_results, run_id, save = FALSE) {
   
   return(plot_list)
 }
-get_run_sampwks <- function(run_id, save = FALSE) {
+get_run_sampwks <- function(run_id, dmd_frac, save = FALSE) {
   path = paste0("outputs/", run_id, "/df")
   temp = list.files(path = path, full.names = TRUE)
+  dmd_frac.str = paste0("ctrlr_", dmd_frac, "_")
   
   all_df <- read.csv(sample(temp, 1)) %>%
               mutate_if(is.factor, function(x) as.POSIXct(x, format = "%Y-%m-%d %H:%M")) %>%
               mutate(day_ind = as.numeric(strftime(date_time, format = "%j"))) %>%
               select(-X)
-  
+
   fill_labels <- c("Battery", "Bldg", "Curtail", "DR",  "PV", "Unmet")
   hr_labels <- unlist(lapply(seq(6,21,3), function(x) ifelse(x>10, paste0(x, ":00"),
                                                              paste0("0", x, ":00"))))
@@ -927,17 +999,19 @@ get_run_sampwks <- function(run_id, save = FALSE) {
                             axis.text.x =  element_text(angle = 33, vjust = 1, hjust = 1))
   
   if (save) {
-    ggsave(paste0("outputs/plots/", run_id, "_sample_wk.png"),
+    ggsave(paste0("outputs/plots/", run_id, 
+                  "_frac", dmd_frac, "_samp_wk.png"),
            sample_wk_plot,
            width = 10, height = 8, units = "in")
   }
   
   return(sample_wk_plot)
 }
-get_run_heatmap <- function(run_id, dmd_frac, save = FALSE) {
+get_run_socmap <- function(run_id, dmd_fracs, save = FALSE) { # takes two dmd_fracs
   path = paste0("outputs/", run_id, "/df")
   temp = list.files(path = path, full.names = TRUE)
-  dmd_frac.str = paste0("ctrlr_", dmd_frac, "_")
+  frac_str.A = paste0("ctrlr_", dmd_fracs[1], "_")
+  frac_str.B = paste0("ctrlr_", dmd_fracs[2], "_")
   
   chdd_df <- fread("inputs/2014_chdd.csv", header = TRUE, stringsAsFactors = FALSE) %>%
     select(date_time, cl) %>%
@@ -952,87 +1026,63 @@ get_run_heatmap <- function(run_id, dmd_frac, save = FALSE) {
   
   day_labels <- c("0" = "Mon", "1" = "Tues", "2" = "Wed",
                   "3" = "Thur", "4" = "Fri", "5" = "Sat", "6" = "Sun")
-  run_df = read.csv(temp[grepl(dmd_frac.str, temp)]) %>%
-            select(date_time, soc) %>% 
-            mutate_if(is.factor, function(x) as.POSIXct(x, format = "%Y-%m-%d %H:%M")) %>%
-            mutate(day_ind = as.numeric(strftime(date_time, format = "%j")),
-                   day = (as.numeric(strftime(date_time, format = "%u")) + 3)%%7,
-                   hr = as.numeric(strftime(date_time, format = "%H"))) %>%
-            left_join(chdd_df, by = "day_ind") %>%
-            mutate(cl = na.ma(cl, k = 4),
-                   cl = cl_label[cl]) %>%
-            na.omit() %>% 
-            select(-date_time, -day_ind) %>%
-            group_by(day, hr, cl) %>% 
-            summarise(soc_mean = mean(soc),
-                      soc_sd = sd(soc))
+  run_df.part = read.csv(temp[grepl(frac_str.A, temp)]) %>%
+              mutate(dmd_frac = dmd_fracs[1])
+  run_df = read.csv(temp[grepl(frac_str.B, temp)]) %>%
+              mutate(dmd_frac = dmd_fracs[2]) %>% 
+              rbind.data.frame(run_df.part) %>% 
+              select(date_time, dmd_frac, soc) %>% 
+              mutate_if(is.factor, function(x) as.POSIXct(x, format = "%Y-%m-%d %H:%M")) %>%
+              mutate(day_ind = as.numeric(strftime(date_time, format = "%j")),
+                     day = (as.numeric(strftime(date_time, format = "%u")) + 3)%%7,
+                     hr = as.numeric(strftime(date_time, format = "%H"))) %>%
+              left_join(chdd_df, by = "day_ind") %>%
+              mutate(cl = na.ma(cl, k = 4),
+                     cl = cl_label[cl]) %>%
+              na.omit() %>% 
+              select(-date_time, -day_ind) %>%
+              group_by(dmd_frac, day, hr, cl) %>% 
+              summarise(soc_mean = mean(soc),
+                        soc_sd = sd(soc))
   
-  hr_labels <- unlist(lapply(seq(3,21,3), function(x) ifelse(x>10, paste0(x, ":00"),
+  hr_labels <- unlist(lapply(seq(3,21,9), function(x) ifelse(x>10, paste0(x, ":00"),
                                                              paste0("0", x, ":00"))))
   lgnd_txt1 = bquote(bar(SoC))
   lgnd_txt2 = bquote(sigma[scriptscriptstyle(SoC)])
   
-  mean_plot <- ggplot(run_df, aes(y = day, x = hr)) + 
-    geom_tile(aes(fill = soc_mean), colour = "gray80") +
-    facet_grid(cl ~ .) +
-    scale_x_continuous(breaks = seq(2,20,3),
-                       labels = hr_labels,
-                       expand=c(0,0)) +
-    scale_y_continuous(breaks = seq.int(0,6),
-                       labels = day_labels,
-                       expand=c(0,0)) +
-    scale_fill_gradient2(name = lgnd_txt1, low = "#7b3294",
-                         mid = "#f7f7f7", high = "#008837",
-                         midpoint = mean(run_df$soc_mean)) +
-    labs(x = NULL,
-         y = NULL) +
-    theme(panel.background = element_blank(),
-          panel.border = element_blank(),
-          axis.line = element_blank(),
-          axis.ticks = element_blank(),
-          axis.text.y = element_text(angle = 33, hjust = 1, size = 8),
-          axis.text.x =  element_text(angle = 33, vjust = 1, hjust = 1))
-  
-  sd_plot <- ggplot(run_df, aes(y = day, x = hr)) + 
-    geom_tile(aes(fill = soc_sd), colour = "gray80") +
-    facet_grid(cl ~ .) +
-    scale_x_continuous(breaks = seq(2,20,3),
-                       labels = hr_labels,
-                       expand=c(0,0)) +
-    scale_y_continuous(breaks = seq.int(0,6),
-                       labels = day_labels,
-                       expand=c(0,0)) +
-    scale_fill_gradient2(name = lgnd_txt2,
-                         low = "#7b3294", mid = "#f7f7f7", high = "#008837",
-                         midpoint = 0.333*max(run_df$soc_sd)) +
-    labs(x = NULL,
-         y = NULL) +
-    theme(panel.background = element_blank(),
-          panel.border = element_blank(),
-          axis.line = element_blank(),
-          axis.ticks = element_blank(),
-          axis.text.y = element_text(angle = 33, hjust = 1, size = 8),
-          axis.text.x = element_text(angle = 33, vjust = 1, hjust = 1))
-  
-  heatmap_plot <- plot_grid(mean_plot, sd_plot,
-                            labels = c("A","B"),
-                            ncol = 1, align = "v")
+  run_socmap <- ggplot(run_df, aes(y = day, x = hr)) + 
+                facet_grid(cl ~ dmd_frac) +
+                geom_tile(aes(fill = soc_mean), colour = "gray80") +
+                scale_x_continuous(breaks = seq(2,20,9),
+                                   labels = hr_labels,
+                                   expand=c(0,0)) +
+                scale_y_continuous(breaks = seq.int(0,6),
+                                   labels = day_labels,
+                                   expand=c(0,0)) +
+                scale_fill_gradient2(name = lgnd_txt1, low = "#7b3294",
+                                     mid = "#f7f7f7", high = "#008837",
+                                     midpoint = mean(run_df$soc_mean),
+                                     breaks = c(0,0.25,0.5,0.75,0.95)) +
+                labs(x = NULL,
+                     y = NULL) +
+                theme(panel.background = element_blank(),
+                      panel.border = element_blank(),
+                      axis.line = element_blank(),
+                      axis.ticks = element_blank(),
+                      axis.text.y = element_text(angle = 33, hjust = 1, size = 8),
+                      axis.text.x =  element_text(angle = 33, vjust = 1, hjust = 1))
+
   
   if (save) {
-    # ggsave(paste0("outputs/plots/", choice, "_heatmap_mean.png"),
-    #        mean_plot,
-    #        width = 12, height = 8, units = "in")
-    # ggsave(paste0("outputs/plots/", choice, "_heatmap_sd.png"),
-    #        sd_plot,
-    #        width = 12, height = 8, units = "in")
-    dmd_frac <- dmd_frac*100
+    dmd_fracs <- dmd_fracs*100
     save_plot(filename = paste0("outputs/plots/", run_id, 
-                                  "_frac", dmd_frac, "_soc_map.png"),
-              heatmap_plot,
-              base_height = 12, base_width = 8)
+                                  "fracs", dmd_fracs[1], "_",
+                                  dmd_fracs[2], "_soc_map.png"),
+              run_socmap,
+              base_height = 8, base_width = 6)
   }
   
-  return(heatmap_plot)
+  return(run_socmap)
 }
 get_ts_summ <- function(choice, copies, emish) {
   
@@ -1143,7 +1193,7 @@ get_ts_heatmap <- function(choice, copies, save = FALSE) {
     emish = TRUE
     d_offset = 0
     unit_txt = "plc2erta_"
-    lgnd_txt1 = bquote(bar("kg"~ CO[scriptstyle(2)]~ "eq / MWh"))
+    lgnd_txt1 = bquote(scriptstyle(bar("kg"~ CO[scriptstyle(2)]~ "eq / MWh")))
     lgnd_txt2 = bquote(sigma[scriptscriptstyle("kg"~ CO[scriptscriptstyle(2)]~ "eq / MWh")])
     title_txt = bquote("NYISO Weekly"~ CO[scriptstyle(2)]~ "eq Emissions Profile (2014)")
   }
@@ -1169,10 +1219,6 @@ get_ts_heatmap <- function(choice, copies, save = FALSE) {
   sd_txt <- paste0(unit_txt, "sd")
   midpt.mean <- median(select(summ_df, contains(mean_txt))[[mean_txt]])
   midpt.sd <- median(select(summ_df, contains(sd_txt))[[sd_txt]])
-  if (choice == "office") {
-    midpt.mean <- mean(select(summ_df, contains(mean_txt))[[mean_txt]])
-    midpt.sd <- mean(select(summ_df, contains(sd_txt))[[sd_txt]])
-  }
   
   heatmap_df.mean <- foreach(k = 1:max(summ_df$cl),
                           .combine = "rbind.data.frame") %do% {
@@ -1279,13 +1325,13 @@ get_ts_heatmap <- function(choice, copies, save = FALSE) {
   heatmap_plot <- plot_grid(mean_plot, sd_plot,
                               labels = c("A","B"),
                               ncol = 1, align = "v")
-  title <- ggdraw() + draw_label(paste(title_txt, "Weekly Load Profile (2014)"),
-                                    fontface = "bold")
-  if (choice == "nyiso_plc2erta") {
-    title <- ggdraw() + draw_label(title_txt, fontface = "bold")
-  }
-  heatmap_plot <- plot_grid(title, heatmap_plot,
-                              ncol = 1, rel_heights = c(0.05, 1))
+  # title <- ggdraw() + draw_label(paste(title_txt, "Weekly Load Profile (2014)"),
+  #                                   fontface = "bold")
+  # if (choice == "nyiso_plc2erta") {
+  #   title <- ggdraw() + draw_label(title_txt, fontface = "bold")
+  # }
+  # heatmap_plot <- plot_grid(title, heatmap_plot,
+  #                             ncol = 1, rel_heights = c(0.05, 1))
   
   if (save) {
     # ggsave(paste0("outputs/plots/", choice, "_heatmap_mean.png"),
@@ -1300,6 +1346,135 @@ get_ts_heatmap <- function(choice, copies, save = FALSE) {
   }
   
   return(heatmap_plot)
+}
+get_bldg_enduse_bars <- function(save = FALSE) {
+  cooling_cats <- c("Space Cooling", "Fans", "Pumps",
+                    "Heat Rejection", "Humidification")
+  bldg_df <- read.csv("inputs/bldg_summ.csv",
+                      stringsAsFactors = FALSE) %>% 
+    mutate(slim_cat = if_else(use_cat %in% cooling_cats,
+                              "Space Cooling", use_cat),
+           bldg_type = factor(bldg_type,
+                              levels = c("Apt", "Office",
+                                                    "Supermarket", "Hospital"))) %>%
+    mutate_if(is.character, as.factor) %>% 
+    group_by(bldg_type, src, slim_cat) %>% 
+    summarise_if(is.numeric, sum) %>%
+    ungroup() %>% 
+    spread(src, kwh) %>% 
+    mutate(cent_diff = (DOE - model) / DOE,
+           frac = model / sum(model)) %>%
+    group_by(bldg_type) %>% 
+    arrange(frac) %>%
+    mutate(ymax = cumsum(frac),
+           ymin = c(0, head(ymax, n = -1)))
+  # initialize bldg_df in get_bldg_enduse_donuts in ani_plots
+  
+  bars <- ggplot(bldg_df, aes(fill=slim_cat,
+                              y = model,
+                              x = slim_cat)) +
+    facet_wrap( ~ bldg_type,
+                scales = "free_x",
+                nrow = 1) +
+    geom_bar(position = "dodge", stat = "identity") +
+    scale_y_log10(expand = c(0,0)) +
+    scale_fill_manual(name = NULL, values = cbb_qual.enduse,
+                      drop = FALSE,
+                      guide = guide_legend(nrow = 3)) +
+    theme(panel.grid=element_blank()) +
+    theme(axis.text.x =element_blank()) +
+    theme(axis.ticks.x =element_blank()) +
+    theme(axis.line = element_blank(),
+          axis.title.x = element_blank()) +
+    theme(legend.direction = "horizontal",
+          legend.position = "bottom") +
+    labs(y = bquote(E[ann]~scriptstyle((kWh))))
+  # legend <- get_legend(bars)
+  # bars <- bars + theme(legend.position = "none")
+  # donuts <- ggplot(bldg_df, aes(fill=slim_cat,
+  #                               ymax=ymax, ymin=ymin,
+  #                               xmax=4, xmin=1.5)) +
+  #   facet_wrap( ~ bldg_type,
+  #               nrow = 1) +
+  #   geom_rect(colour = "white", size = 0.25) +
+  #   coord_polar(theta="y") +
+  #   scale_y_log10() +
+  #   scale_fill_manual(name = NULL, values = cbb_qual.enduse,
+  #                     guide = "none") +
+  #   xlim(c(0, 4)) +
+  #   theme(panel.grid=element_blank()) +
+  #   theme(axis.text=element_blank()) +
+  #   theme(axis.ticks=element_blank()) +
+  #   theme(axis.line = element_blank(),
+  #         axis.title = element_blank()) +
+  #   theme(legend.direction = "horizontal",
+  #         legend.position = "bottom",
+  #         strip.background = element_blank(),
+  #         strip.text.x = element_blank()) +
+  #   labs(title="")
+  # 
+  # bardonut_list <- plot_grid(bars, donuts,
+  #                            ncol = 1,
+  #                            align = "v",
+  #                            rel_heights = c(1,1))
+  # bardonut_list <- plot_grid(bardonut_list, ggplot(), legend, ggplot(),
+  #                            ncol = 1,
+  #                            rel_heights = c(1,0.05,0.1,0.05))
+  if (save) {
+    save_plot(filename = paste0("outputs/plots/bldg_enduse_bars.png"),
+              bars,
+              base_height = 8, base_width = 6.25)
+  }
+  
+  return(bars)
+}
+get_bldg_ldc <- function(copies, save = FALSE) {
+  
+  choices <- c("apt", "office", "hospital", "supermarket")
+  ldc_df <- data.frame()
+  
+  for (choice in choices) {
+    summ_df <- get_ts_summ(choice, copies, emish = FALSE)
+    
+    ldc <- summ_df %>%
+      select(dayhr_ind, kw_mean, kw_sd) %>%
+      group_by(dayhr_ind) %>%
+      summarise_if(is.numeric, mean)
+    ldc_hist = hist(ldc$kw_mean, breaks = floor(max(ldc$kw_mean)), plot = FALSE)
+    ldc = data.frame("hrs" = c(0, ldc_hist$counts),
+                     "kw" = ldc_hist$breaks)  %>%
+      mutate(cumul_hrs = rev(cumsum(hrs)),
+             rel_kw = kw / max(kw),
+             hrs_diff = hrs - lag(hrs),
+             bldg = choice) %>%
+      mutate(bldg = ifelse(bldg == "apt", "Apts",
+                           ifelse(bldg == "office", "Office",
+                                  ifelse(bldg == "supermarket", "Market",
+                                         "Hospital"))))
+    
+    ldc_df <- rbind.data.frame(ldc_df, ldc)
+  }
+  
+  ldc_plot <- ggplot(data = ldc_df) +
+    geom_line(aes(x = cumul_hrs,
+                  y = kw,
+                  colour = bldg), size = 1.1) +
+    labs(x = "hr",
+         y = bquote(P[bldg]~"(kW)")) +
+    scale_x_log10(breaks = c(10,1000,3000,6000)) +
+    scale_colour_manual(name = NULL,
+                        values = cbb_qual[c(3,7,4,1)]) +
+    theme(panel.background = element_rect(colour = "gray75", fill = "gray80")) +
+    theme(panel.grid.major = element_line(colour = "gray85")) +
+    theme(panel.grid.minor = element_line(colour = "gray85"))
+  
+  if (save) {
+    ggsave(filename = paste0("outputs/plots/compare_ldc.png"),
+           ldc_plot,
+           width = 10, height = 6.25, units = "in")
+  }
+  
+  return(ldc_plot)
 }
 get_isoterr_plots <- function(terr = "nyiso", save = FALSE) {
   source("dispatch_curve.R")
@@ -1364,10 +1539,10 @@ get_isoterr_plots <- function(terr = "nyiso", save = FALSE) {
                             labels = c("A","B"),
                             nrow = 2, align = "v",
                             rel_heights = c(1, 0.75))
-  title <- ggdraw() + draw_label("NYISO Plant-level Capacity and Emissions Factors",
-                                 fontface = "bold")
-  isoterr_boxplot <- plot_grid(title, isoterr_boxplot,
-                                ncol = 1, rel_heights = c(0.075, 1))
+  # title <- ggdraw() + draw_label("NYISO Plant-level Capacity and Emissions Factors",
+  #                                fontface = "bold")
+  # isoterr_boxplot <- plot_grid(title, isoterr_boxplot,
+  #                               ncol = 1, rel_heights = c(0.075, 1))
   
   if (save) {
       # ggsave(paste0("outputs/plots/", terr, "_namepcap.png"),
@@ -1382,101 +1557,6 @@ get_isoterr_plots <- function(terr = "nyiso", save = FALSE) {
     }
   
   return(isoterr_boxplot)
-}
-get_bldg_comp <- function() {
-  bldg_df <- read.csv("inputs/bldg_summ.csv",
-                      stringsAsFactors = FALSE)
-  bldg_df$ci <- bldg_df$kwh*0.05
-  stop("Need to account for different cats that show in hospital validation")
-  bldg_lvls <- c("Heating", "Cooling",
-                 "Int. Lighting", "Ext. Lighting",
-                 "Int. Equipment", "Fans")
-  bldg_df$use_cat <- with(bldg_df,
-                          factor(use_cat,
-                                 levels = bldg_lvls)
-  )
-  
-  summ_plot <- ggplot(data = bldg_df,
-                     mapping = aes(x = use_cat, y = kwh,
-                                   colour = src)) +
-    scale_colour_manual(name = "Source",
-                        values = c("#bf812d",
-                                   "#01665e")) +
-    geom_errorbar(data = subset(bldg_df,
-                                src == "DOE" &
-                                  bldg_type == "Office"),
-                  aes(ymax = kwh + ci, ymin = kwh - ci),
-                  colour = "black", width = 0.3) +
-    geom_point(data = subset(bldg_df,
-                             src == "DOE" &
-                               bldg_type == "Office"),
-               size = 5)  +
-    geom_point(data = subset(bldg_df,
-                             src == "model" &
-                               bldg_type == "Office"),
-               size = 2) +
-    # facet_wrap(~bldg_type, switch = "x") +
-    labs(x = "",
-         y = "kWh",
-         title = "Office Annual Electricity Usage Validation") +
-    theme(panel.background = element_rect(colour = "gray75", fill = "gray80")) +
-    theme(panel.grid.major = element_line(colour = "gray85")) +
-    theme(panel.grid.minor = element_line(colour = "gray85")) +
-    theme(legend.box = "horizontal",
-          legend.background = element_rect(colour = "gray75")) +
-    expand_limits(y = c(0,310000))
-  
-  ggsave(filename = "outputs/plots/office_compare.png",
-         summ_plot,
-         width = 10, height = 6.25, units = "in")
-}
-get_bldg_ldc <- function(copies, save = FALSE) {
-  
-  choices <- c("apt", "office", "supermarket")
-  ldc_df <- data.frame()
-  # "hospital"
-  
-  for (choice in choices) {
-    summ_df <- get_ts_summ(choice, copies, emish = FALSE)
-    
-    ldc <- summ_df %>%
-                select(dayhr_ind, kw_mean, kw_sd) %>%
-                group_by(dayhr_ind) %>%
-                summarise_if(is.numeric, mean)
-    ldc_hist = hist(ldc$kw_mean, breaks = floor(max(ldc$kw_mean)), plot = FALSE)
-    ldc = data.frame("hrs" = c(0, ldc_hist$counts),
-                     "kw" = ldc_hist$breaks)  %>%
-            mutate(cumul_hrs = rev(cumsum(hrs)),
-                   rel_kw = kw / max(kw),
-                   hrs_diff = hrs - lag(hrs),
-                   bldg = choice) %>%
-            mutate(bldg = ifelse(bldg == "apt", "Apts",
-                                 ifelse(bldg == "office", "Office",
-                                        ifelse(bldg == "supermarket", "Market",
-                                               "Hospital"))))
-    
-    ldc_df <- rbind.data.frame(ldc_df, ldc)
-  }
-  
-  ldc_plot <- ggplot(data = ldc_df) +
-    geom_line(aes(x = cumul_hrs,
-                  y = kw,
-                  colour = bldg), size = 1.1) +
-    labs(x = "Hours of Load",
-         y = bquote(P[bldg]~"(kW)")) +
-    scale_colour_manual(name = NULL,
-                          values = cbb_qual[c(3,7,4)]) +
-    theme(panel.background = element_rect(colour = "gray75", fill = "gray80")) +
-    theme(panel.grid.major = element_line(colour = "gray85")) +
-    theme(panel.grid.minor = element_line(colour = "gray85"))
-  
-  if (save) {
-    ggsave(filename = paste0("outputs/plots/compare_ldc.png"),
-           ldc_plot,
-           width = 10, height = 6.25, units = "in")
-  }
-  
-  return(ldc_plot)
 }
 get_kt_dist <- function(which_df, save = FALSE) {
   if(which_df == "nyc_nsrdb") {

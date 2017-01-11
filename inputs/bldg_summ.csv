@@ -21,7 +21,7 @@ Fans,Hospital,DOE,986611.11
 Pumps,Hospital,DOE,434172.22
 Heat Rejection,Hospital,DOE,302705.56
 Humidification,Hospital,DOE,362627.78
-Rerigeration,Hospital,DOE,51430.56
+Refrigeration,Hospital,DOE,51430.56
 Space Heating,Hospital,model,0
 Space Cooling,Hospital,model,1296681.42
 Int. Lighting,Hospital,model,2326102.22
@@ -32,19 +32,19 @@ Fans,Hospital,model,1843938.89
 Pumps,Hospital,model,412203.89
 Heat Rejection,Hospital,model,721597.11
 Humidification,Hospital,model,3422634.44
-Rerigeration,Hospital,model,52286.46
+Refrigeration,Hospital,model,52286.46
 Space Heating,Office,DOE,156750
 Space Cooling,Office,DOE,126166.67
 Int. Lighting,Office,DOE,264338.89
 Ext. Lighting,Office,DOE,77702.78
 Int. Equipment,Office,DOE,296255.56
 Fans,Office,DOE,20722.22
-Space Heating,Office,model,157678.44
-Space Cooling,Office,model,135310.55
+Space Heating,Office,model,149627.26
+Space Cooling,Office,model,127172.5
 Int. Lighting,Office,model,263320.03
 Ext. Lighting,Office,model,77959.31
 Int. Equipment,Office,model,297007.22
-Fans,Office,model,40172.84
+Fans,Office,model,24441.92
 Space Heating,Supermarket,DOE,0
 Space Cooling,Supermarket,DOE,49730.56
 Int. Lighting,Supermarket,DOE,420180.56
