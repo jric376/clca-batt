@@ -536,8 +536,9 @@ get_combined_runs <- function(runs) {
                                     dr_plc2erta - control_plc2erta),
              plc2erta_n = to_kg(net_plc2erta / (batt_cap*batt_cyceq*(life_hi + life_lo)/2)),
              prof_lo_n = prof_lo / (batt_cap*batt_cyceq*(life_hi + life_lo)/2),
-             
-             prof_hi_n = prof_hi /(batt_cap*batt_cyceq*(life_hi + life_lo)/2))
+             prof_hi_n = prof_hi /(batt_cap*batt_cyceq*(life_hi + life_lo)/2),
+             pvess_frac = pv_kwh / (pv_kwh + (batt_cap*batt_cyceq*(life_hi + life_lo)/2)),
+             unmet_frac = unmet_kwh / kwh)
     results <- rbind.data.frame(results, results.0)
   }
   
@@ -567,8 +568,9 @@ get_run_results <- function(runs, prof_lo_lim = FALSE) {
                                       dr_plc2erta - control_plc2erta),
                plc2erta_n = to_kg(net_plc2erta / (batt_cap*batt_cyceq*(life_hi + life_lo)/2)),
                prof_lo_n = prof_lo / (batt_cap*batt_cyceq*(life_hi + life_lo)/2),
-               
-               prof_hi_n = prof_hi / (batt_cap*batt_cyceq*(life_hi + life_lo)/2))
+               prof_hi_n = prof_hi / (batt_cap*batt_cyceq*(life_hi + life_lo)/2),
+               pvess_frac = pv_kwh / (pv_kwh + (batt_cap*batt_cyceq*(life_hi + life_lo)/2)),
+               unmet_frac = unmet_kwh / kwh) 
     }
     results <- results %>%
                   mutate(bldg = ifelse(bldg == "apt", "Apartments",
@@ -669,9 +671,9 @@ get_run_results <- function(runs, prof_lo_lim = FALSE) {
                 mutate(label = ifelse(grepl("control_*", cat), "Grid",
                                   ifelse(grepl("dr_*", cat), "Grid + DR",
                                      ifelse(grepl("pv_*", cat), "PV",
-                                        ifelse(grepl("net_*", cat), "GWPann",
+                                        ifelse(grepl("net_*", cat), "GHGann",
                                            ifelse(grepl("batt_*", cat), "Batt",
-                                                  "GWP/Thru")))))) %>%
+                                                  "GHG/Thru")))))) %>%
                 select(-cat)
     
     results.list <- list("df" = results,
@@ -750,7 +752,7 @@ get_run_prof_plc2e <- function(run_results, run_id, save = FALSE) {
       theme(strip.background = element_blank(),
             strip.text.x = element_blank())
     
-    plc2e_leg_txt = bquote(scriptstyle(GWP[ann]~"/"~Thru[scriptscriptstyle(ESS)]))
+    plc2e_leg_txt = bquote(scriptstyle(Delta~GHG[ann]~"/"~Thru[scriptscriptstyle(ESS)]))
     plc2e_plot <- ggplot(data = summ,
                          mapping = aes(x = dmd_frac)) +
       facet_wrap( ~ batt_type, nrow = 1) +
@@ -762,7 +764,7 @@ get_run_prof_plc2e <- function(run_results, run_id, save = FALSE) {
       #             alpha = 1/3,
       #             colour = "gray60") +
       labs(x = bquote(alpha),
-           y = bquote(scriptstyle(GWP[ann]~"/"~Thru[scriptscriptstyle(ESS)]))) +
+           y = bquote(scriptstyle(Delta~GHG[ann]~"/"~Thru[scriptscriptstyle(ESS)]))) +
       scale_y_continuous(trans = "asinh",
                          labels=trans_format("identity", function(x) x),
                          breaks = c(1000,10,0,-10,-1000)) +
@@ -791,30 +793,27 @@ get_run_prof_plc2e <- function(run_results, run_id, save = FALSE) {
     geom_ribbon(data = summ,
               aes(x = -plc2erta_n_mean,
                   ymax = prof_lo_n_mean,
-                  ymin = prof_hi_n_mean,
-                  fill = batt_type),
+                  ymin = prof_hi_n_mean),
               alpha = 1/6,
               size = 1.2) +
     geom_line(data = summ,
               aes(x = -plc2erta_n_mean,
                   y = prof_lo_n_mean,
-                  colour = batt_type,
-                  linetype = "lo"),
+                  colour = batt_type),
               alpha = 1/2,
               size = 1.2) +
     geom_line(data = summ,
               aes(x = -plc2erta_n_mean,
                   y = prof_hi_n_mean,
-                  colour = batt_type,
-                  linetype = "lo"),
+                  colour = batt_type),
               alpha = 1/2,
               size = 1.2) +
     geom_point(data = df,
                aes(x = -plc2erta_n,
                    y = prof_lo_n,
                    size = batt_cap,
-                   fill = batt_type,
-                   shape = batt_type),
+                   fill = batt_type),
+               shape = 21,
                alpha = 1/1.2) +
     scale_x_continuous(trans = "asinh",
                        labels=trans_format("identity", function(x) -x),
@@ -822,7 +821,7 @@ get_run_prof_plc2e <- function(run_results, run_id, save = FALSE) {
     scale_y_continuous(trans = "asinh",
                        labels= trans_format("identity", function(x) dollar(x)),
                        breaks = c(-100,-5,-1,0,1)) +
-    labs(x = bquote(scriptstyle(GWP[ann]~"/"~Thru[scriptscriptstyle(ESS)])),
+    labs(x = bquote(scriptstyle(Delta~GHG[ann]~"/"~Thru[scriptscriptstyle(ESS)])),
          y = bquote(scriptstyle(Pr[dr]~"/"~Thru[scriptscriptstyle(ESS)]))) +
     theme(panel.background = element_rect(colour = "gray75", fill = "gray80")) +
     theme(panel.grid.major = element_line(colour = "gray85")) +
@@ -838,21 +837,12 @@ get_run_prof_plc2e <- function(run_results, run_id, save = FALSE) {
                          values = cbb_qual[c(3,5,7,4)],
                          labels = c("Li-ion", "NaS", "Pb-a", "VRF"),
                       guide = guide_legend(override.aes = list(colour = cbb_qual[c(3,5,7,4)],
-                                                               shape = c(21,22,24,25),
-                                                               # size = 3,
+                                                               size = 4,
                                                                alpha = 1,
                                                                linetype = 0))) +
     scale_colour_manual(name = NULL,
                       values = cbb_qual[c(3,5,7,4)],
-                      labels = c("Li-ion", "NaS", "Pb-a", "VRF")) +
-    scale_shape_manual(name = NULL, 
-                       values = c(21,22,24,25),
-                       guide = "none") +
-    scale_linetype_manual(name = NULL,
-                          values = c(1,2),
-                          guide = FALSE)
-                        # labels = c(bquote(P[hi]), bquote(P[lo])),
-                        # guide = guide_legend(override.aes = list(size = 0.5)))
+                      labels = c("Li-ion", "NaS", "Pb-a", "VRF"))
   
   if (length(unique(summ$bldg)) > 1) {
     plc2e_prof_plot <- plc2e_prof_plot +
@@ -863,8 +853,7 @@ get_run_prof_plc2e <- function(run_results, run_id, save = FALSE) {
     plot_list <- list("no_lines" = plc2e_prof_plot,
                       "lines" = plc2e_prof_plot.lines)
   } else {
-    plot_list <- list("combine" = combine_plot,
-                      "plc2e_prof" = plc2e_prof_plot)
+    plot_list <- list("combine" = combine_plot)
   }
   
   if (save) {
@@ -877,13 +866,117 @@ get_run_prof_plc2e <- function(run_results, run_id, save = FALSE) {
                                   run_id, "_litcompare_plc2e_prof.png"),
                 plc2e_prof_plot.lines,
                 base_height = 6.25, base_width = 8)
+      save_plot(filename = paste0("outputs/plots/", run_id, "_plc2e_prof.png"),
+                plc2e_prof_plot,
+                base_height = 6.25, base_width = 8)
     }
-    save_plot(filename = paste0("outputs/plots/", run_id, "_plc2e_prof.png"),
-              plc2e_prof_plot,
-              base_height = 6.25, base_width = 8)
   }
   
   return(plot_list)
+}
+get_run_pvessfrac <- function(run_results, run_id, save = FALSE) {
+  
+  df <- run_results$df
+  summ <- run_results$summ
+  
+  pvessfrac_plot <- ggplot() +
+    geom_point(data = df,
+               aes(x = -plc2erta_n,
+                   y = pvess_frac,
+                   size = batt_cap,
+                   fill = batt_type),
+               shape = 21,
+               alpha = 1/1.2) +
+    scale_x_continuous(trans = "asinh",
+                       labels=trans_format("identity", function(x) -x),
+                       breaks = c(1000,10,1,0,-1,-10,-1000)) +
+    labs(x = bquote(scriptstyle(Delta~GHG[ann]~"/"~Thru[scriptscriptstyle(ESS)])),
+         y = bquote(scriptstyle(kWh[scriptscriptstyle(PV)]~"/"~(kWh[scriptscriptstyle(PV)]~"+"~kWh[scriptscriptstyle(ESS)])))) +
+    theme(panel.background = element_rect(colour = "gray75", fill = "gray80")) +
+    theme(panel.grid.major = element_line(colour = "gray85")) +
+    theme(panel.grid.minor = element_line(colour = "gray85")) +
+    scale_size(name = bquote(scriptstyle(NP[ESS])),
+               breaks = c(10,1E4,1E6),
+               trans = "sqrt",
+               range = c(2,7),
+               guide = guide_legend(override.aes = list(shape = 21,
+                                                        size = c(2,4,7),
+                                                        fill = "black"))) +
+    scale_fill_manual(name = NULL,
+                      values = cbb_qual[c(3,5,7,4)],
+                      labels = c("Li-ion", "NaS", "Pb-a", "VRF"),
+                      guide = guide_legend(override.aes = list(colour = cbb_qual[c(3,5,7,4)],
+                                                               size = 4,
+                                                               alpha = 1,
+                                                               linetype = 0))) +
+    scale_colour_manual(name = NULL,
+                        values = cbb_qual[c(3,5,7,4)],
+                        labels = c("Li-ion", "NaS", "Pb-a", "VRF"))
+  
+  if (length(unique(summ$bldg)) > 1) {
+    pvessfrac_plot <- pvessfrac_plot +
+                        facet_wrap( ~ bldg)
+  }
+  if (save) {
+    ggsave(filename = paste0("outputs/plots/", run_id, "_pvessfrac.png"),
+              pvessfrac_plot,
+              height = 6.25, width = 8,
+              units = "in")
+  }
+  
+  return(pvessfrac_plot)
+}
+get_run_unmetfrac <- function(run_results, run_id, save = FALSE) {
+  
+  df <- run_results$df
+  summ <- run_results$summ
+  
+  unmetfrac_plot <- ggplot() +
+    geom_point(data = df,
+               aes(x = -plc2erta_n,
+                   y = unmet_frac,
+                   size = batt_cap,
+                   fill = batt_type),
+               shape = 21,
+               alpha = 1/1.2) +
+    scale_x_continuous(trans = "asinh",
+                       labels=trans_format("identity", function(x) -x),
+                       breaks = c(1000,10,1,0,-1,-10,-1000)) +
+    labs(x = bquote(scriptstyle(Delta~GHG[ann]~"/"~Thru[scriptscriptstyle(ESS)])),
+         y = bquote(scriptstyle(kWh[scriptscriptstyle(unmet)]~"/"~kWh[scriptscriptstyle(tot)]))) +
+    theme(panel.background = element_rect(colour = "gray75", fill = "gray80")) +
+    theme(panel.grid.major = element_line(colour = "gray85")) +
+    theme(panel.grid.minor = element_line(colour = "gray85")) +
+    scale_size(name = bquote(scriptstyle(NP[ESS])),
+               breaks = c(10,1E4,1E6),
+               trans = "sqrt",
+               range = c(2,7),
+               guide = guide_legend(override.aes = list(shape = 21,
+                                                        size = c(2,4,7),
+                                                        fill = "black"))) +
+    scale_fill_manual(name = NULL,
+                      values = cbb_qual[c(3,5,7,4)],
+                      labels = c("Li-ion", "NaS", "Pb-a", "VRF"),
+                      guide = guide_legend(override.aes = list(colour = cbb_qual[c(3,5,7,4)],
+                                                               size = 4,
+                                                               alpha = 1,
+                                                               linetype = 0))) +
+    scale_colour_manual(name = NULL,
+                        values = cbb_qual[c(3,5,7,4)],
+                        labels = c("Li-ion", "NaS", "Pb-a", "VRF"))
+  
+  if (length(unique(summ$bldg)) > 1) {
+    unmetfrac_plot <- unmetfrac_plot +
+      facet_wrap( ~ bldg)
+  }
+  if (save) {
+    ggsave(filename = paste0("outputs/plots/", run_id, "_unmetfrac.png"),
+           unmetfrac_plot,
+           height = 6.25, width = 8,
+           units = "in")
+  }
+  
+  return(unmetfrac_plot)
 }
 get_run_barplots <- function(run_results, run_id, save = FALSE) {
   
@@ -900,7 +993,7 @@ get_run_barplots <- function(run_results, run_id, save = FALSE) {
                                                         "Pr/Thru"))
   plc2e$label <- factor(plc2e$label, levels = c("Grid", "Grid + DR",
                                                         "PV", "Batt",
-                                                        "GWPann", "GWP/Thru"))
+                                                        "GHGann", "GHG/Thru"))
   cost_plot <- ggplot(data = costs,
                        aes(x = label,
                            fill = hi_lo)) +
