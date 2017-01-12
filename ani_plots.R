@@ -563,7 +563,7 @@ get_run_results <- function(runs, prof_lo_lim = FALSE) {
                                          ifelse(batt_type == "pb_a","Pb-a","VRF"))),
                control_plc2erta = control_plc2erta*(life_hi + life_lo)/2,
                dr_plc2erta = dr_plc2erta*(life_hi + life_lo)/2,
-               disp_plc2e_n = (control_plc2erta -dr_plc2erta)/(batt_cap*batt_cyceq),
+               disp_plc2e_n = (control_plc2erta - dr_plc2erta)/(batt_cap*batt_cyceq),
                net_plc2erta = (batt_plc2erta + pv_plc2erta +
                                       dr_plc2erta - control_plc2erta),
                plc2erta_n = to_kg(net_plc2erta / (batt_cap*batt_cyceq*(life_hi + life_lo)/2)),
@@ -1045,6 +1045,57 @@ get_run_barplots <- function(run_results, run_id, save = FALSE) {
   }
   
   return(plot_list)
+}
+get_run_emish_hist <- function(run_id, dmd_frac, save = FALSE) {
+  path = paste0("outputs/", run_id, "/df")
+  temp = list.files(path = path, full.names = TRUE)
+  dmd_frac.str = paste0("ctrlr_", dmd_frac, "_")
+  
+  # this function assumes a time interval of 5min in time-series
+  # needs to eventually be updated to handle this flexibly
+  
+  all_df <- read.csv(sample(temp, 1)) %>%
+    mutate_if(is.factor, function(x) as.POSIXct(x, format = "%Y-%m-%d %H:%M")) %>%
+    mutate(day_ind = as.numeric(strftime(date_time, format = "%j")),
+           plc2e_rt = ifelse(grid_kw == bldg_kw, 0,
+                             (grid_plc2erta - bldg_plc2erta)/((grid_kw - bldg_kw)*(0.001/12))),
+           plc2e_rt = to_kg(plc2e_rt),
+           operation = ifelse(pv_kw > 0 & batt_kw > 0, "PV + Charge",
+                              ifelse(pv_kw > 0 & batt_kw < 0, "PV + Discharge",
+                                     ifelse(pv_kw > 0 & batt_kw == 0, "PV",
+                                            ifelse(pv_kw == 0 & batt_kw > 0, "Charge",
+                                                   ifelse(pv_kw == 0 & batt_kw < 0, "Discharge",
+                                                          "Nothing")))))) %>%
+    select(-X,-contains("cost")) %>% 
+    filter(plc2e_rt > 0,
+           !(abs(plc2e_rt - median(plc2e_rt)) > 2*sd(plc2e_rt)))
+  
+  sample_emish_hist <- ggplot(data = all_df,
+                              mapping = aes(x = plc2e_rt,
+                                            fill = operation)) +
+    geom_density(alpha = 1/2) +
+    scale_x_continuous(name = bquote(scriptstyle("kg"~ CO[scriptscriptstyle(2)]~ "eq / MWh"))) +
+    scale_fill_manual(name = NULL,
+                      values = cbb_qual[c(9,2,1,4,8,3)],
+                      guide = guide_legend(override.aes = list(colour = "white",
+                                                               alpha = 1))) +
+    labs(y = "Probability") +
+    theme(panel.background = element_rect(fill = "gray80"),
+          panel.grid.major = element_line(colour = "gray85"),
+          panel.grid.minor = element_line(colour = "gray85")) +
+    theme(axis.line = element_blank(),
+          axis.ticks = element_line(colour = "gray85"),
+          axis.text.y = element_text(angle = 33, hjust = 1, size = 11),
+          axis.text.x =  element_text(angle = 33, vjust = 1, hjust = 1))
+
+  if (save) {
+    ggsave(paste0("outputs/plots/", run_id,
+                  "_frac", dmd_frac, "_samp_emish_hist.png"),
+           sample_emish_hist,
+           width = 10, height = 8, units = "in")
+  }
+  
+  return(sample_emish_hist)
 }
 get_run_sampwks <- function(run_id, dmd_frac, save = FALSE) {
   path = paste0("outputs/", run_id, "/df")
