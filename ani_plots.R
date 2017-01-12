@@ -518,6 +518,28 @@ get_isoterr_donuts <- function(runs = 20, terr = "nyiso", save = FALSE) {
   
   return(donut_plots)
 }
+summarise_run_costs <- function(df){
+  output <- mutate(df,
+                   tac_lo = lsc_lo + pv_levcost_lo + dr_cost,
+                   tac_hi = lsc_hi + pv_levcost_hi + dr_cost,
+                   prof_lo = control_cost - tac_lo,
+                   prof_hi = control_cost - tac_hi,
+                   prof_lo_n = prof_lo / (batt_cap*batt_cyceq*(life_hi + life_lo)/2),
+                   prof_hi_n = prof_hi / (batt_cap*batt_cyceq*(life_hi + life_lo)/2),
+                   pvess_frac = pv_kwh / (pv_kwh + (batt_cap*batt_cyceq*(life_hi + life_lo)/2)),
+                   unmet_frac = unmet_kwh / kwh)
+  
+  return(output)
+}
+summarise_run_plc2e <- function(df){
+  output <- mutate(df,
+                   disp_plc2e_n = (control_plc2erta - dr_plc2erta)/(batt_cap*batt_cyceq),
+                   net_plc2erta = (batt_plc2erta + pv_plc2erta +
+                                     dr_plc2erta - control_plc2erta),
+                   plc2erta_n = to_kg(net_plc2erta / (batt_cap*batt_cyceq*(life_hi + life_lo)/2)))
+  
+  return(output)
+}
 get_combined_runs <- function(runs) {
   
   results <- data.frame()
@@ -526,19 +548,8 @@ get_combined_runs <- function(runs) {
     results.0 <- fread(paste0("outputs/", runs, "/", results_filenm)) %>%
       select(-V1) %>%
       as.data.frame() %>%
-      mutate(batt_type = ifelse(batt_type == "li_ion", "Li-ion",
-                                ifelse(batt_type == "nas", "NaS",
-                                       ifelse(batt_type == "pb_a","Pb-a","VRF"))),
-             control_plc2erta = control_plc2erta*(life_hi + life_lo)/2,
-             dr_plc2erta = dr_plc2erta*(life_hi + life_lo)/2,
-             disp_plc2e_n = (control_plc2erta -dr_plc2erta)/(batt_cap*batt_cyceq),
-             net_plc2erta = (batt_plc2erta + pv_plc2erta +
-                                    dr_plc2erta - control_plc2erta),
-             plc2erta_n = to_kg(net_plc2erta / (batt_cap*batt_cyceq*(life_hi + life_lo)/2)),
-             prof_lo_n = prof_lo / (batt_cap*batt_cyceq*(life_hi + life_lo)/2),
-             prof_hi_n = prof_hi /(batt_cap*batt_cyceq*(life_hi + life_lo)/2),
-             pvess_frac = pv_kwh / (pv_kwh + (batt_cap*batt_cyceq*(life_hi + life_lo)/2)),
-             unmet_frac = unmet_kwh / kwh)
+      summarise_run_costs() %>% 
+      summarise_run_plc2e()
     results <- rbind.data.frame(results, results.0)
   }
   
@@ -558,25 +569,19 @@ get_run_results <- function(runs, prof_lo_lim = FALSE) {
       results <- fread(paste0("outputs/", runs, "/", results_filenm)) %>%
         select(-V1) %>%
         as.data.frame() %>%
-        mutate(batt_type = ifelse(batt_type == "li_ion", "Li-ion",
-                                  ifelse(batt_type == "nas", "NaS",
-                                         ifelse(batt_type == "pb_a","Pb-a","VRF"))),
-               control_plc2erta = control_plc2erta*(life_hi + life_lo)/2,
-               dr_plc2erta = dr_plc2erta*(life_hi + life_lo)/2,
-               disp_plc2e_n = (control_plc2erta - dr_plc2erta)/(batt_cap*batt_cyceq),
-               net_plc2erta = (batt_plc2erta + pv_plc2erta +
-                                      dr_plc2erta - control_plc2erta),
-               plc2erta_n = to_kg(net_plc2erta / (batt_cap*batt_cyceq*(life_hi + life_lo)/2)),
-               prof_lo_n = prof_lo / (batt_cap*batt_cyceq*(life_hi + life_lo)/2),
-               prof_hi_n = prof_hi / (batt_cap*batt_cyceq*(life_hi + life_lo)/2),
-               pvess_frac = pv_kwh / (pv_kwh + (batt_cap*batt_cyceq*(life_hi + life_lo)/2)),
-               unmet_frac = unmet_kwh / kwh) 
+        summarise_run_costs() %>% 
+        summarise_run_plc2e()
     }
     results <- results %>%
                   mutate(bldg = ifelse(bldg == "apt", "Apartments",
                                        ifelse(bldg == "office", "Office",
                                               ifelse(bldg == "supermarket", "Supermarket",
-                                                     "Hospital")))) %>% 
+                                                     "Hospital"))),
+                         batt_type = ifelse(batt_type == "li_ion", "Li-ion",
+                                            ifelse(batt_type == "nas", "NaS",
+                                                   ifelse(batt_type == "pb_a","Pb-a","VRF"))),
+                         control_plc2erta = control_plc2erta*(life_hi + life_lo)/2,
+                         dr_plc2erta = dr_plc2erta*(life_hi + life_lo)/2) %>% 
                   mutate(bldg = factor(bldg, levels = c("Apartments", "Office",
                                                         "Supermarket", "Hospital")))
     
@@ -682,6 +687,71 @@ get_run_results <- function(runs, prof_lo_lim = FALSE) {
                          "plc2e" = plc2e)
   },
   error = function(e) return(e))
+}
+get_run_levcost_delta <- function(runs, run_id, save = FALSE) {
+  
+  df.0 <- get_run_results(runs)$df
+  max_prof_lo_n <- -1
+  incr <- 1
+  levcost_delta_df <- data.frame()
+  
+  while(incr > 0) {
+    incr <- incr - 0.005
+    df <- mutate(df.0,
+                 lsc_lo = incr*lsc_lo,
+                 lsc_hi = incr*lsc_hi,
+                 pv_levcost_lo = incr*pv_levcost_lo,
+                 pv_levcost_hi = incr*pv_levcost_hi) %>% 
+      summarise_run_costs() %>% 
+      summarise_run_plc2e() %>% 
+      group_by(bldg, dmd_frac) %>% 
+      select(bldg, dmd_frac,
+             contains("prof_")) %>% 
+      summarise_all(.funs = c("mean", "sd"))
+    
+    max_prof_lo_n <-  max(df$prof_lo_n_mean)
+    max_in_df <- filter(df, prof_lo_n_mean == max(prof_lo_n_mean)) %>%
+                    ungroup() %>% 
+                    select(bldg, prof_lo_n_mean, prof_lo_n_sd) %>% 
+                    mutate(reduce_frac = 1 - incr,
+                           upper = prof_lo_n_mean + prof_lo_n_sd,
+                           lower = prof_lo_n_mean - prof_lo_n_sd)
+    levcost_delta_df <- rbind.data.frame(levcost_delta_df, max_in_df)
+  }
+  
+  levcost_delta_plot <- ggplot(levcost_delta_df,
+                               aes(x = reduce_frac,
+                                   y = prof_lo_n_mean,
+                                   colour = bldg)) +
+                          geom_line(size = 1.5) +
+                          xlab(bquote(scriptstyle("% reduction PV + ESS lev. costs"))) +
+                          scale_y_continuous(name = bquote(scriptstyle(Pr["dr,max"]~"/"~Thru[scriptscriptstyle(ESS)])),
+                                             trans = "asinh",
+                                             breaks = c(-0.5,-0.1,0,0.1,1),
+                                             limits = c(-0.15,1.5),
+                                             labels = trans_format("identity",
+                                                                   function(x) dollar(x))) +
+                          scale_colour_manual(name = NULL,
+                                              values = cbb_qual[c(9,2,1,4,8,3)]) +
+                          scale_linetype_discrete(name = NULL,
+                                                  guide = guide_legend(override.aes = list(size = 0.75))) +
+                          theme(panel.background = element_rect(colour = "gray75",
+                                                                fill = "gray80")) +
+                          theme(panel.grid.major = element_line(colour = "gray85")) +
+                          theme(panel.grid.minor = element_line(colour = "gray85")) +
+                          theme(legend.text = element_text(),
+                                legend.background = element_rect(colour = "gray75",
+                                                                 fill = alpha("gray85", 1/2)),
+                                legend.box = "horizontal",
+                                legend.position = c(0.2,0.8))
+  
+  if (save) {
+    ggsave(filename = paste0("outputs/plots/", run_id, "_breakeven.png"),
+              levcost_delta_plot,
+              height = 6.25, width = 8)
+  }
+  
+  return(levcost_delta_plot)
 }
 get_run_prof_plc2e <- function(run_results, run_id, save = FALSE) {
   
