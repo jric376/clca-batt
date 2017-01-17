@@ -522,8 +522,8 @@ summarise_run_costs <- function(df){
   output <- mutate(df,
                    tac_lo = lsc_lo + pv_levcost_lo + dr_cost,
                    tac_hi = lsc_hi + pv_levcost_hi + dr_cost,
-                   prof_lo = control_cost - tac_lo,
-                   prof_hi = control_cost - tac_hi,
+                   prof_lo = (control_cost - tac_lo)*life_avg,
+                   prof_hi = (control_cost - tac_hi)*life_avg,
                    prof_lo_n = prof_lo / func_unit,
                    prof_hi_n = prof_hi / func_unit)
   
@@ -579,13 +579,13 @@ get_run_results <- function(runs, fu = "all", prof_lo_lim = FALSE) { # specify f
                                             ifelse(batt_type == "nas", "NaS",
                                                    ifelse(batt_type == "pb_a","Pb-a","VRF"))),
                          life_avg = (life_hi + life_lo)/2,
+                         pv_frac = pv_kwh / (pv_kwh + (batt_cap*batt_cyceq)),
                          pv_kwh = pv_kwh*degrad_factor*life_avg,
                          batt_kwh = batt_cap*batt_cyceq*life_avg,
-                         pv_frac = pv_kwh / (pv_kwh + (batt_cap*batt_cyceq)),
                          pvfrac_kwh = pv_kwh*pv_frac,
                          battfrac_kwh = batt_kwh*(1-pv_frac),
                          func_unit = pvfrac_kwh + battfrac_kwh,
-                         alt_func = -99,
+                         alt_func = pv_kwh + battfrac_kwh,
                          unmet_frac = unmet_kwh / kwh) %>% 
                   mutate(bldg = factor(bldg, levels = c("Apartments", "Office",
                                                         "Supermarket", "Hospital")))
@@ -834,7 +834,7 @@ get_run_prof_plc2e <- function(run_results, run_id, save = FALSE) {
     scale_y_continuous(trans = "asinh",
                        labels= trans_format("identity", function(x) dollar(x)),
                        breaks = c(-5,-1,0,0.50),
-                       limits = c(-5,max(df$prof_lo_n))) +
+                       limits = c(-20,max(df$prof_lo_n))) +
     labs(x = bquote(scriptstyle(Delta~GHG[ann]~"/"~Thru[scriptscriptstyle(tot)])),
          y = bquote(scriptstyle(Pr[dr]~"/"~Thru[scriptscriptstyle(tot)]))) +
     theme(panel.background = element_rect(colour = "gray75", fill = "gray80")) +
