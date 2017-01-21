@@ -708,7 +708,9 @@ get_run_prof_plc2e <- function(run_results, run_id, save = FALSE) {
   plc2e <- run_results$plc2e
   summ <- run_results$summ
   
-  sample_sims <- filter(df, dmd_frac == 0.2 | dmd_frac == 0.45 | dmd_frac == 0.7) %>%
+  sample_sims <- filter(df,
+                        dmd_frac == 0.2 | dmd_frac == 0.45 | dmd_frac == 0.7,
+                        prof_lo_n > -1) %>%
                   group_by(bldg, dmd_frac) %>%
                   sample_n(1, replace = TRUE) %>% 
                   ungroup()
