@@ -838,18 +838,19 @@ get_run_prof_plc2e <- function(run_results, run_id, save = FALSE) {
                        breaks = c(5,1,0.5,0.25,0,-0.25,-0.5,-1,-5)) +
     scale_y_continuous(trans = "asinh",
                        labels= trans_format("identity", function(x) dollar(x)),
-                       breaks = c(-5,-1,0,0.50)) +
+                       breaks = c(-1,-0.5,-0.1,0,0.5)) +
     labs(x = bquote(scriptstyle("kg"~ CO[scriptscriptstyle(2)]~ "eq / kWh")),
          y = bquote(scriptstyle(Pr[dr]~"/ kWh"))) +
     theme(panel.background = element_rect(colour = "gray75", fill = "gray80")) +
     theme(panel.grid.major = element_line(colour = "gray85")) +
     theme(panel.grid.minor = element_line(colour = "gray85")) +
     scale_size(name = bquote(scriptstyle(NP[ESS])),
-               breaks = c(10,100,1000,1E5),
+               labels = c(10,100,">1000"),
+               breaks = c(10,100,1000),
                trans = "sqrt",
-               range = c(2,9),
+               range = c(1.5,9),
                guide = guide_legend(override.aes = list(shape = 21,
-                                                        size = c(2,4,6,8),
+                                                        size = c(1.5,4,6),
                                                         fill = "black"))) +
     scale_fill_manual(name = NULL,
                       values = cbb_qual[c(3,5,7,4)],
@@ -865,7 +866,7 @@ get_run_prof_plc2e <- function(run_results, run_id, save = FALSE) {
   if (length(unique(summ$bldg)) > 1) {
     plc2e_prof_plot <- plc2e_prof_plot +
       facet_wrap( ~ bldg) +
-      coord_cartesian(ylim = c(-20, max(df$prof_lo_n)), xlim =c(-1,1))
+      coord_cartesian(ylim = c(-0.75, max(df$prof_lo_n)), xlim =c(-0,0.75))
     plc2e_prof_plot.lines <- plc2e_prof_plot +
       geom_vline(xintercept = c(0.047,0.67),
                  lty = 2)
@@ -883,8 +884,8 @@ get_run_prof_plc2e <- function(run_results, run_id, save = FALSE) {
                        point.padding = unit(1, "lines"),
                        arrow = arrow(length = unit(0.01, "npc")),
                        force = 5,
-                       nudge_x = 0.25*sample_sims$plc2erta_n,
-                       nudge_y = -0.05,
+                       nudge_x = 0.75*sample_sims$plc2erta_n,
+                       nudge_y = -0.02,
                        segment.size = 1.2)
     plot_list <- list("combine" = combine_plot,
                       "no_lines" = plc2e_prof_plot)
@@ -1673,7 +1674,7 @@ get_bldg_enduse_bars <- function(save = FALSE) {
           panel.background = element_rect(colour = "gray75", fill = "gray80"),
           strip.background = element_blank(),
           strip.text.x = element_blank()) +
-    labs(y = bquote(scriptstyle(m^2)))
+    labs(y = bquote(m^2))
   
   both_bars <- plot_grid(dens_bars, kwh_bars, 
                          align = "v", nrow = 2,
