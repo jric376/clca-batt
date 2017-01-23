@@ -837,7 +837,8 @@ get_run_prof_plc2e <- function(run_results, run_id, save = FALSE) {
                alpha = 1/1.2) +
     scale_x_continuous(trans = "asinh",
                        labels=trans_format("identity", function(x) -x),
-                       breaks = c(5,1,0.5,0.25,0,-0.25,-0.5,-1,-5)) +
+                       breaks = c(5,1,0.5,0.25,0,
+                                  -0.25,-0.5,-1,-5)) +
     scale_y_continuous(trans = "asinh",
                        labels= trans_format("identity", function(x) dollar(x)),
                        breaks = c(-1,-0.5,-0.1,0,0.5)) +
@@ -947,7 +948,7 @@ get_run_levcost_delta <- function(run_results, run_id, save = FALSE) {
                                    y = prof_lo_n_mean,
                                    colour = bldg)) +
                           geom_line(size = 1.5) +
-                          xlab(bquote(scriptstyle("% reduction PV + ESS lev. costs"))) +
+                          xlab(bquote(scriptstyle("Fractional reduction PV + ESS lev. costs"))) +
                           scale_y_continuous(name = bquote(scriptstyle(Pr["dr,max"]~"/ kWh")),
                                              trans = "asinh",
                                              breaks = c(-0.5,-0.1,0,0.1,1),
