@@ -4,9 +4,8 @@
 # plus metadata about the grid territory / energy mix, and
 # get methods for stats describing the load profile.
 
-# wd_path = paste(Sys.getenv("USERPROFILE"), "/OneDrive/School/Thesis/program2", sep = "")
-# setwd(as.character(wd_path))
-# setwd("E:/GitHub/clca-batt")
+# Assumes that the intervals b/w timesteps are constant
+
 library("plyr")
 library("dplyr")
 library('foreach')
@@ -16,6 +15,12 @@ library('R6')
 
 grid_load <- R6Class("Grid Load",
                      public = list(
+                       # The grid load has
+                       # a path pointing to time-series csv
+                       # a number of randomized copies of the orig series
+                       # a fractional value that scales the norm distribution
+                       # used in randomizing each copy (see stochastize_ts)
+                       
                        initialize = function(
                                               meta = NA, grid_ts_path = NA,
                                               rand_copies = NA, rand_factor = NA
@@ -37,6 +42,8 @@ grid_load <- R6Class("Grid Load",
                      },
                      
                      add_base_ts = function(base_ts) {
+                       # Cleans base time-series by formatting date
+                       
                        if (missing(base_ts)) {
                          return("Base time-series data is missing")
                        }
@@ -53,6 +60,9 @@ grid_load <- R6Class("Grid Load",
                      },
                      
                      set_interval = function(ts) {
+                       # Checks interval b/w 2nd and 3rd timesteps
+                       # copies the time difference into object metadata
+                       
                        start_pt = 2
                        interval.num = abs(as.numeric(
                                            (difftime(ts$date_time[start_pt],
@@ -65,6 +75,11 @@ grid_load <- R6Class("Grid Load",
                      },
                      
                      stochastize_ts = function(copies = 1, rand_factor) {
+                       # Given a base time-series, this creates
+                       # a list of time-series, each randomized
+                       # point-by-point, with fluctuations picked
+                       # using a normal distribution, scaled by rand_factor
+                       
                        ts_df = list()
                        ts_df[[1]] = private$base_ts
                        
@@ -115,6 +130,9 @@ grid_load <- R6Class("Grid Load",
 )
 
 get_grid <- function(run_id, terr, copies = 0, factor = 0.1) {
+  # Default function for creating a grid load object
+  # based on grid regional title, random copies and random factor
+  
   metadat = list(
     "territory" = terr,
     "run_id" = run_id,

@@ -2,6 +2,8 @@
 
 # Contains full set of solar data from NSRDB
 # Calculates transition matrix for Markov Chains
+# which get used to generate multiple copies of
+# subhourly solar generation time-series
 
 library("data.table")
 library('foreach')
@@ -10,7 +12,6 @@ library('doSNOW')
 library("futile.logger")
 library("plyr")
 library("dplyr")
-# library("dtplyr")
 library("ggplot2")
 library("ggrepel")
 library("tidyr")
@@ -20,8 +21,15 @@ sampleDF <- function(df, n) df[sample(nrow(df), n), , drop = FALSE]
 
 ## NSRDB 2005-2014 Hourly Data
 get_nyc_solar = function(type = "read") {
+  # can be called to read a compiled & summarized time-series
+  # of hourly NYC solar generation
+  
+  # or to compile ("write") this time-series from
+  # years worth of raw csvs of solar gen from NSRDB
+  
   if (type == "new" | type == "write") {
-    ## THIS BLOCK IS ONLY NEEDED ONCE, TO COMPILE DIFFERENT CSV FILES
+    # THIS BLOCK IS ONLY NEEDED ONCE, TO COMPILE DIFFERENT CSV FILES
+    # which for now have to be manually downloaded from NSRDB
     
     # nsrdb_files = list.files("inputs/nsrdb_raw", pattern = "*.csv", full.names = TRUE)
     # nsrdb_df = rbindlist(lapply(nsrdb_files, fread))
@@ -29,6 +37,7 @@ get_nyc_solar = function(type = "read") {
     #                        "clr_dhi", "clr_dni", "clr_ghi", "tempC", "pressure")
     # nsrdb_df = write.csv(nsrdb_df, "inputs/solar_nsrdb.csv")
   
+    # IF YOU HAVE ALREADY COMPILED THE RAW NSRDB CSVS, then run this chunk
     nsrdb_df = read.csv("inputs/solar_nsrdb.csv") %>%
       mutate(date_time = as.POSIXct(strptime(paste(year,"-",mo,"-",day," ",
                                                    hr,":",0, sep = ""),
@@ -88,127 +97,133 @@ bsrn_dt = bsrn_dt %>%
 sample_dt = unique(bsrn_dt$index) # LARC data is limiting factor for days in selected months
 }
 
-# Combining LARC files, or reading the csv
 get_bsrn.larc = function(type = "read") {
-    if (type == "new" | type == "write") {
-      readUrl <- function(url, skip = 3) {
-        out <- tryCatch(
-          {
-            # Just to highlight: if you want to use more than one
-            # R expression in the "try" part then you'll have to
-            # use curly brackets.
-            # 'tryCatch()' will return the last evaluated expression
-            # in case the "try" part was completed successfully
+  # Combining LARC 1min solar data into a single csv ("write")
+  # or reading the csv, if compilation already taken care of ("read")
   
-            start_row = 1 + skip
-            end_row = (24*60)+start_row
-            readLines(con=url, warn=FALSE)[start_row:end_row]
-            # The return value of `readLines()` is the actual value
-            # that will be returned in case there is no condition
-            # (e.g. warning or error).
-            # You don't need to state the return value via `return()` as code
-            # in the "try" part is not wrapped insided a function (unlike that
-            # for the condition handlers for warnings and error below)
-          },
-          error=function(cond) {
-            message(paste("URL does not seem to exist:", url))
-            message("Here's the original error message:")
-            message(cond)
-            # Choose a return value in case of error
-            return(NA)
-          },
-          warning=function(cond) {
-            message(paste("URL caused a warning:", url))
-            # message("Here's the original warning message:")
-            message(cond)
-            # Choose a return value in case of warning
-            return(-99)
-          },
-          finally={
-            # NOTE:
-            # Here goes everything that should be executed at the end,
-            # regardless of success or error.
-            # If you want more than one expression to be executed, then you
-            # need to wrap them in curly brackets ({...}); otherwise you could
-            # just have written 'finally=<expression>'
-            # message(paste("Processed URL:", url))
-            # message("Some other message at the end")
-          }
-        )
-        if(is.character(out)) { # basically, if no errors get thrown
-  
-          scrapeDF <- function(timestep) {
-            bsrn_df.row = as.data.frame.list(timestep) %>%
-              apply(2, function(x) {
-                if(x == "---") return(0)
-                else return(x)})
-            bsrn_df.row = as.data.frame.list(bsrn_df.row, stringsAsFactors = FALSE)
-            bsrn_df.row = bsrn_df.row[,!apply(bsrn_df.row, 2, function(x) any(x==""))] %>%
-              select(1:3,20)
-            colnames(bsrn_df.row) <- c("date", "time", "tempC", "ghi")
-  
-            bsrn_df.row = bsrn_df.row %>%
-              mutate_if(is.factor, as.character) %>%
-              mutate(tempC = as.numeric(tempC),
-                     ghi = as.numeric(ghi),
-                     date_time = paste(strftime(strptime(date, format = "%m/%d/%y"),
-                                                           format = "%Y-%m-%d"),
-                                                  time),
-                     day_ind = as.numeric(strftime(date_time, format = "%j"))) %>%
-              select(-(date:time))
-            flog.info(paste(bsrn_df.row$date_time))
-  
-            return(bsrn_df.row)
-          }
-          out <- out[!is.na(out)]
-          out <- strsplit(out, " ")
-          out <- bind_rows(lapply(out, scrapeDF))
+  if (type == "new" | type == "write") {
+    
+    # the web scraping tool below is adapted from
+    # http://pastebin.com/XX5FBJqf
+    
+    readUrl <- function(url, skip = 3) {
+      out <- tryCatch(
+        {
+          # Just to highlight: if you want to use more than one
+          # R expression in the "try" part then you'll have to
+          # use curly brackets.
+          # 'tryCatch()' will return the last evaluated expression
+          # in case the "try" part was completed successfully
+
+          start_row = 1 + skip
+          end_row = (24*60)+start_row
+          readLines(con=url, warn=FALSE)[start_row:end_row]
+          # The return value of `readLines()` is the actual value
+          # that will be returned in case there is no condition
+          # (e.g. warning or error).
+          # You don't need to state the return value via `return()` as code
+          # in the "try" part is not wrapped insided a function (unlike that
+          # for the condition handlers for warnings and error below)
+        },
+        error=function(cond) {
+          message(paste("URL does not seem to exist:", url))
+          message("Here's the original error message:")
+          message(cond)
+          # Choose a return value in case of error
+          return(NA)
+        },
+        warning=function(cond) {
+          message(paste("URL caused a warning:", url))
+          # message("Here's the original warning message:")
+          message(cond)
+          # Choose a return value in case of warning
+          return(-99)
+        },
+        finally={
+          # NOTE:
+          # Here goes everything that should be executed at the end,
+          # regardless of success or error.
+          # If you want more than one expression to be executed, then you
+          # need to wrap them in curly brackets ({...}); otherwise you could
+          # just have written 'finally=<expression>'
+          # message(paste("Processed URL:", url))
+          # message("Some other message at the end")
         }
-        return(out)
+      )
+      if(is.character(out)) { # basically, if no errors get thrown
+
+        scrapeDF <- function(timestep) {
+          bsrn_df.row = as.data.frame.list(timestep) %>%
+            apply(2, function(x) {
+              if(x == "---") return(0)
+              else return(x)})
+          bsrn_df.row = as.data.frame.list(bsrn_df.row, stringsAsFactors = FALSE)
+          bsrn_df.row = bsrn_df.row[,!apply(bsrn_df.row, 2, function(x) any(x==""))] %>%
+            select(1:3,20)
+          colnames(bsrn_df.row) <- c("date", "time", "tempC", "ghi")
+
+          bsrn_df.row = bsrn_df.row %>%
+            mutate_if(is.factor, as.character) %>%
+            mutate(tempC = as.numeric(tempC),
+                   ghi = as.numeric(ghi),
+                   date_time = paste(strftime(strptime(date, format = "%m/%d/%y"),
+                                                         format = "%Y-%m-%d"),
+                                                time),
+                   day_ind = as.numeric(strftime(date_time, format = "%j"))) %>%
+            select(-(date:time))
+          flog.info(paste(bsrn_df.row$date_time))
+
+          return(bsrn_df.row)
+        }
+        out <- out[!is.na(out)]
+        out <- strsplit(out, " ")
+        out <- bind_rows(lapply(out, scrapeDF))
       }
-      url_paths.larc = lapply(
-        sample_dt,
-        function(i) paste("http://capable.larc.nasa.gov/weatherlink/data/2014/",
-        i, "data.txt", sep = "")
-        )
-      # bsrn_df.larc.days = bind_rows(lapply(url_paths.larc, function(x) readUrl(x, skip = 3)))
-  
-      cl <- makeCluster(3)
-      registerDoSNOW(cl)
-  
-      pkgs_to_pass = c("dplyr", "futile.logger")
-      bsrn_df.larc.days = foreach(i = 1:(length(url_paths.larc)),
-                                  .combine = "rbind.data.frame",
-                                  .multicombine = TRUE,
-                                  .packages = pkgs_to_pass,
-                                  .errorhandling = "remove",
-                                  .verbose = TRUE) %dopar% {
-                                    readUrl(url_paths.larc[[i]])
-                                  }
-      stopCluster(cl)
-  
-      bsrn_df.larc.days = bsrn_df.larc.days %>%
-                            mutate(date_time = as.POSIXct(date_time),
-                                   hr = as.numeric(strftime(date_time, format = "%H")),
-                                   dayhr_ind = day_ind + hr/24) %>%
-                            filter(!is.na(date_time)) %>%
-                            arrange(dayhr_ind, date_time) %>%
-                            select(-tempC,-hr) %>%
-                            group_by(dayhr_ind, date_time) %>%
-                            summarise_if(is.numeric, "mean") %>%
-                            mutate(sun_hrs = ifelse(ghi == 0, 0, 1)) %>%
-                            ungroup() %>%
-                            add_weather()
-  
-      # tally.compare <- left_join(tally(group_by(bsrn_dt, day_ind)),
-      #                            tally(group_by(bsrn_df.larc.days, day_ind)),
-      #                            by = "day_ind")
-      if (type == "write") {
-        temp_file_name = paste0("inputs/solar_bsrn_larc_",
-                              strftime(Sys.time(), format = "%y%m%d_%H%M"),
-                             ".csv")
-        write.csv(bsrn_df.larc.days, temp_file_name)
-      }
+      return(out)
+    }
+    url_paths.larc = lapply(
+      sample_dt,
+      function(i) paste("http://capable.larc.nasa.gov/weatherlink/data/2014/",
+      i, "data.txt", sep = "")
+      )
+    # bsrn_df.larc.days = bind_rows(lapply(url_paths.larc, function(x) readUrl(x, skip = 3)))
+
+    cl <- makeCluster(3)
+    registerDoSNOW(cl)
+
+    pkgs_to_pass = c("dplyr", "futile.logger")
+    bsrn_df.larc.days = foreach(i = 1:(length(url_paths.larc)),
+                                .combine = "rbind.data.frame",
+                                .multicombine = TRUE,
+                                .packages = pkgs_to_pass,
+                                .errorhandling = "remove",
+                                .verbose = TRUE) %dopar% {
+                                  readUrl(url_paths.larc[[i]])
+                                }
+    stopCluster(cl)
+
+    bsrn_df.larc.days = bsrn_df.larc.days %>%
+                          mutate(date_time = as.POSIXct(date_time),
+                                 hr = as.numeric(strftime(date_time, format = "%H")),
+                                 dayhr_ind = day_ind + hr/24) %>%
+                          filter(!is.na(date_time)) %>%
+                          arrange(dayhr_ind, date_time) %>%
+                          select(-tempC,-hr) %>%
+                          group_by(dayhr_ind, date_time) %>%
+                          summarise_if(is.numeric, "mean") %>%
+                          mutate(sun_hrs = ifelse(ghi == 0, 0, 1)) %>%
+                          ungroup() %>%
+                          add_weather()
+
+    # tally.compare <- left_join(tally(group_by(bsrn_dt, day_ind)),
+    #                            tally(group_by(bsrn_df.larc.days, day_ind)),
+    #                            by = "day_ind")
+    if (type == "write") {
+      temp_file_name = paste0("inputs/solar_bsrn_larc_",
+                            strftime(Sys.time(), format = "%y%m%d_%H%M"),
+                           ".csv")
+      write.csv(bsrn_df.larc.days, temp_file_name)
+    }
   }
   if (type == "read") {
     bsrn_df.larc.days = read.csv("inputs/solar_bsrn_larc.csv") %>% 
@@ -218,8 +233,10 @@ get_bsrn.larc = function(type = "read") {
   }
   return(bsrn_df.larc.days)
 }
-# Combining COVE dat file, or reading the csv
 get_bsrn.cove = function(type = "read") {
+  # Combining COVE 1min solar data into a single csv ("write")
+  # or reading the csv, if compilation already taken care of ("read")
+  
   if (type == "new" | type == "write") {
     bsrn_df.cove.days = readLines("inputs/bsrn_raw/2014001-2014365_COVEdata.DAT")
     # cove.cols = strsplit(bsrn_df.cove.days[14], "\"")
@@ -266,8 +283,11 @@ get_bsrn.cove = function(type = "read") {
   }
   return(bsrn_df.cove.days)
 }
-# Adding clearsky, weather types to BSRN
 get_bsrn_clearsky = function() {
+  # Fetches clearsky data for Virginia
+  # where LARC and COVE data comes from
+  # from local csv
+  
   bsrn_df.clearsky = fread("inputs/bsrn_raw/1155277_37.01_-76.34_2014.csv")
   colnames(bsrn_df.clearsky) = c("year","mo","day","hr","min","ghi",
                                  "clr_ghi", "tempC")
@@ -291,6 +311,8 @@ get_bsrn_clearsky = function() {
   return(bsrn_df.clearsky)
 }
 add_weather = function(bsrn_df.station) {
+  # Attaches weather type, based on Hofmann (2015)
+  # for 1min solar data
   
   bsrn_df.clearsky = get_bsrn_clearsky()
   bsrn_df.station = bsrn_df.station %>%
@@ -318,6 +340,10 @@ add_weather = function(bsrn_df.station) {
   bsrn_df.station = left_join(cols_to_add, bsrn_df.station)
 }
 get_markovchains = function(df_str) {
+  # returns a transition probability matrix
+  # for each weather type in
+  # the selected dataframe
+  # i.e., 1min solar data from either COVE or LARC
   
   if (df_str == "cove") {
     df = get_bsrn.cove("read") 
@@ -343,6 +369,9 @@ get_markovchains = function(df_str) {
   return(chains)
 }
 get_1day_chain = function(t0.val, cop = 2, tpm.list, weather) {
+  # returns a 24-hr time-series of clearness index (kt) values
+  # based on a starting condition and weather type
+  
   df_names = c("cove", "larc", "too_many")
   daychains <-  foreach(i = 1:length(tpm.list),
                         .combine = "cbind.data.frame") %do% {
@@ -368,6 +397,8 @@ get_1day_chain = function(t0.val, cop = 2, tpm.list, weather) {
   return(daychains)
 }
 attach_chains = function(df, scalars) {
+  # attaches new ghi values
+  # and changes name of the resulting columns
   
   ghi.col <- select(df, kt, clr_ghi)
   ghi_min <- foreach(x = iter(scalars, by = 'col'),
@@ -386,7 +417,8 @@ attach_chains = function(df, scalars) {
   return(df)
 }
 get_kt_1min = function(daily_df, tpm.list, cop = 2, interval) {
-  # Attaches 1-min kt values to a time-series spanning 24hrs
+  # Attaches 1-min clearness index (kt) values
+  # to a time-series spanning 24hrs
 
   weather <- unique(daily_df$weather)
   t0.val <- filter(daily_df, kt > 0) %>%
@@ -394,6 +426,7 @@ get_kt_1min = function(daily_df, tpm.list, cop = 2, interval) {
                 select(kt) %>%
                 as.numeric()
   
+  # sets max kt value to 2
   kt.1min <- get_1day_chain(t0.val, cop, tpm.list) %>%
                   mutate_all(function(x) ifelse(x > 2, 2, x))
   
@@ -414,6 +447,9 @@ get_kt_1min = function(daily_df, tpm.list, cop = 2, interval) {
                 select(-date_time.x, -date_time.y) %>%
                 attach_chains(kt.1min)
   
+  # compares daily ghi values from input data
+  # to markov generated ones
+  # calculates scale_factor
   daily.ghi <- select(day_df, dayhr_ind, ghi) %>%
                   group_by(dayhr_ind) %>%
                   summarise(ghi = mean(ghi)) %>%
@@ -433,6 +469,9 @@ get_kt_1min = function(daily_df, tpm.list, cop = 2, interval) {
                 daily.ghi, "-",
                 mC.ghi))
     
+  # if markov-gen'd values are within 5%
+  # scale factor goes unused
+  # otherwise values are scaled to be within 5%
   cols_to_keep <- select(day_df, day_ind:kt, date_time)
   scale_factor <- ifelse(abs(scale_factor-1) <= 0.05, 1, scale_factor)
   scaled_kt <- select(day_df, contains("kt_"), kt)
@@ -444,8 +483,17 @@ get_kt_1min = function(daily_df, tpm.list, cop = 2, interval) {
   output_df <- cbind.data.frame(cols_to_keep, scaled_kt, scaled_ghi)
   return(output_df)
 }
-get_1yr_markov = function(src_df = list("cove", "larc"), cop = 2, interval,
+get_1yr_markov = function(src_df = list("cove", "larc"),
+                          cop = 2, interval,
                           save_rds, seed = NULL) {
+  # compiles a specified number of copies of
+  # 1yr time-series with 1min intervals 
+  # of clearness index (kt) and ghi values
+  # based on hourly solar data from NSRDB
+  
+  # can save the resulting dataframe as an rds
+  # THIS STEP IS NECESSARY BEFORE RUNNING SIMULATIONS
+  
   if (!is.null(seed)) seed = 7
   
   nsrdb_df <- get_nyc_solar("read")
@@ -507,6 +555,14 @@ get_1yr_markov = function(src_df = list("cove", "larc"), cop = 2, interval,
   return(all_min)
 }
 validate_markov_df <- function(df, save_rds) {
+  # Takes a dataframe of markov-generated 1min solar time-series
+  # and compares its gradient frequency distribution
+  # with that of the input 1min data (from COVE and LARC)
+  
+  # can save the resulting dataframe as an rds
+  # THIS IS NECESSARY ONLY FOR PLOTTING
+  # (see get_markov_freqpoly in ani_plots.R)
+  
   bsrn_cove <- get_bsrn.cove("read")
   bsrn_larc <- get_bsrn.larc("read")
   bsrn_df <- full_join(bsrn_cove, bsrn_larc, by = "date_time",
@@ -544,12 +600,3 @@ validate_markov_df <- function(df, save_rds) {
   if(save_rds) saveRDS(output_df, "inputs/solar_min_freq.rds")
   return(output_df)
 }
-
-# mC_1yr <- get_1yr_markov(cop = 100, interval = 1/12, save_rds = TRUE)
-# mC_1yr.freq <- validate_markov_df(mC_1yr, save_rds = TRUE)
-
-# sample_mC = mC_1yr %>%
-#                 select(date_time, day_ind,
-#                        contains("kt"), contains("ghi"),
-#                        weather) %>%
-#                 filter(day_ind %in% seq(119,123))

@@ -3,9 +3,8 @@
 # This object contains a time-series of generated solar power
 # plus metadata.
 
-# wd_path = paste(Sys.getenv("USERPROFILE"), "/OneDrive/School/Thesis/program2", sep = "")
-# setwd(as.character(wd_path))
-# setwd("E:/GitHub/clca-batt")
+# Assumes constant time intervals
+
 library("data.table")
 library("plyr")
 library("dplyr")
@@ -16,6 +15,7 @@ library("R6")
 
 pv_load <- R6Class("PV Load",
                      public = list(
+                       # The PV load has hard-coded parameters:
                        
                        # cell efficiency, inverter eff., nameplate kWp
                        # system losses (from NREL SAM), self-shade factor,
@@ -90,6 +90,11 @@ pv_load <- R6Class("PV Load",
                        },
                        
                        add_ts_df = function(rds, copies, area) {
+                         # The PV object selects randomized copies
+                         # of generation time-series
+                         # from a r-data object (rds)
+                         # that gets built in solar_data.R
+                         
                          ts_df = list()
                          
                          dt <- select(rds, date_time)
@@ -111,6 +116,9 @@ pv_load <- R6Class("PV Load",
                        },
                        
                        set_interval = function(ts) {
+                         # Checks interval b/w 2nd and 3rd timesteps
+                         # copies the time difference into object metadata
+                         
                          start_pt = 2
                          interval.num = abs(as.numeric(
                                              (difftime(ts$date_time[start_pt],
@@ -151,7 +159,10 @@ pv_load <- R6Class("PV Load",
 )
 
 get_pv <- function(run_id, type, copies = 0) {
-
+  # Default function for creating a solar generation object
+  # based on building type (sets size of array)
+  # and number of random copies
+  
   metadat = list(
     "bldg" = type,
     "run_id" = run_id,

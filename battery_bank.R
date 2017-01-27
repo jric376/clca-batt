@@ -1,11 +1,11 @@
 # Battery Bank Object
 
 # This object can be called to operate like a battery bank, specified by
-# its chemistry.
+# its chemistry and capacity (in kWh). It assumes 5min timesteps.
 
-# wd_path = paste(Sys.getenv("USERPROFILE"), "\\OneDrive\\School\\Thesis\\program2", sep = "")
-# setwd(as.character(wd_path))
-# setwd("E:\\GitHub\\clca-batt")
+# battery characteristics are hard-coded (in add_type function),
+# rather than being loaded from a csv, etc.
+
 library("dplyr")
 library("futile.logger")
 library('R6')
@@ -137,6 +137,7 @@ batt_bank <- R6Class("Batteries",
           )
         )
         
+        # copies battery specs into properties of object 
         chosen_params <- types[[type]]
         for (param_name in names(chosen_params)) {
           self[[param_name]] <- chosen_params[[param_name]]
@@ -165,7 +166,7 @@ batt_bank <- R6Class("Batteries",
     ),
     active = list(
       draw = function(kw_val) {
-        # This function takes a kwh request for (dis)charge
+        # This function takes a request for (dis)charge in kW
         # and returns the maximum dischargeable amount to meet
         # this demand
         
@@ -220,6 +221,8 @@ batt_bank <- R6Class("Batteries",
         return(self)
       },
       change_soc = function(soc_val) {
+        # Calculates a new state-of-charge
+        # based on the supplied delta SoC, e.g. "soc_val"
         
         if (missing(soc_val)) return(self$soc)
         else self$soc <- self$soc + soc_val
@@ -230,6 +233,9 @@ batt_bank <- R6Class("Batteries",
         return(self)
       },
       change_cap = function(cap_val) {
+        # Calculates a new battery bank capacity
+        # based on the supplied delta kWh, e.g. "cap_val"
+        
         if (missing(cap_val)) return(self$cap)
         
         self$cap <- self$cap + cap_val
@@ -238,6 +244,8 @@ batt_bank <- R6Class("Batteries",
         return(self)
       },
       incr_cyc = function(cyc_val) {
+        # Increments equivalent cycles of the battery object
+        # based on supplied number of equiv cycles, e.g. "cyc_val"
         if (missing(cyc_val)) return(self$cyc_eq)
         else self$cyc_eq <- self$cyc_eq + cyc_val
         
@@ -250,6 +258,11 @@ batt_bank <- R6Class("Batteries",
 )
 
 get_batt <- function(chem = NULL, kwh = NULL, interval = 1/12) {
+  # This is the function for creating a battery object,
+  # which makes use of the R6 initialization function ($new)
+  # most of the metadata is filler; only "time_int" matters
+  # in the current setup of the simulations
+  
   if (is.null(chem) | !is.numeric(kwh)) {
     return()
   }
@@ -269,6 +282,9 @@ get_batt <- function(chem = NULL, kwh = NULL, interval = 1/12) {
   
   return(bank)
 }
+
+# The following should really be integrated with tests in the
+# "testthat" package. Still a work in progress
 
 deplete_test <- function(test_batt) {
   test_batt$draw <- -0.6*test_batt$nameplate
