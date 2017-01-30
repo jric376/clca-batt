@@ -1,10 +1,8 @@
 # Plots + animations
 
-# All plots and animations based on custom objects
-# are created here. Objects are imported as needed
+# Scripts, objects, and simulation results
+# are imported as needed within each fn.
 
-# wd_path = paste(Sys.getenv("USERPROFILE"), "/OneDrive/School/Thesis/program2", sep = "")
-# setwd(as.character(wd_path))
 library("animation")
 library("cowplot")
 library("data.table")
@@ -26,6 +24,8 @@ library("tidyr")
 # if (!dir.exists(file.path("outputs/plots"))) {
 #   dir.create(file.path("outputs/plots"))
 # }
+
+# Color pallettes for use in plotting
 cbb_qual <- c("#E69F00", "#999999","#CC79A7", "#009E73", "#F0E442",
               "#000000", "#0072B2", "#D55E00", "#56B4E9")
 
@@ -38,6 +38,9 @@ cbb_qual.enduse <- c("Ext. Equipment" = "#E69F00", "Int. Equipment" = "#999999",
                      "Ext. Lighting" = "#CC79A7", "Int. Lighting" = "#009E73",
                      "Refrigeration" = "#D55E00", "Space Cooling" = "#F0E442",
                      "Space Heating" = "#0072B2")
+
+# Transformations / unit conversions for use
+# in data cleaning and plotting
 asinh_trans <- function(){
   trans_new(name = 'asinh', transform = function(x) asinh(x), 
             inverse = function(x) sinh(x))
@@ -52,6 +55,8 @@ reverselog_trans <- function(base = exp(1)) {
 to_kg <- function(lb_val) {
   return(lb_val/2.205)
 }
+
+# SAMPLE SET OF RUN RESULTS NAMES, NOT FOR RE-USE
 apts_runs <- c("apts_lion_02_075_by005",
                "apts_pba_02_075_by005",
                "apts_nas_02_075_by005",

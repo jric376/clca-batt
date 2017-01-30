@@ -1,15 +1,23 @@
 # Simulation Handler - GHG Changes from Demand Response w PV + Battery Storage
 
-# wd_path = paste(Sys.getenv("USERPROFILE"), "/OneDrive/School/Thesis/program2", sep = "")
-# setwd(as.character(wd_path))
-# setwd("E:/GitHub/clca-batt")
+# These fns execute individual simulations
+# - battery sizing using month containing peak dmd from 1yr time-series
+# - 1yr simulation of peak shaving
+
+# and execute multiple simulations in parallel
+# with diff bldg and batt types, and degrees of peak shaving
+
+# simulations can also be limited to a certain # of timesteps
+
+# output saved in folders labeled by the "run_id" specified by user
+
 library("data.table")
 library("plyr")
 library("dplyr")
-library('foreach')
+library("foreach")
 library("imputeTS")
-library('iterators')
-library('doSNOW')
+library("iterators")
+library("doSNOW")
 library("futile.logger")
 library("R6")
 if(!exists("batt_bank", mode = "function")) source("battery_bank.R")
@@ -20,6 +28,13 @@ if(!exists("pv_load", mode = "function")) source("pv_load.R")
 if(!exists("sys_ctrl.R", mode = "function")) source("sys_ctrl.R")
 
 make_run_folder = function(run_id) {
+  # script for creating a folder in which to save
+  # intermediate data (i.e. logs)
+  # AND simulation results
+  
+  # automatically creates new name if a 
+  # duplicated "run_id" is chosen
+  
   try_path = paste("outputs/", run_id, sep = "")
   if (dir.exists(file.path(try_path))) {
     copy_val = 1
@@ -40,8 +55,13 @@ make_run_folder = function(run_id) {
   dir.create(file.path(new_path))
   return(new_id)
 }
-size_batt <- function(run_id, bldg_nm = NULL, bldg_ts = NULL, pv_ts = NULL, interval = NULL,
-                      dmd_frac = NULL, batt_type = NULL, terr = NULL, guess = NULL) {
+size_batt <- function(run_id, bldg_nm = NULL, bldg_ts = NULL,
+                      pv_ts = NULL, interval = NULL,
+                      dmd_frac = NULL, batt_type = NULL,
+                      terr = NULL, guess = NULL) {
+  # Battery sizing begins with ID'ing month
+  # containing peak dmd, and testing the specified
+  # level of peak shaving with various batt sizes
   
   log_path = paste(
     "outputs/", run_id, "/batt_sizer_",
@@ -60,13 +80,25 @@ size_batt <- function(run_id, bldg_nm = NULL, bldg_ts = NULL, pv_ts = NULL, inte
   pv_ts <- filter(pv_ts,
                   as.POSIXlt(date_time)$mo == as.POSIXlt(max_step$date_time)$mo)
   
+  # Below, the cond'n to be satisfied
+  # e.g. when the batt is properly sized
+  
+  # energy from drawing power beyond
+  # peak shaving demand threshold (targ_kw)
+  # amounts to less than a frac of
+  # annual elec. consumption
+  
+  # unmet_kwh < unmet_thresh
+  
+  # "incr" determines how batt sizes get
+  # adjusted between trials, in order to
+  # satisfy above cond'n
+  
   unmet_kwh <- sum(bldg_ts$kwh)
-  unmet_thresh <- 0.00005*sum(bldg_ts$kwh)           # max unmet_kwh to trigger adequate size
-  targ_kw <- max(max_step$kw)*(1 - dmd_frac)        # fraction of peak demand to be shaved
+  unmet_thresh <- 0.00005*sum(bldg_ts$kwh)
+  targ_kw <- max(max_step$kw)*(1 - dmd_frac)
   test_capacity <- ifelse(missing(guess), 1, guess)
   incr <- 0.05
-  
-  # need to check if guess satisfies unmet_kwh > unmet_thresh first
   
   while ((unmet_kwh > unmet_thresh) & (incr > 0.00019)) {
     
@@ -110,7 +142,9 @@ size_batt <- function(run_id, bldg_nm = NULL, bldg_ts = NULL, pv_ts = NULL, inte
     else {
       if (unmet_kwh > unmet_thresh) {
         incr <- incr*log(unmet_kwh)/2
-        if ((test_capacity > 2000000) & (incr > 2)) { # hard cap on capacity at 2GW
+        
+        # Hard cap on capacity at 2GW
+        if ((test_capacity > 2000000) & (incr > 2)) {
           test_capacity <- 2000000
           incr <- 0.0001
           unmet_kwh <- unmet_thresh - 1
@@ -122,9 +156,9 @@ size_batt <- function(run_id, bldg_nm = NULL, bldg_ts = NULL, pv_ts = NULL, inte
                       "/", round(unmet_thresh, 2),
                       "- incr", incr_sci)
     flog.error(log_state, name = "sizer")
-    # noquote(print(log_state))
   }
-  test_capacity <- test_capacity/0.8 # to account for capacity degradation in the future
+  # To account for capacity degradation in the future...
+  test_capacity <- test_capacity/0.8
   flog.info(paste("Final capacity is", test_capacity, "kwh"),
             name = "sizer")
   
@@ -137,6 +171,13 @@ run_one_sim <- function(run_id, ctrl_id, bldg_nm = NULL, bldg_ts = NULL, pv_ts =
                         grid_ts = NULL, terr = NULL, dmd_frac = NULL,
                         batt_type = NULL, batt_cap = NULL,
                         rate = NULL, steps = NULL, save_df = NULL) {
+  # All parameters / objects / time-series
+  # are initialized for a single simulation
+  
+  # - "steps" controls the # of time intervals
+  # in the simulation
+  # - "save_df" determines whether the raw
+  # 1yr data is saved
   
   log_path = paste(
     "outputs/", run_id, "/sim_", ctrl_id, "_",
@@ -184,16 +225,30 @@ run_one_sim <- function(run_id, ctrl_id, bldg_nm = NULL, bldg_ts = NULL, pv_ts =
                           grid_ts = grid_ts,
                           disp = disp
   )
+  # log_rand reduces the # of logged simulations
+  # each log reaches ~6 MB @ 1yr of simulation
+  
+  # this is a crude measure of how
+  # far along a sim is. especially useful
+  # when many parallel sims are in progress
+  
   log_rand <- ifelse(sample(4, 1) < 2, TRUE, FALSE)
   ctrlr$traverse_ts(n = steps, log = log_rand, save_df = save_df)
+  
+  # Sim results are summarized
+  # reduced to a single row of values
+  # to be compiled in "sim_year" function
+  
   sim_df <- ctrlr$get_sim_df()
+  
+  # operational & Utility rate summary
   batt_kw.max <- max(sim_df$batt_kw)
   batt_kw.min <- min(sim_df$batt_kw)
   batt_cyceq <- max(sim_df$cyc_eq)
   control_plc2erta <- sum(sim_df$bldg_plc2erta)
   dr_plc2erta <- sum(sim_df$grid_plc2erta)
   r <- rate
-
+  
   annual_bill <- sim_df %>%
                   mutate(mo = strftime(date_time, format = "%m"),
                          bldg_kwh = bldg_kw*interval,
@@ -232,11 +287,30 @@ sim_year <- function(run_id, bldg = NULL, cop = 1, batt_type = NULL, terr = NULL
   
   run_id = make_run_folder(run_id)
   
-  # figure out what demand_frac range to use based on LDC
-  
+  # Tests shaving b/w 20% and 75% pk. dmd
   dmd_fracs = seq(0.2,0.75,0.05)
+  
+  # Tracks parallel, jittered copies of time-series
   ts_index = seq.int(cop + 1)
+  
+  # Creates a list spanning entire state space
+  # of simulations
+  # (can be expanded to include other params
+  #  that need to be sim'd separately:
+  #     - degree of randomization / jittering
+  #     - pv type / size)
   param_combns = as.vector((expand.grid(dmd_fracs, ts_index)))
+  
+  # Bldg, grid, and PV time-series are initialized
+  # stochastic copies of time-series are "jittered"
+  # with a factor of 0.10
+  # (see respective source files
+  #   - "bldg_load.R"
+  #   - "grid_load.R"
+  #   - "pv_load.R"
+  
+  #   ...for more info on this factor
+  # )
   
   bldg <- get_bldg(run_id = run_id, copies = cop, type = bldg)
   log_path = paste("outputs/", run_id,"/sim_", bldg$get_metadata()[["bldg"]], "_",
@@ -261,11 +335,14 @@ sim_year <- function(run_id, bldg = NULL, cop = 1, batt_type = NULL, terr = NULL
   flog.info(paste("Intialized PV with", pv$nameplate, "kw"), name = "sim_1yr")
   flog.info(paste("Intialized grid as", grid_df$get_metadata()[["territory"]]), name = "sim_1yr")
   
+  # Setting up parallel sims for execution...
   cl <- makeCluster(num_clust)
   registerDoSNOW(cl)
   funs_to_pass = c("run_one_sim", "size_batt")
   pkgs_to_pass = c("dplyr", "futile.logger", "imputeTS")
-
+  
+  # The # of copies time-series to save
+  # for each permutation of other params
   run_to_save <- sample(1:bldg$get_ts_count(), 1)
   
   output_df = foreach(i = 1:(nrow(param_combns)),
@@ -308,6 +385,7 @@ sim_year <- function(run_id, bldg = NULL, cop = 1, batt_type = NULL, terr = NULL
                                  bldg$get_ts_count()*nrow(param_combns), " sims."),
                           name = "sim_1yr")
                 
+                # Initializing & aligning individual time-series
                 bldg_ts = bldg$get_ts_df(test_ts) %>%
                   mutate(date_time = strftime(date_time,
                                               format = "2014-%m-%d %H:%M:%S")) %>%
@@ -355,12 +433,16 @@ sim_year <- function(run_id, bldg = NULL, cop = 1, batt_type = NULL, terr = NULL
                 else {
                   save_df = FALSE
                 }
+                
+                # Summarizing pre-simulation info
                 one_output <- list("run_id" = run_id, bldg = bldg$get_metadata()[["bldg"]],
                                   pv_kw = pv$nameplate,
                                   dmd_frac = test_dmd, ts_num = test_ts,
                                   batt_type = batt_type, batt_cap = batt_cap)
                 pv_cost <- get_pv_cost(pv, test_rt)
                 c2g_impacts <- get_pv_batt_plc2erta(pv, batt_type, batt_cap)
+                
+                # Call to run simulation
                 one_sim <- run_one_sim(run_id = run_id, ctrl_id = c_id,
                                       bldg_nm = bldg$get_metadata()[["bldg"]],
                                       bldg_ts = bldg_ts, pv_ts = pv_ts,
@@ -369,6 +451,7 @@ sim_year <- function(run_id, bldg = NULL, cop = 1, batt_type = NULL, terr = NULL
                                       batt_cap = batt_cap, rate = test_rt,
                                       steps = steps, save_df = save_df)
                 
+                # Attaching remaining simulation results
                 one_output = append(one_output, pv_cost)
                 one_output = append(one_output, c2g_impacts)
                 one_output = append(one_output, one_sim)
@@ -382,6 +465,7 @@ sim_year <- function(run_id, bldg = NULL, cop = 1, batt_type = NULL, terr = NULL
   }
   stopCluster(cl)
   
+  # Attaching add'l run summary info
   output_df <- output_df %>%
                 mutate(tac_lo = lsc_lo + pv_levcost_lo + dr_cost,
                        tac_hi = lsc_hi + pv_levcost_hi + dr_cost,
@@ -394,7 +478,8 @@ sim_year <- function(run_id, bldg = NULL, cop = 1, batt_type = NULL, terr = NULL
   return(output_df)
 }
 
-## FOR USE IN REMOTE SESSIONS
+## For use in remote EC2 sessions
+
 # ipak <- function(pkg){
 #   new.pkg <- pkg[!(pkg %in% installed.packages()[, "Package"])]
 #   if (length(new.pkg)) 
@@ -407,7 +492,21 @@ sim_year <- function(run_id, bldg = NULL, cop = 1, batt_type = NULL, terr = NULL
 #               "futile.logger", "imputeTS")
 # ipak(packages)
 
-size_results <- sim_year("apts_vrf_fillin", bldg = "apt", cop = 2,
-                          batt_type = "vrf", terr = "nyiso", guess = 2.5,
-                          steps = NULL)
+
+## Below is a sample fn call for running simulations:
+
+# "cop" refers to the # of time-series simulated
+#  per comb'n of bldg, batt, and grid type
+
+# "steps" refers to the # of time-steps simulated
+# if NULL, a full year is sim'd
+
+# "num_clust" specifies the max # of simulations
+# that can be run, depending on the computer to be used
+
+# size_results <- sim_year(run_id = "apts_vrf_fillin",
+#                          bldg = "apt", cop = 2,
+#                          batt_type = "vrf",
+#                          terr = "nyiso", guess = 2.5,
+#                          steps = NULL, num_clust = 3)
 

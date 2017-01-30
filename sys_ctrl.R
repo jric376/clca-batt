@@ -4,19 +4,18 @@
 # grid load (MW), bldg load (kW), PV load (kW)
 
 # It also takes in a batt bank object and a
-# demand response target
+# demand response target (dmd_targ)
 
-# Based on how the bldg load compares to the target
-# and the state of the battery, it updates outputs
-# an array of values decribing the next timestep
+# Right now, this ctrlr only handles peak shaving.
+# Based on whether the bldg load is > or < dmd_targ
+# the presence of PV generation, and the state of
+# the battery, it updates outputs and builds up a
+# dataframe of 1-yr worth of simulation.
 
 # Emissions changes are calculated after traversing
 # the bldg + pv ts, using the grid ts and
 # dispatch curves
 
-# wd_path = paste(Sys.getenv("USERPROFILE"), "/OneDrive/School/Thesis/program2", sep = "")
-# setwd(as.character(wd_path))
-# setwd("E:/GitHub/clca-batt")
 library(dplyr)
 library(futile.logger)
 library(R6)
@@ -25,6 +24,12 @@ if(!exists("disp_curv", mode = "function")) source("dispatch_curve.R")
 
 sys_ctrlr <- R6Class("System Controller",
                      public = list(
+                       # The dmd_targ sets the threshold for peak shaving
+                       # as the ctrlr traverses 1yr in 5min timesteps
+                       # in the bldg, grid, and pv time-series.
+                       # The battery and dispatch curve objects
+                       # are called upon at each timestep.
+                       
                        initialize = function(
                                              meta = NULL, dmd_targ = NULL,
                                              batt = NULL, bldg_ts = NULL,
@@ -72,6 +77,10 @@ sys_ctrlr <- R6Class("System Controller",
                        },
                        
                        draw_batt = function(kw_val) {
+                         # (dis)charges the battery with a specified
+                         # amount of energy, given a time interval and
+                         # power draw
+                         
                          private$batt$draw <- kw_val
                          del_kwh <- private$batt$get_state()$del_kwh
                          del_kw <- del_kwh / as.numeric(private$metadata[["time_int"]])
@@ -80,8 +89,8 @@ sys_ctrlr <- R6Class("System Controller",
                        
                        operate = function(timestep = NULL, bldg_kw = NULL,
                                           pv_kw = NULL, iso_mw = NULL) {
-                         # this is the main function for deciding how and
-                         # from where the system will draw power to meet
+                         # main function for deciding how and
+                         # from where the system will direct power to meet
                          # the bldg demand and shave peak demand
                          
                          if (is.null(timestep)) {
@@ -93,6 +102,9 @@ sys_ctrlr <- R6Class("System Controller",
                          unmet_kw = NA
                          
                          if (bldg_kw > private$dmd_targ) {
+                           # this chunk is triggered
+                           # when peak shaving is REQUIRED
+                           
                            if (pv_kw > bldg_kw) {
                              grid_kw = 0
                              batt_kw = self$draw_batt(pv_kw - bldg_kw)
@@ -135,6 +147,9 @@ sys_ctrlr <- R6Class("System Controller",
                            }
                          }
                          else {
+                           # this chunk executes if
+                           # peak shaving is NOT NEEDED
+                           
                            if (pv_kw > 0) {
                              batt_kw = self$draw_batt(pv_kw)
                              if (batt_kw < pv_kw) {
@@ -152,7 +167,7 @@ sys_ctrlr <- R6Class("System Controller",
                            }
                            else {
                              
-                             # atm, timestep is a chr w format "%Y-%m-%d %H:%M:%S"
+                             # here, timestep is a chr w format "%Y-%m-%d %H:%M:%S"
                              hr <- as.numeric(strftime(timestep, format = "%H"))
                              if ((hr >= 1 | hr <= 5) & private$batt$soc <= 0.5) {
                                  max_draw = (private$dmd_targ - bldg_kw)*0.5
@@ -179,10 +194,17 @@ sys_ctrlr <- R6Class("System Controller",
                                            bldg_kw, grid_kw)
                          
                          if(private$metadata[["ctrl_id"]] == "batt_sizer") {
+                           # sizing a battery requires no emissions accounting
+                           
                            bldg_plc2erta <- 0
                            grid_plc2erta <- 0
                          }
                          else{
+                           # extra 0.001 factor is needed to convert results
+                           # of get_emish call from kg CO2eq per MWh to per kWh
+                           # so that multiplying by bldg_kw results in 
+                           # kg CO2eq as the only remaining unit
+                           
                            bldg_plc2erta <- (bldg_kw*0.001)*as.numeric(private$metadata[["time_int"]])* 
                                                 private$disp$get_emish(iso_mw)
                            grid_plc2erta <- (grid_kw*0.001)*as.numeric(private$metadata[["time_int"]])* 
@@ -201,22 +223,28 @@ sys_ctrlr <- R6Class("System Controller",
                          next_state <- append(next_state, private$batt$get_state())
                          next_state <- append(next_state, bill_costs)
                          
-                         
                          return(next_state)
                        },
 
-                       traverse_ts = function(n = "full", log = FALSE, save_df) { # Booleans controlling whether
-                                                              # traversing gets logged to console
-                                                              # each simulation is saved as csv
+                       traverse_ts = function(n = "full", log = FALSE, save_df) {
+                         
+                         
+                         # takes booleans controlling whether
+                         # traversing gets logged to console
+                         # and whether results are saved as csv
                          
                          timesteps = private$bldg_ts$date_time
                          bldg_kw = private$bldg_ts$kw
                          pv_kw = private$pv_ts$kw
+                         
                          if (is.null(private$grid_ts)) {
-                            iso_mw = rep(1000, length(private$bldg_ts$kw))
+                           # if no emissions accounting is needed
+                           # use filler ts for grid load
+                           
+                           iso_mw = rep(1000, length(private$bldg_ts$kw))
                          }
                          else {
-                            iso_mw = private$grid_ts$mw
+                           iso_mw = private$grid_ts$mw
                          }
                          
                          if(is.numeric(n)) {
@@ -297,31 +325,3 @@ sys_ctrlr <- R6Class("System Controller",
                        sim_df = NULL
                      )
 )
-
-# targ_all_pv <- function (ctrlr = NULL) {
-#   ctrlr$draw_batt(-1)
-#   return(ctrlr$operate(bldg_kw = 11, pv_kw = 13))
-# }
-# targ_some_pv_disch <- function (ctrlr = NULL) {
-#   ctrlr$draw_batt(-7)
-#   return(ctrlr$operate(bldg_kw = 15, pv_kw = 1))
-# }
-# targ_some_pv_ch <- function (ctrlr = NULL) {
-#   ctrlr$draw_batt(-3)
-#   return(ctrlr$operate(bldg_kw = 12, pv_kw = 7))
-# }
-# targ_no_pv <- function (ctrlr = NULL) {
-#   ctrlr$draw_batt(-7)
-#   return(ctrlr$operate(bldg_kw = 11, pv_kw = 0))
-# }
-# notarg_pv_grid <- function(ctrlr = NULL) {
-#   ctrlr$draw_batt(-0.5)
-#   return(ctrlr$operate(bldg_kw = 8, pv_kw = 5))
-# }
-# notarg_curtail <- function(ctrlr = NULL) {
-#   ctrlr$draw_batt(-0.5)
-#   return(ctrlr$operate(bldg_kw = 1, pv_kw = 15))
-# }
-# notarg <- function(ctrlr = NULL) {
-#   return(ctrlr$operate(bldg_kw = 8, pv_kw = 0))
-# }
