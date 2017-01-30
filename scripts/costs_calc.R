@@ -145,7 +145,7 @@ get_pv_batt_plc2erta = function(pv, batt_type, batt_cap) {
   # in lb CO2eq / kW for solar
   # and lb CO2eq / kWh of capacity for battery
   
-  if(!exists("batt_bank", mode = "function")) source("battery_bank.R")
+  if(!exists("batt_bank", mode = "function")) source("scripts/battery_bank.R")
   batt_meta <- list(
     "name" = "Boris the Battery",
     "run_id" = "c2g impacts",

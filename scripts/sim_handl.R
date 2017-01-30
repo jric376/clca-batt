@@ -20,12 +20,12 @@ library("iterators")
 library("doSNOW")
 library("futile.logger")
 library("R6")
-if(!exists("batt_bank", mode = "function")) source("battery_bank.R")
-if(!exists("bill_calc", mode = "function")) source("costs_calc.R")
-if(!exists("bldg_load", mode = "function")) source("bldg_load.R")
-if(!exists("grid_load", mode = "function")) source("grid_load.R")
-if(!exists("pv_load", mode = "function")) source("pv_load.R")
-if(!exists("sys_ctrl.R", mode = "function")) source("sys_ctrl.R")
+if(!exists("batt_bank", mode = "function")) source("scripts/battery_bank.R")
+if(!exists("bill_calc", mode = "function")) source("scripts/costs_calc.R")
+if(!exists("bldg_load", mode = "function")) source("scripts/bldg_load.R")
+if(!exists("grid_load", mode = "function")) source("scripts/grid_load.R")
+if(!exists("pv_load", mode = "function")) source("scripts/pv_load.R")
+if(!exists("sys_ctrl.R", mode = "function")) source("scripts/sys_ctrl.R")
 
 make_run_folder = function(run_id) {
   # script for creating a folder in which to save
@@ -352,12 +352,12 @@ sim_year <- function(run_id, bldg = NULL, cop = 1, batt_type = NULL, terr = NULL
                    .export = funs_to_pass,
                    .packages = pkgs_to_pass,
                    .verbose = TRUE) %dopar% {
-              if(!exists("batt_bank", mode = "function")) source("battery_bank.R")
-              if(!exists("disp_curv", mode = "function")) source("dispatch_curve.R")
-              if(!exists("bldg_load", mode = "function")) source("bldg_load.R")
-              if(!exists("grid_load", mode = "function")) source("grid_load.R")
-              if(!exists("pv_load", mode = "function")) source("pv_load.R")
-              if(!exists("sys_ctrl.R", mode = "function")) source("sys_ctrl.R")
+              if(!exists("batt_bank", mode = "function")) source("scripts/battery_bank.R")
+              if(!exists("disp_curv", mode = "function")) source("scripts/dispatch_curve.R")
+              if(!exists("bldg_load", mode = "function")) source("scripts/bldg_load.R")
+              if(!exists("grid_load", mode = "function")) source("scripts/grid_load.R")
+              if(!exists("pv_load", mode = "function")) source("scripts/pv_load.R")
+              if(!exists("sys_ctrl.R", mode = "function")) source("scripts/sys_ctrl.R")
               tryCatch({
                 
                 

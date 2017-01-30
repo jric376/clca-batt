@@ -77,7 +77,7 @@ all_runs <- unlist(c(apts_runs, market_runs,
                      office_runs, hospital_runs))
 
 get_bldg_ani <- function(copies) {
-  source("bldg_load.R")
+  source("scripts/bldg_load.R")
   bldg <- get_bldg(run_id = "plot", copies = copies, type = "office")
   full_df <- bldg$get_base_ts()
   full_df$run <- 1
@@ -124,7 +124,7 @@ get_bldg_ani <- function(copies) {
   ani_jul_plt <- gg_animate(ani_jul_plt, "outputs/plots/bldg_load.gif")
 }
 get_grid_ani <- function(copies) {
-  source("grid_load.R")
+  source("scripts/grid_load.R")
   get_grid(run_id = "plot", copies = copies, terr = "nyiso")
   full_df <- grid$get_base_ts()
   full_df$run<- 1
@@ -171,7 +171,7 @@ get_grid_ani <- function(copies) {
   ani.options(outdir = getwd(), ani.width = 960, ani.height = 600)
   ani_jul_plt <- gg_animate(ani_jul_plt, "outputs/plots/grid_load.gif")}
 get_pv_ani <- function(copies) {
-  source("pv_load.R")
+  source("scripts/pv_load.R")
   pv <- get_pv(run_id = "plot", copies = copies, type = "office")
   full_df <- pv$get_base_ts()
   full_df$run<- 1
@@ -221,7 +221,7 @@ get_pv_ani <- function(copies) {
   ani_jul_plt <- gg_animate(ani_jul_plt, "outputs/plots/pv_load.gif")
 }
 get_disp_ani <- function(runs = 20, animate = FALSE, save = FALSE) {
-  source("dispatch_curve.R")
+  source("scripts/dispatch_curve.R")
   
   disp_meta = list(
     "name" = "Doris the Dispatch",
@@ -413,7 +413,7 @@ get_disp_ani <- function(runs = 20, animate = FALSE, save = FALSE) {
   return(disp_plt)
 }
 get_isoterr_donuts <- function(runs = 20, terr = "nyiso", save = FALSE) {
-  source("dispatch_curve.R")
+  source("scripts/dispatch_curve.R")
   
   disp_meta = list(
     "name" = "Doris the Dispatch",
@@ -1360,11 +1360,11 @@ get_ts_summ <- function(choice, copies, emish) {
   suffixes <- letters[1:(copies+1)]
   
   if (choice != "nyiso") {
-    source("bldg_load.R")
+    source("scripts/bldg_load.R")
     ts <- get_bldg(run_id = "plot", type = choice, copies = copies)
   }
   if (choice == "nyiso") {
-    source("grid_load.R")
+    source("scripts/grid_load.R")
     ts <- get_grid(run_id = "plot", terr = choice, copies = copies)
   }
   
@@ -1403,7 +1403,7 @@ get_ts_summ <- function(choice, copies, emish) {
                       mw_sd = rowSds(select(full_df, contains("mw"))))
     
     if (emish) {
-      source("dispatch_curve.R")
+      source("scripts/dispatch_curve.R")
       disp_meta = list(
         "name" = "Doris the Dispatch",
         "run_id" = "plot",
@@ -1745,7 +1745,7 @@ get_bldg_ldc <- function(copies, save = FALSE) {
   return(ldc_plot)
 }
 get_isoterr_plots <- function(terr = "nyiso", save = FALSE) {
-  source("dispatch_curve.R")
+  source("scripts/dispatch_curve.R")
   # CURRENTLY DROPS TOP AND BOTTOM 1% of EMISSIONS RATES
   disp_meta = list(
     "name" = "Doris the Dispatch",
