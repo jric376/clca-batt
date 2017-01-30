@@ -23,13 +23,10 @@ vignettes/*.pdf
 *.utf8.md
 *.knit.md
 .Rproj.user
-# Large input data
-# /inputs/bsrn_raw/
-/inputs/nsrdb_raw/
-/inputs/solar_nsrdb.csv
-# Simulation csvs
-/outputs/df/
+# Simulation csvs + plots
+/outputs/
 # Other file types
 *.gif
 *.png
 clca-batt.git
+rfiles.zip
