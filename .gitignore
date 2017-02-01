@@ -27,6 +27,6 @@ vignettes/*.pdf
 /outputs/
 # Other file types
 *.gif
-*.png
+# *.png
 clca-batt.git
 rfiles.zip
