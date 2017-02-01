@@ -170,7 +170,7 @@ get_grid_ani <- function(copies) {
   
   ani.options(outdir = getwd(), ani.width = 960, ani.height = 600)
   ani_jul_plt <- gg_animate(ani_jul_plt, "outputs/plots/grid_load.gif")}
-get_pv_ani <- function(copies) {
+get_pv_plot <- function(copies) {
   source("scripts/pv_load.R")
   pv <- get_pv(run_id = "plot", copies = copies, type = "office")
   full_df <- pv$get_base_ts()
@@ -220,7 +220,7 @@ get_pv_ani <- function(copies) {
   ani.options(outdir = getwd(), ani.width = 960, ani.height = 600)
   ani_jul_plt <- gg_animate(ani_jul_plt, "outputs/plots/pv_load.gif")
 }
-get_disp_ani <- function(runs = 20, animate = FALSE, save = FALSE) {
+get_disp_plot <- function(runs = 20, animate = FALSE, save = FALSE) {
   source("scripts/dispatch_curve.R")
   
   disp_meta = list(
