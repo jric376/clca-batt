@@ -32,13 +32,13 @@ disp_curv <- R6Class("Dispatch",
         
         # units:
         # heat_rt Btu/kWh, FC $/MMBtu, VOM $/kWh
-        log_path = paste(
-                          "outputs/", meta[["run_id"]], "/",
-                          meta[["name"]], "_", meta[["ctrl_id"]], "_",  
-                          strftime(Sys.time(), format = "%d%m%y_%H%M%S"),
-                          ".log", sep = ""
+        log_path = paste("outputs/", meta[["run_id"]], "/",
+                         meta[["name"]], "_", meta[["ctrl_id"]], "_",  
+                         strftime(Sys.time(), format = "%d%m%y_%H%M%S"),
+                         ".log", sep = ""
         )
         flog.appender(appender.file(log_path), name = "disp")
+        
         self$set_mc_stats(read.csv(mc_path, head = T, stringsAsFactors = F)[,2:3])
         self$all_plants <- read.csv(plts_path, head = T, stringsAsFactors = F) %>% 
           filter(plngenan > 0)
@@ -71,13 +71,11 @@ disp_curv <- R6Class("Dispatch",
         
         if (anyNA(private$iso_plants$MC_mean)) {
           flog.error(
-                      paste(
-                            "Fuels without marginal cost statistics in dispatch",
+                      paste("Fuels without marginal cost statistics in dispatch",
                             private$metadata[["name"]], private$metadata[["run_id"]],
                             private$metadata[["ctrl_id"]]
                             ),
-                      name = "disp"
-          )
+                      name = "disp")
         }
       },
       
@@ -107,8 +105,6 @@ disp_curv <- R6Class("Dispatch",
           mutate(MC_rand = rnorm(nrow(.), MC_mean, MC_sd),
                  MC_rand = ifelse(MC_rand < 0, 0, MC_rand))
         
-        # private$iso_plants$MC_rand = mapply(function(x) self$stochastizer(x),
-        #                                       private$iso_plants$plprmfl)
         self$set_dispatch()
       },
       
@@ -130,23 +126,19 @@ disp_curv <- R6Class("Dispatch",
       set_plants = function() {
         if (is.na(self$iso_terr)) {
           flog.error(
-                      paste(
-                            "No ISO territory in", private$metadata[["name"]], 
+                      paste("No ISO territory in", private$metadata[["name"]], 
                             private$metadata[["run_id"]], private$metadata[["ctrl_id"]]
                             ),
-                      name = "disp"
-          )
+                      name = "disp")
         }
         else {
           if (!any(self$all_plants$isorto == self$iso_terr)) {
             flog.error(
-                        paste(
-                              "No plants in", private$metadata[["name"]],
+                        paste("No plants in", private$metadata[["name"]],
                               "in ISO territory", self$iso_terr,
                               private$metadata[["run_id"]], private$metadata[["ctrl_id"]]
                               ),
-                        name = "disp"
-            )
+                        name = "disp")
           }
           private$iso_plants <- filter(self$all_plants, isorto == self$iso_terr) %>% 
             select(orispl, plprmfl, namepcap, plc2erta) 
@@ -164,15 +156,13 @@ disp_curv <- R6Class("Dispatch",
           mutate(cumul_cap = cumsum(namepcap))
         
         if (anyNA(disp_frame$plc2erta)) {
-          flog.error(
-                      paste(
-                            "NAs in the emissions rates for some plants in",
-                            self$iso_terr, "in", private$metadata[["name"]],
-                            private$metadata[["run_id"]], private$metadata[["ctrl_id"]]
-                            ),
-                      name = "disp"
-            )
+          flog.error(paste("NAs in the emissions rates for some plants in",
+                           self$iso_terr, "in", private$metadata[["name"]],
+                           private$metadata[["run_id"]], private$metadata[["ctrl_id"]]
+                          ),
+                      name = "disp")
         }
+        
         # Emissions rates are given in lb / MWh here. Can be converted to kg in 'plots.R'
         private$disp_frame <- disp_frame %>% 
           mutate(wtd_plc2erta = namepcap*plc2erta,
@@ -222,10 +212,3 @@ disp_curv <- R6Class("Dispatch",
       disp_frame = NULL
     )
 )
-
-# disp_meta = list(
-#   "name" = "Doris the Dispatch",
-#   "run_id" = "plot",
-#   "ctrl_id" = "plot"
-# )
-# disp <- disp_curv$new(meta = disp_meta, terr = "nyiso", hold_seed = TRUE)
