@@ -5,7 +5,7 @@ source("scripts/dispatch_curve.R")
 
 test_that("Test disp_curv: cost stats columns", {
             disp <- get_test_curve("nyiso")  
-  
+            
             expected <- c("plprmfl", "MC_mean", "MC_sd")
             actual <- disp$get_mc_stats()
             expect_named(actual, expected)
@@ -36,7 +36,7 @@ test_that("Test disp_curv: emissions calculated w/o NAs", {
 })
 
 test_that("Test disp_curv: color labels", {
-            disp <- get_test_curv("nyiso")
+            disp <- get_test_curve("nyiso")
             
             expected <- 0
             empty_colors <- nrow(filter(disp$get_dispatch(),
