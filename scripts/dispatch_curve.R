@@ -125,20 +125,17 @@ disp_curv <- R6Class("Dispatch",
       
       set_plants = function() {
         if (is.na(self$iso_terr)) {
-          flog.error(
-                      paste("No ISO territory in", private$metadata[["name"]], 
-                            private$metadata[["run_id"]], private$metadata[["ctrl_id"]]
-                            ),
-                      name = "disp")
-        }
-        else {
+          flog.error(paste("No ISO territory in", private$metadata[["name"]], 
+                           private$metadata[["run_id"]], private$metadata[["ctrl_id"]]
+                           ),
+                     name = "disp")
+        } else {
           if (!any(self$all_plants$isorto == self$iso_terr)) {
-            flog.error(
-                        paste("No plants in", private$metadata[["name"]],
-                              "in ISO territory", self$iso_terr,
-                              private$metadata[["run_id"]], private$metadata[["ctrl_id"]]
-                              ),
-                        name = "disp")
+            flog.error(paste("No plants in", private$metadata[["name"]],
+                             "in ISO territory", self$iso_terr,
+                             private$metadata[["run_id"]], private$metadata[["ctrl_id"]]
+                             ),
+                       name = "disp")
           }
           private$iso_plants <- filter(self$all_plants, isorto == self$iso_terr) %>% 
             select(orispl, plprmfl, namepcap, plc2erta) 
@@ -212,3 +209,15 @@ disp_curv <- R6Class("Dispatch",
       disp_frame = NULL
     )
 )
+
+get_test_curve <- function(iso_terr) {
+  disp_meta = list(
+    "name" = "Doris the Dispatch",
+    "run_id" = "plot",
+    "ctrl_id" = "plot"
+  )
+  disp <- disp_curv$new(meta = disp_meta,
+                        terr = iso_terr)
+  
+  return(disp)
+}

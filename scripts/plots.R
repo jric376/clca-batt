@@ -223,13 +223,7 @@ get_pv_plot <- function(copies) {
 get_disp_plot <- function(runs = 20, animate = FALSE, save = FALSE) {
   source("scripts/dispatch_curve.R")
   
-  disp_meta = list(
-    "name" = "Doris the Dispatch",
-    "run_id" = "plot",
-    "ctrl_id" = "plot"
-  )
-  disp <- disp_curv$new(meta = disp_meta,
-                        terr = "nyiso")
+  disp <- get_test_curve("nyiso")
   full_df <- disp$get_dispatch()
   full_df$run <- 1
   
@@ -415,13 +409,7 @@ get_disp_plot <- function(runs = 20, animate = FALSE, save = FALSE) {
 get_isoterr_donuts <- function(runs = 20, terr = "nyiso", save = FALSE) {
   source("scripts/dispatch_curve.R")
   
-  disp_meta = list(
-    "name" = "Doris the Dispatch",
-    "run_id" = "plot",
-    "ctrl_id" = "plot"
-  )
-  disp <- disp_curv$new(meta = disp_meta,
-                        terr = "nyiso")
+  disp <- get_test_curve("nyiso")
   full_disp <- disp$get_dispatch()
   
   for (j in seq.int(2,runs)) {
@@ -535,7 +523,6 @@ summarise_run_costs <- function(df){
   return(output)
 }
 summarise_run_plc2e <- function(df){
-  
   output <- mutate(df,
                    control_plc2erta = control_plc2erta*life_avg,
                    dr_plc2erta = dr_plc2erta*life_avg,
@@ -1404,13 +1391,8 @@ get_ts_summ <- function(choice, copies, emish) {
     
     if (emish) {
       source("scripts/dispatch_curve.R")
-      disp_meta = list(
-        "name" = "Doris the Dispatch",
-        "run_id" = "plot",
-        "ctrl_id" = "plot"
-      )
-      disp <- disp_curv$new(meta = disp_meta,
-                            terr = choice)
+      
+      disp <- get_test_curve("nyiso")
       pkgs_to_pass = c("dplyr", "futile.logger", "imputeTS")
       
       cl <- makeCluster(3)
@@ -1746,14 +1728,8 @@ get_bldg_ldc <- function(copies, save = FALSE) {
 }
 get_isoterr_plots <- function(terr = "nyiso", save = FALSE) {
   source("scripts/dispatch_curve.R")
-  # CURRENTLY DROPS TOP AND BOTTOM 1% of EMISSIONS RATES
-  disp_meta = list(
-    "name" = "Doris the Dispatch",
-    "run_id" = "plot",
-    "ctrl_id" = "plot"
-  )
-  disp <- disp_curv$new(meta = disp_meta,
-                        terr = "nyiso")
+  
+  disp <- get_test_curve("nyiso")
   full_df <- disp$get_dispatch() %>%
                 mutate(plc2erta = to_kg(plc2erta))
   disp_plot.cap <- ggplot(data = full_df,
