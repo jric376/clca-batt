@@ -45,3 +45,17 @@ test_that("Test disp_curv: color labels", {
             expect_equal(empty_colors, expected)
             
 })
+
+test_that("Test disp_curv: cumulative capacity + emissions", {
+  disp <- get_test_curve("nyiso")
+  
+  expected <- data.frame(cumul_cap = 37981,         # MW
+                         cumul_plc2erta = 1183) # lb/MWh 
+  actual <- disp$get_dispatch() %>% 
+    slice(nrow(.)) %>%  
+    select(contains("cumul")) %>% 
+    mutate_all(function(x) x %/% 1)
+  
+  expect_identical(actual, expected)
+  
+})
