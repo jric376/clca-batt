@@ -12,7 +12,8 @@ library("foreach")
 library("iterators")
 library("doSNOW")
 library("futile.logger")
-library("gganimate")
+# library("gganimate") # not updated for R 3.3.3
+# gganimate code blocks are commented out
 library("ggplot2")
 library("ggmap")
 library("ggrepel")
@@ -797,8 +798,8 @@ get_run_prof_plc2e <- function(run_results, run_id, save = FALSE) {
       theme(strip.background = element_blank(),
             strip.text.x = element_blank())
     
-    combine_plot <- plot_grid(size_plot, prof_plot, plc2e_plot,
-                              ncol = 1, align = "v")
+    # combine_plot <- plot_grid(size_plot, prof_plot, plc2e_plot,
+    #                           ncol = 1, align = "v")
   }
   
   plc2e_prof_plot <- ggplot() +
@@ -831,6 +832,7 @@ get_run_prof_plc2e <- function(run_results, run_id, save = FALSE) {
                        labels=trans_format("identity", function(x) -x),
                        breaks = c(5,1,0.5,0.25,0,
                                   -0.25,-0.5,-1,-5)) +
+                       # breaks = c(0.025,0.02,0,-0.1)) +
     scale_y_continuous(trans = "asinh",
                        labels= trans_format("identity", function(x) dollar(x)),
                        breaks = c(-1,-0.5,-0.1,0,0.5)) +
@@ -873,7 +875,6 @@ get_run_prof_plc2e <- function(run_results, run_id, save = FALSE) {
                        aes(x = -plc2erta_n,
                            y = prof_lo_n,
                            label = dmd_frac),
-                       alpha = 1/3,
                        colour = "black", size = 4,
                        box.padding = unit(0.8, "lines"),
                        point.padding = unit(1, "lines"),
@@ -882,24 +883,25 @@ get_run_prof_plc2e <- function(run_results, run_id, save = FALSE) {
                        nudge_x = 0.75*sample_sims$plc2erta_n,
                        nudge_y = -0.02,
                        segment.size = 1.2)
-    plot_list <- list("combine" = combine_plot,
-                      "no_lines" = plc2e_prof_plot)
+    plot_list <- plc2e_prof_plot
+      # list("combine" = combine_plot,
+      #      "no_lines" = plc2e_prof_plot)
   }
   
   if (save) {
     if (length(unique(summ$bldg)) == 1) {
-      save_plot(filename = paste0("outputs/plots/", run_id, "_grid.png"),
-                combine_plot,
-                base_height = 6.25, base_width = 8)
+      # ggsave(filename = paste0("outputs/plots/", run_id, "_grid.png"),
+      #        combine_plot,
+      #        height = 6.25, width = 8)
     } else {
-      save_plot(filename = paste0("outputs/plots/",
-                                  run_id, "_litcompare_plc2e_prof.png"),
-                plc2e_prof_plot.lines,
-                base_height = 6.25, base_width = 8)
+      ggsave(filename = paste0("outputs/plots/",
+                               run_id, "_litcompare_plc2e_prof.png"),
+             plc2e_prof_plot.lines,
+             height = 6.25, width = 8)
     }
-    save_plot(filename = paste0("outputs/plots/", run_id, "_plc2e_prof.png"),
-              plc2e_prof_plot,
-              base_height = 6.25, base_width = 8)
+    ggsave(filename = paste0("outputs/plots/", run_id, "_plc2e_prof.png"),
+           plc2e_prof_plot,
+           height = 6.25, width = 8)
   }
   
   return(plot_list)
@@ -939,26 +941,27 @@ get_run_levcost_delta <- function(run_results, run_id, save = FALSE) {
                                aes(x = reduce_frac,
                                    y = prof_lo_n_mean,
                                    colour = bldg)) +
-                          geom_line(size = 1.5) +
-                          xlab(bquote(scriptstyle("Fractional reduction PV + ESS lev. costs"))) +
-                          scale_y_continuous(name = bquote(scriptstyle(Pr["dr,max"]~"/ kWh")),
-                                             trans = "asinh",
-                                             breaks = c(-0.5,-0.1,0,0.1,1),
-                                             labels = trans_format("identity",
-                                                                   function(x) dollar(x))) +
-                          scale_colour_manual(name = NULL,
-                                              values = cbb_qual[c(9,2,1,4,8,3)]) +
-                          scale_linetype_discrete(name = NULL,
-                                                  guide = guide_legend(override.aes = list(size = 0.75))) +
-                          theme(panel.background = element_rect(colour = "gray75",
-                                                                fill = "gray80")) +
-                          theme(panel.grid.major = element_line(colour = "gray85")) +
-                          theme(panel.grid.minor = element_line(colour = "gray85")) +
-                          theme(legend.text = element_text(),
-                                legend.background = element_rect(colour = "gray75",
-                                                                 fill = alpha("gray85", 1/2)),
-                                legend.box = "horizontal",
-                                legend.position = c(0.2,0.8))
+    geom_line(size = 3) +
+    xlab(bquote(scriptstyle("Fractional reduction PV + ESS lev. costs"))) +
+    coord_cartesian(ylim = c(-0.1,max(levcost_delta_df$prof_lo_n_mean))) +
+    scale_y_continuous(name = bquote(scriptstyle(Pr["dr,max"]~"/ kWh")),
+                       trans = "asinh",
+                       breaks = c(-0.1,0,0.1,1),
+                       labels = trans_format("identity",
+                                             function(x) dollar(x))) +
+    scale_colour_manual(name = NULL,
+                        values = cbb_qual[c(9,2,1,4,8,3)]) +
+    scale_linetype_discrete(name = NULL,
+                            guide = guide_legend(override.aes = list(size = 0.75))) +
+    theme(panel.background = element_rect(colour = "gray75",
+                                          fill = "gray80")) +
+    theme(panel.grid.major = element_line(colour = "gray85")) +
+    theme(panel.grid.minor = element_line(colour = "gray85")) +
+    theme(legend.text = element_text(),
+          legend.background = element_rect(colour = "gray75",
+                                           fill = alpha("gray85", 1/2)),
+          legend.box = "horizontal",
+          legend.position = c(0.2,0.8))
   
   if (save) {
     ggsave(filename = paste0("outputs/plots/", run_id, "_breakeven.png"),
