@@ -62,6 +62,9 @@ bldg_load <- R6Class("Bldg Load",
      kw_df <- select(private$base_ts, contains("kw"))
      
      if (copies > 0) {
+       last_col <- c(paste0("kw.",copies),
+                     paste0("kwh.", copies))
+       
        kw_df <- sapply(1:copies, function(x) {
          private$base_ts %>%
            transmute(kw = kw*(1 + rnorm(nrow(private$base_ts),
@@ -76,15 +79,22 @@ bldg_load <- R6Class("Bldg Load",
      
      ts_df <- cbind.data.frame(date_time = private$base_ts$date_time,
                                kw_df,
-                               kwh_df)
+                               kwh_df)  %>% 
+       rename_(.dots = setNames("kw.0", last_col[1])) %>% 
+       rename_(.dots = setNames("kwh.0", last_col[2]))
      
      private$ts_df <- ts_df
   },
   
+  get_ts_count = function() {
+    # extra factor of 1/2 accounts for
+    # kw and kwh cols in bldg load
+    return(length(select(private$ts_df, -date_time))/2)
+  },
+  
   get_ts_df = function(index) {
-    if (missing(index)) {
-      df <-  select(private$ts_df, date_time, kw, kwh)
-      return(df)
+    if (missing(index) | index == 0) {
+      return(select(private$ts_df, date_time, kw, kwh))
     } else {
       if (index == "full") {
         return(private$ts_df)
@@ -94,6 +104,7 @@ bldg_load <- R6Class("Bldg Load",
         return(df)
       }
     }
+    return(NULL)
   }
   )
 )

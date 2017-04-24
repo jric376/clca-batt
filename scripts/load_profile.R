@@ -76,13 +76,12 @@ Load_Profile <- R6Class("Load_Profile",
     },
    
     get_ts_count = function() {
-      return(length(private$ts_df))
+      return(length(select(private$ts_df, -date_time)))
     },
     
     get_ts_df = function(index) {
-      if (missing(index)) {
-        df <-  select(private$ts_df, date_time, 2)
-        return(df)
+      if (missing(index) | index == 0) {
+        return(select(private$ts_df, date_time, 2))
       } else {
         if (index == "full") {
           return(private$ts_df)
@@ -92,6 +91,7 @@ Load_Profile <- R6Class("Load_Profile",
           return(df)
         }
       }
+      return(NULL)
     },
    
     get_metadata = function() {

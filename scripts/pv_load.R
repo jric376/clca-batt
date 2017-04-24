@@ -47,19 +47,19 @@ pv_load <- R6Class("PV Load",
       rand_copies = NA
     ) {
      
-      if (meta[["bldg"]] == "apt") {
+      if (meta[["load_nm"]] == "apt") {
         array_area = 628 # m2
       }
-      if (meta[["bldg"]] == "hospital") {
+      if (meta[["load_nm"]] == "hospital") {
         array_area = 3735 # m2
       }
-      if (meta[["bldg"]] == "office") {
+      if (meta[["load_nm"]] == "office") {
         array_area = 1369 # m2
       }
-      if (meta[["bldg"]] == "supermarket") {
+      if (meta[["load_nm"]] == "supermarket") {
         array_area = 3717 # m2
       }
-      if (meta[["bldg"]] == "empty") {
+      if (meta[["load_nm"]] == "empty") {
         array_area = 0 # m2
       }
       array_area <- array_area*self$self_shade
@@ -110,7 +110,7 @@ get_pv <- function(run_id, type, copies = 0) {
   # and number of random copies
   
   metadat = list(
-    "bldg" = type,
+    "load_nm" = type,
     "run_id" = run_id,
     "copies" = copies
   )

@@ -43,6 +43,8 @@ grid_load <- R6Class("Grid Load",
      mw_df <- select(private$base_ts, contains("mw"))
      
      if (copies > 0) {
+       last_col <- paste0("mw.",copies)
+                     
        mw_df <- sapply(1:copies, function(x) {
          private$base_ts %>%
            transmute(mw = mw*(1 + rnorm(nrow(private$base_ts),
@@ -52,7 +54,8 @@ grid_load <- R6Class("Grid Load",
      }
      
      ts_df <- cbind.data.frame(date_time = private$base_ts$date_time,
-                               mw_df)
+                               mw_df) %>% 
+       rename_(.dots = setNames("mw.0", last_col))
      
      private$ts_df <- ts_df
     }
