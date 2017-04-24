@@ -109,17 +109,17 @@ disp_curv <- R6Class("Dispatch",
       },
       
       set_mc_stats = function(file) {
-        # Incorporates a std deviation of 1% of mean
+        # Incorporates a std deviation of 5% of mean
         # where there is none in the data
         private$marg_costs_stats <- file %>% 
           group_by(prim_fuel) %>% 
           summarise_all(.funs = c("mean", "sd")) %>% 
           mutate(sd = ifelse(is.na(sd), 0, sd),
                  sd = ifelse(mean != 0 & sd == 0,
-                             mean*0.05, sd)) %>% 
-          rename("plprmfl" = prim_fuel,
-                 "MC_mean" = mean,
-                 "MC_sd" = sd) %>% 
+                             mean*0.05, sd)) %>%
+          select(plprmfl = prim_fuel,
+                 MC_mean = mean,
+                 MC_sd = sd) %>%
           as.data.frame()
       },
       
