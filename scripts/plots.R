@@ -77,6 +77,191 @@ hospital_runs <- c("hospital_lion_02_075_by005",
 all_runs <- unlist(c(apts_runs, market_runs,
                      office_runs, hospital_runs))
 
+# Data prep functions
+summarise_run_costs <- function(df){
+  output <- mutate(df,
+                   tac_lo = lsc_lo + pv_levcost_lo + dr_cost,
+                   tac_hi = lsc_hi + pv_levcost_hi + dr_cost,
+                   prof_lo = (control_cost - tac_lo)*life_avg,
+                   prof_hi = (control_cost - tac_hi)*life_avg,
+                   prof_lo_n = prof_lo / func_unit,
+                   prof_hi_n = prof_hi / func_unit)
+  
+  return(output)
+}
+summarise_run_plc2e <- function(df){
+  output <- mutate(df,
+                   control_plc2erta = control_plc2erta*life_avg,
+                   dr_plc2erta = dr_plc2erta*life_avg,
+                   net_plc2erta = (batt_plc2erta + pv_plc2erta +
+                                     dr_plc2erta - control_plc2erta),
+                   plc2erta_n = to_kg(net_plc2erta / func_unit))
+  
+  return(output)
+}
+get_combined_runs <- function(runs) {
+  
+  results <- data.frame()
+  for (runs in runs) {
+    results_filenm <- paste(runs, "run_results.csv", sep = "_")
+    results.0 <- fread(paste0("outputs/", runs, "/", results_filenm)) %>%
+      select(-V1) %>%
+      as.data.frame()
+    results <- rbind.data.frame(results, results.0)
+  }
+  
+  return(results)
+}
+get_run_results <- function(runs, fu = "all", prof_lo_lim = FALSE) { # specify functional unt as needed, all or ESS_only
+  
+  tryCatch({
+    
+    if (length(runs) > 1) {
+      # accommodates combined run_ids from get_combined_runs
+      results <- get_combined_runs(runs)
+    }
+    
+    else {
+      results_filenm <- paste(runs, "run_results.csv", sep = "_")
+      results <- fread(paste0("outputs/", runs, "/", results_filenm)) %>%
+        select(-V1) %>%
+        as.data.frame()
+    }
+    # degrad_factor <-  0.9 # assumes PV declines by 1% every year, so by yr 20 it is at 80% orig. cap.
+    degrad_factor <- 1
+    results <- results %>%
+      mutate(bldg = ifelse(bldg == "apt", "Apartments",
+                           ifelse(bldg == "office", "Office",
+                                  ifelse(bldg == "supermarket", "Supermarket",
+                                         "Hospital"))),
+             batt_type = ifelse(batt_type == "li_ion", "Li-ion",
+                                ifelse(batt_type == "nas", "NaS",
+                                       ifelse(batt_type == "pb_a","Pb-a","VRF"))),
+             life_avg = (life_hi + life_lo)/2,
+             pv_frac = pv_kwh / (pv_kwh + (batt_cap*batt_cyceq)),
+             pv_kwh = pv_kwh*degrad_factor*life_avg,
+             batt_kwh = batt_cap*batt_cyceq*life_avg,
+             pvfrac_kwh = pv_kwh*pv_frac,
+             battfrac_kwh = batt_kwh*(1-pv_frac),
+             func_unit = pvfrac_kwh + battfrac_kwh,
+             alt_func = kwh*life_avg,
+             unmet_frac = unmet_kwh / kwh) %>% 
+      mutate(bldg = factor(bldg, levels = c("Apartments", "Office",
+                                            "Supermarket", "Hospital")))
+    
+    if(fu == "alt") {
+      results <- mutate(results, func_unit = alt_func)
+    }
+    
+    results <- results %>%
+      summarise_run_costs() %>% 
+      summarise_run_plc2e()
+    
+    if (is.numeric(prof_lo_lim)) {
+      results <- filter(results, prof_lo_n > prof_lo_lim)
+    }
+    
+    results.summ <- select(results, -ts_num) %>%
+      group_by(bldg, dmd_frac, batt_type) %>%
+      summarise_if(is.numeric, .funs = c("mean", "sd"))
+    
+    cost_mean <- results.summ %>%
+      group_by(dmd_frac, batt_type) %>%
+      select(dmd_frac, batt_type, ends_with("mean")) %>% 
+      select(dmd_frac, batt_type,
+             contains("lsc"),
+             contains("dr_cost"),
+             contains("control_cost"),
+             contains("levcost"),
+             contains("tac"),
+             contains("prof"))
+    cost_mean <- cost_mean %>%
+      gather(cat, value, -dmd_frac, -batt_type) %>%
+      rename(mean = value) %>%
+      arrange(batt_type, dmd_frac) %>%
+      ungroup()
+    cost_sd <- results.summ %>%
+      group_by(dmd_frac, batt_type) %>%
+      select(dmd_frac, batt_type, ends_with("sd")) %>% 
+      select(dmd_frac, batt_type,
+             contains("lsc"),
+             contains("dr_cost"),
+             contains("control_cost"),
+             contains("levcost"),
+             contains("tac"),
+             contains("prof"))
+    cost_sd <- cost_sd %>%
+      gather(cat, value, -dmd_frac, -batt_type) %>%
+      rename(sd = value) %>%
+      arrange(batt_type, dmd_frac) %>%
+      ungroup() %>%
+      select(sd)
+    costs <- cbind.data.frame(cost_mean, cost_sd) %>%
+      mutate(label = ifelse(grepl("lsc_", cat), "Batt",
+                            ifelse(grepl("*_cost_*", cat), "Grid / Grid + DR",
+                                   ifelse(grepl("*levcost_", cat), "PV",
+                                          ifelse(grepl("tac_", cat), "TAC",
+                                                 ifelse(grepl("*_n_", cat), "Pr/Thru",
+                                                        "Pr"))))),
+             hi_lo = ifelse(grepl("_hi_", cat), "hi",
+                            ifelse(grepl("_lo_", cat), "lo",
+                                   ifelse(grepl("control_*", cat), "hi",
+                                          ifelse(grepl("dr_*", cat), "lo", "none"))))) %>%
+      filter(cat != "P_n") %>%
+      select(-cat)
+    
+    plc2e_mean <- results.summ %>%
+      group_by(dmd_frac, batt_type) %>%
+      select(dmd_frac, batt_type,
+             ends_with("mean")) %>%
+      select(dmd_frac, batt_type,
+             contains("plc2erta")) %>%
+      select(dmd_frac, batt_type,
+             contains("control"),
+             contains("dr"),
+             contains("pv"),
+             contains("batt"),
+             contains("net"),
+             contains("rta_n"))
+    plc2e_mean <- plc2e_mean %>%
+      gather(cat, value, -dmd_frac, -batt_type) %>%
+      rename(mean = value)
+    plc2e_sd <- results.summ %>%
+      group_by(dmd_frac, batt_type) %>%
+      select(dmd_frac, batt_type,
+             ends_with("sd")) %>%
+      select(dmd_frac, batt_type,
+             contains("plc2erta")) %>%
+      select(dmd_frac, batt_type,
+             contains("control"),
+             contains("dr"),
+             contains("pv"),
+             contains("batt"),
+             contains("net"),
+             contains("rta_n"))
+    plc2e_sd <- plc2e_sd %>%
+      gather(cat, value, -dmd_frac, -batt_type) %>%
+      rename(sd = value) %>%
+      ungroup() %>%
+      select(sd)
+    plc2e <- cbind.data.frame(plc2e_mean, plc2e_sd) %>%
+      mutate(label = ifelse(grepl("control_*", cat), "Grid",
+                            ifelse(grepl("dr_*", cat), "Grid + DR",
+                                   ifelse(grepl("pv_*", cat), "PV",
+                                          ifelse(grepl("net_*", cat), "GHGann",
+                                                 ifelse(grepl("batt_*", cat), "Batt",
+                                                        "GHG/Thru")))))) %>%
+      select(-cat)
+    
+    results.list <- list("df" = results,
+                         "summ" = results.summ,
+                         "costs" = costs,
+                         "plc2e" = plc2e)
+  },
+  error = function(e) return(e))
+}
+
+# Plotting functions
 get_bldg_ani <- function(copies) {
   source("scripts/bldg_load.R")
   bldg <- get_bldg(run_id = "plot", copies = copies, type = "office")
@@ -512,188 +697,6 @@ get_isoterr_donuts <- function(runs = 20, terr = "nyiso", save = FALSE) {
   
   return(donut_plots)
 }
-summarise_run_costs <- function(df){
-  output <- mutate(df,
-                   tac_lo = lsc_lo + pv_levcost_lo + dr_cost,
-                   tac_hi = lsc_hi + pv_levcost_hi + dr_cost,
-                   prof_lo = (control_cost - tac_lo)*life_avg,
-                   prof_hi = (control_cost - tac_hi)*life_avg,
-                   prof_lo_n = prof_lo / func_unit,
-                   prof_hi_n = prof_hi / func_unit)
-  
-  return(output)
-}
-summarise_run_plc2e <- function(df){
-  output <- mutate(df,
-                   control_plc2erta = control_plc2erta*life_avg,
-                   dr_plc2erta = dr_plc2erta*life_avg,
-                   net_plc2erta = (batt_plc2erta + pv_plc2erta +
-                                     dr_plc2erta - control_plc2erta),
-                   plc2erta_n = to_kg(net_plc2erta / func_unit))
-  
-  return(output)
-}
-get_combined_runs <- function(runs) {
-  
-  results <- data.frame()
-  for (runs in runs) {
-    results_filenm <- paste(runs, "run_results.csv", sep = "_")
-    results.0 <- fread(paste0("outputs/", runs, "/", results_filenm)) %>%
-      select(-V1) %>%
-      as.data.frame()
-    results <- rbind.data.frame(results, results.0)
-  }
-  
-  return(results)
-}
-get_run_results <- function(runs, fu = "all", prof_lo_lim = FALSE) { # specify functional unt as needed, all or ESS_only
-  
-  tryCatch({
-    
-    if (length(runs) > 1) {
-      # accommodates combined run_ids from get_combined_runs
-      results <- get_combined_runs(runs)
-    }
-    
-    else {
-      results_filenm <- paste(runs, "run_results.csv", sep = "_")
-      results <- fread(paste0("outputs/", runs, "/", results_filenm)) %>%
-        select(-V1) %>%
-        as.data.frame()
-    }
-    # degrad_factor <-  0.9 # assumes PV declines by 1% every year, so by yr 20 it is at 80% orig. cap.
-    degrad_factor <- 1
-    results <- results %>%
-                  mutate(bldg = ifelse(bldg == "apt", "Apartments",
-                                       ifelse(bldg == "office", "Office",
-                                              ifelse(bldg == "supermarket", "Supermarket",
-                                                     "Hospital"))),
-                         batt_type = ifelse(batt_type == "li_ion", "Li-ion",
-                                            ifelse(batt_type == "nas", "NaS",
-                                                   ifelse(batt_type == "pb_a","Pb-a","VRF"))),
-                         life_avg = (life_hi + life_lo)/2,
-                         pv_frac = pv_kwh / (pv_kwh + (batt_cap*batt_cyceq)),
-                         pv_kwh = pv_kwh*degrad_factor*life_avg,
-                         batt_kwh = batt_cap*batt_cyceq*life_avg,
-                         pvfrac_kwh = pv_kwh*pv_frac,
-                         battfrac_kwh = batt_kwh*(1-pv_frac),
-                         func_unit = pvfrac_kwh + battfrac_kwh,
-                         alt_func = kwh*life_avg,
-                         unmet_frac = unmet_kwh / kwh) %>% 
-                  mutate(bldg = factor(bldg, levels = c("Apartments", "Office",
-                                                        "Supermarket", "Hospital")))
-    
-    if(fu == "alt") {
-      results <- mutate(results, func_unit = alt_func)
-    }
-    
-    results <- results %>%
-                  summarise_run_costs() %>% 
-                  summarise_run_plc2e()
-    
-    if (is.numeric(prof_lo_lim)) {
-      results <- filter(results, prof_lo_n > prof_lo_lim)
-    }
-    
-    results.summ <- select(results, -ts_num) %>%
-                      group_by(bldg, dmd_frac, batt_type) %>%
-                      summarise_if(is.numeric, .funs = c("mean", "sd"))
-    
-    cost_mean <- results.summ %>%
-                  group_by(dmd_frac, batt_type) %>%
-                  select(dmd_frac, batt_type, ends_with("mean")) %>% 
-                  select(dmd_frac, batt_type,
-                         contains("lsc"),
-                         contains("dr_cost"),
-                         contains("control_cost"),
-                         contains("levcost"),
-                         contains("tac"),
-                         contains("prof"))
-    cost_mean <- cost_mean %>%
-                  gather(cat, value, -dmd_frac, -batt_type) %>%
-                  rename(mean = value) %>%
-                  arrange(batt_type, dmd_frac) %>%
-                  ungroup()
-    cost_sd <- results.summ %>%
-                group_by(dmd_frac, batt_type) %>%
-                select(dmd_frac, batt_type, ends_with("sd")) %>% 
-                select(dmd_frac, batt_type,
-                       contains("lsc"),
-                       contains("dr_cost"),
-                       contains("control_cost"),
-                       contains("levcost"),
-                       contains("tac"),
-                       contains("prof"))
-    cost_sd <- cost_sd %>%
-                  gather(cat, value, -dmd_frac, -batt_type) %>%
-                  rename(sd = value) %>%
-                  arrange(batt_type, dmd_frac) %>%
-                  ungroup() %>%
-                  select(sd)
-    costs <- cbind.data.frame(cost_mean, cost_sd) %>%
-              mutate(label = ifelse(grepl("lsc_", cat), "Batt",
-                                ifelse(grepl("*_cost_*", cat), "Grid / Grid + DR",
-                                    ifelse(grepl("*levcost_", cat), "PV",
-                                        ifelse(grepl("tac_", cat), "TAC",
-                                            ifelse(grepl("*_n_", cat), "Pr/Thru",
-                                                   "Pr"))))),
-                     hi_lo = ifelse(grepl("_hi_", cat), "hi",
-                                ifelse(grepl("_lo_", cat), "lo",
-                                    ifelse(grepl("control_*", cat), "hi",
-                                        ifelse(grepl("dr_*", cat), "lo", "none"))))) %>%
-              filter(cat != "P_n") %>%
-              select(-cat)
-    
-    plc2e_mean <- results.summ %>%
-                    group_by(dmd_frac, batt_type) %>%
-                    select(dmd_frac, batt_type,
-                           ends_with("mean")) %>%
-                    select(dmd_frac, batt_type,
-                           contains("plc2erta")) %>%
-                    select(dmd_frac, batt_type,
-                           contains("control"),
-                           contains("dr"),
-                           contains("pv"),
-                           contains("batt"),
-                           contains("net"),
-                           contains("rta_n"))
-    plc2e_mean <- plc2e_mean %>%
-                    gather(cat, value, -dmd_frac, -batt_type) %>%
-                    rename(mean = value)
-    plc2e_sd <- results.summ %>%
-                    group_by(dmd_frac, batt_type) %>%
-                    select(dmd_frac, batt_type,
-                           ends_with("sd")) %>%
-                    select(dmd_frac, batt_type,
-                           contains("plc2erta")) %>%
-                    select(dmd_frac, batt_type,
-                           contains("control"),
-                           contains("dr"),
-                           contains("pv"),
-                           contains("batt"),
-                           contains("net"),
-                           contains("rta_n"))
-    plc2e_sd <- plc2e_sd %>%
-                  gather(cat, value, -dmd_frac, -batt_type) %>%
-                  rename(sd = value) %>%
-                  ungroup() %>%
-                  select(sd)
-    plc2e <- cbind.data.frame(plc2e_mean, plc2e_sd) %>%
-                mutate(label = ifelse(grepl("control_*", cat), "Grid",
-                                  ifelse(grepl("dr_*", cat), "Grid + DR",
-                                     ifelse(grepl("pv_*", cat), "PV",
-                                        ifelse(grepl("net_*", cat), "GHGann",
-                                           ifelse(grepl("batt_*", cat), "Batt",
-                                                  "GHG/Thru")))))) %>%
-                select(-cat)
-    
-    results.list <- list("df" = results,
-                         "summ" = results.summ,
-                         "costs" = costs,
-                         "plc2e" = plc2e)
-  },
-  error = function(e) return(e))
-}
 get_run_prof_plc2e <- function(run_results, run_id, save = FALSE) {
   
   df <- run_results$df
@@ -955,9 +958,10 @@ get_run_levcost_delta <- function(run_results, run_id, save = FALSE) {
                             guide = guide_legend(override.aes = list(size = 0.75))) +
     theme(panel.background = element_rect(colour = "gray75",
                                           fill = "gray80")) +
-    theme(panel.grid.major = element_line(colour = "gray85")) +
-    theme(panel.grid.minor = element_line(colour = "gray85")) +
-    theme(legend.text = element_text(),
+    theme(text = element_text(size = 20),
+          panel.grid.major = element_line(colour = "gray85"),
+          panel.grid.minor = element_line(colour = "gray85"),
+          legend.text = element_text(),
           legend.background = element_rect(colour = "gray75",
                                            fill = alpha("gray85", 1/2)),
           legend.box = "horizontal",
