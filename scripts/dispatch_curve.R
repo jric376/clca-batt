@@ -45,8 +45,6 @@ disp_curv <- R6Class("Dispatch",
         self$set_plants()
         self$attach_costs()
         self$stochastize_costs(hold_seed)
-        self$set_dispatch()
-        self$assign_colors()
       },
       
       add_metadata = function(metadata) {
@@ -164,6 +162,8 @@ disp_curv <- R6Class("Dispatch",
         private$disp_frame <- disp_frame %>% 
           mutate(wtd_plc2erta = namepcap*plc2erta,
                  cumul_plc2erta = cumsum(wtd_plc2erta) / cumul_cap)
+        
+        self$assign_colors()
       },
       
       get_metadata = function() {
