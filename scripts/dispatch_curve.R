@@ -15,7 +15,7 @@ disp_curv <- R6Class("Dispatch",
       all_plants = NULL,
       iso_terr = NULL,
       
-      initialize = function(meta = NULL, terr = NULL) {
+      initialize = function(meta = NULL, terr = NULL, hold_seed = FALSE) {
         
         if (terr == "nyiso") {
           mc_path = "inputs/marg_costs.csv"
@@ -32,19 +32,19 @@ disp_curv <- R6Class("Dispatch",
         
         # units:
         # heat_rt Btu/kWh, FC $/MMBtu, VOM $/kWh
-        log_path = paste(
-                          "outputs/", meta[["run_id"]], "/",
-                          meta[["name"]], "_", meta[["ctrl_id"]], "_",  
-                          strftime(Sys.time(), format = "%d%m%y_%H%M%S"),
-                          ".log", sep = ""
+        log_path = paste("outputs/", meta[["run_id"]], "/",
+                         meta[["name"]], "_", meta[["ctrl_id"]], "_",  
+                         strftime(Sys.time(), format = "%d%m%y_%H%M%S"),
+                         ".log", sep = ""
         )
         flog.appender(appender.file(log_path), name = "disp")
-        self$marg_costs = read.csv(mc_path, head = T, stringsAsFactors = F)[,2:3]
-        self$set_mc_stats()
-        self$all_plants = read.csv(plts_path, head = T, stringsAsFactors = F)
+        
+        self$set_mc_stats(read.csv(mc_path, head = T, stringsAsFactors = F)[,2:3])
+        self$all_plants <- read.csv(plts_path, head = T, stringsAsFactors = F) %>% 
+          filter(plngenan > 0)
         self$set_plants()
         self$attach_costs()
-        self$set_dispatch()
+        self$stochastize_costs(hold_seed)
       },
       
       add_metadata = function(metadata) {
@@ -63,22 +63,18 @@ disp_curv <- R6Class("Dispatch",
       },
       
       attach_costs = function() {
-        private$iso_plants = merge(
-                               x = private$iso_plants, y = private$marg_costs_stats,
-                               by.x = "plprmfl", by.y = "prim_fuel", suffixes = "",
-                               all.x = T
-        )
-        if (anyNA(private$iso_plants$MC)) {
+        private$iso_plants <- private$iso_plants %>% 
+          left_join(private$marg_costs_stats, by = "plprmfl") %>% 
+          arrange(plprmfl)
+        
+        if (anyNA(private$iso_plants$MC_mean)) {
           flog.error(
-                      paste(
-                            "Fuels without marginal cost statistics in dispatch",
+                      paste("Fuels without marginal cost statistics in dispatch",
                             private$metadata[["name"]], private$metadata[["run_id"]],
                             private$metadata[["ctrl_id"]]
                             ),
-                      name = "disp"
-          )
+                      name = "disp")
         }
-        self$stochastize_costs()
       },
       
       get_emish = function(dmd_mw) {
@@ -95,17 +91,7 @@ disp_curv <- R6Class("Dispatch",
         return(cumul_plc2erta)
       },
       
-      stochastize_costs = function() {
-        # applies stochastizer to all lines in dataframe
-        
-        private$iso_plants$MC_rand = mapply(
-                                              function(x) self$stochastizer(x),
-                                              private$iso_plants$plprmfl
-        )
-        self$set_dispatch()
-      },
-      
-      stochastizer = function(fuel, hold_seed = F) {
+      stochastize_costs = function(hold_seed) {
         # randomizes grid resource costs based on distribution of prices
         # with the same fuel type across resource types
         # (i.e. gas turbine v steam turbine)
@@ -113,93 +99,71 @@ disp_curv <- R6Class("Dispatch",
         if (hold_seed){
           set.seed(4)
         }
+        private$iso_plants <- private$iso_plants %>% 
+          mutate(MC_rand = rnorm(nrow(.), MC_mean, MC_sd),
+                 MC_rand = ifelse(MC_rand < 0, 0, MC_rand))
         
-        ref_line <- subset(private$marg_costs_stats, private$marg_costs_stats$prim_fuel == fuel)
-        # print(ref_line)
-        mean_val <- ref_line$MC
-        sd_val <- ref_line$stdev
-        
-        new_mc <- rnorm(1, mean=mean_val, sd=sd_val)
-        if (is.na(new_mc)) {
-          flog.error(paste(fuel, "(fuel type is throwing an error when stochastizing its price"),
-                     name = "disp")
-        }
-        
-        return(new_mc)
+        self$set_dispatch()
       },
       
-      set_mc_stats = function() {
-        mc_stats = aggregate(MC ~ prim_fuel, self$marg_costs, mean)
-        mc_stats$stdev <- aggregate(MC ~ prim_fuel, self$marg_costs, sd)$MC
-        mc_stats[is.na(mc_stats)] = 0
-        
-        private$marg_costs_stats = mc_stats
+      set_mc_stats = function(file) {
+        # Incorporates a std deviation of 5% of mean
+        # where there is none in the data
+        private$marg_costs_stats <- file %>% 
+          group_by(prim_fuel) %>% 
+          summarise_all(.funs = c("mean", "sd")) %>% 
+          mutate(sd = ifelse(is.na(sd), 0, sd),
+                 sd = ifelse(mean != 0 & sd == 0,
+                             mean*0.05, sd)) %>%
+          select(plprmfl = prim_fuel,
+                 MC_mean = mean,
+                 MC_sd = sd) %>%
+          as.data.frame()
       },
       
       set_plants = function() {
         if (is.na(self$iso_terr)) {
-          flog.error(
-                      paste(
-                            "No ISO territory in", private$metadata[["name"]], 
-                            private$metadata[["run_id"]], private$metadata[["ctrl_id"]]
-                            ),
-                      name = "disp"
-          )
-        }
-        else {
-          self$all_plants = subset(self$all_plants, self$all_plants$plngenan > 0)
+          flog.error(paste("No ISO territory in", private$metadata[["name"]], 
+                           private$metadata[["run_id"]], private$metadata[["ctrl_id"]]
+                           ),
+                     name = "disp")
+        } else {
           if (!any(self$all_plants$isorto == self$iso_terr)) {
-            flog.error(
-                        paste(
-                              "No plants in", private$metadata[["name"]],
-                              "in ISO territory", self$iso_terr,
-                              private$metadata[["run_id"]], private$metadata[["ctrl_id"]]
-                              ),
-                        name = "disp"
-            )
+            flog.error(paste("No plants in", private$metadata[["name"]],
+                             "in ISO territory", self$iso_terr,
+                             private$metadata[["run_id"]], private$metadata[["ctrl_id"]]
+                             ),
+                       name = "disp")
           }
-          private$iso_plants$plc2erta = private$iso_plants$plc2erta*0.454 # lb to kg
-          private$iso_plants = subset(self$all_plants, self$all_plants$isorto == self$iso_terr)
+          private$iso_plants <- filter(self$all_plants, isorto == self$iso_terr) %>% 
+            select(orispl, plprmfl, namepcap, plc2erta) 
           
           if (self$iso_terr == "NYISO") {
             sys.avail <- 0.87 # NYISO System Availability, source: Gilmore, 2010
-            private$iso_plants$namepcap*sys.avail
+            private$iso_plants$namepcap <- private$iso_plants$namepcap*sys.avail
           }
         }
       },
       
       set_dispatch = function(disp_frame) {
-        disp_frame = data.frame(
-                                    private$iso_plants$orispl, private$iso_plants$plprmfl,
-                                    private$iso_plants$MC, private$iso_plants$MC_rand,
-                                    private$iso_plants$stdev,
-                                    private$iso_plants$namepcap, private$iso_plants$plc2erta,
-                                    check.names = F
-                                      )
-        
-        colnames(disp_frame) = c("orispl", "plprmfl", "MC","MC_rand",
-                                 "se", "namepcap", "plc2erta")
-        disp_frame = arrange(disp_frame, MC_rand)
-        disp_frame$cumul_cap = cumsum(disp_frame$namepcap)
+        disp_frame <- private$iso_plants %>%
+          arrange(MC_rand) %>% 
+          mutate(cumul_cap = cumsum(namepcap))
         
         if (anyNA(disp_frame$plc2erta)) {
-          flog.error(
-                      paste(
-                            "NAs in the emissions rates for some plants in",
-                            self$iso_terr, "in", private$metadata[["name"]],
-                            private$metadata[["run_id"]], private$metadata[["ctrl_id"]]
-                            ),
-                      name = "disp"
-            )
+          flog.error(paste("NAs in the emissions rates for some plants in",
+                           self$iso_terr, "in", private$metadata[["name"]],
+                           private$metadata[["run_id"]], private$metadata[["ctrl_id"]]
+                          ),
+                      name = "disp")
         }
-        disp_frame$wtd_plc2erta = disp_frame$namepcap*disp_frame$plc2erta
-        disp_frame$cumul_plc2erta = cumsum(disp_frame$wtd_plc2erta)
-        disp_frame$cumul_plc2erta = disp_frame$cumul_plc2erta / disp_frame$cumul_cap
         
-        private$disp_frame = disp_frame
+        # Emissions rates are given in lb / MWh here. Can be converted to kg in 'plots.R'
+        private$disp_frame <- disp_frame %>% 
+          mutate(wtd_plc2erta = namepcap*plc2erta,
+                 cumul_plc2erta = cumsum(wtd_plc2erta) / cumul_cap)
+        
         self$assign_colors()
-        
-        # return(self)
       },
       
       get_metadata = function() {
@@ -215,18 +179,7 @@ disp_curv <- R6Class("Dispatch",
       },
       
       get_iso_plants = function(iso = self$iso_terr) {
-        if (iso == self$iso_terr){
-          # print(length(private$iso_plants$isorto))
-          return(private$iso_plants)
-        }
-        if (missing(iso)) {
-          return("Need to select a subset of plants")
-        }
-        else {
-          output_plants = subset(self$all_plants, self$all_plants$isorto == iso)
-          # print(length(output_plants$isorto))
-          return(output_plants)
-        }
+        return(private$iso_plants)
       },
       
       assign_colors = function() {
@@ -257,4 +210,14 @@ disp_curv <- R6Class("Dispatch",
     )
 )
 
-
+get_test_curve <- function(iso_terr) {
+  disp_meta = list(
+    "name" = "Doris the Dispatch",
+    "run_id" = "plot",
+    "ctrl_id" = "plot"
+  )
+  disp <- disp_curv$new(meta = disp_meta,
+                        terr = iso_terr)
+  
+  return(disp)
+}
