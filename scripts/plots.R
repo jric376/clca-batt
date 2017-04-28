@@ -138,7 +138,8 @@ get_combined_runs <- function(runs) {
   
   return(results)
 }
-get_run_results <- function(runs, fu = "all", prof_lo_lim = FALSE) { # specify functional unt as needed, all or ESS_only
+get_run_results <- function(runs, fu = "all", prof_lo_lim = FALSE,
+                            save = FALSE, save_id = NULL) { # specify functional unt as needed, all or ESS_only
   
   tryCatch({
     
@@ -283,6 +284,9 @@ get_run_results <- function(runs, fu = "all", prof_lo_lim = FALSE) { # specify f
                          "summ" = results.summ,
                          "costs" = costs,
                          "plc2e" = plc2e)
+    if(save & is.character(save_id)) {
+      saveRDS(results.list, paste0("outputs/",save_id,".rds"))
+    }
   },
   error = function(e) return(e))
 }
