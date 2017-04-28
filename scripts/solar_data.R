@@ -36,14 +36,14 @@ get_nyc_solar = function(type = "read") {
     # colnames(nsrdb_df) = c("year","mo","day","hr","min","dhi","dni","ghi",
     #                        "clr_dhi", "clr_dni", "clr_ghi", "tempC", "pressure")
     # nsrdb_df = write.csv(nsrdb_df, "inputs/solar_nsrdb.csv")
-  
+    
     # IF YOU HAVE ALREADY COMPILED THE RAW NSRDB CSVS, then run this chunk
     nsrdb_df = read.csv("inputs/solar_nsrdb.csv") %>%
       mutate(date_time = as.POSIXct(strptime(paste(year,"-",mo,"-",day," ",
                                                    hr,":",0, sep = ""),
                                              format = "%Y-%m-%d %H:%M")),
              day_ind = as.numeric(strftime(date_time, format = "%j")) +
-                        (year-min(year))*365,
+               (year-min(year))*365,
              dayhr_ind = day_ind + as.numeric(hr/24),
              kt = ifelse(clr_ghi == 0, 0, ghi/clr_ghi)) %>%
       filter(!is.na(date_time)) %>%
@@ -91,7 +91,7 @@ bsrn_dt = bsrn_dt %>%
          mo = as.numeric(strftime(date_time, format = "%m"))) %>%
   filter((mo == 01 & !(day > 8 & day < 14)) |
            (mo == 06 & !(day > 15 & day < 19) & !(day > 20 & day < 23)) |
-            (mo == 10 & !((day > 16 & day < 22) | (day == 14))) |
+           (mo == 10 & !((day > 16 & day < 22) | (day == 14))) |
            (day_ind == 111 | (day_ind > 113 & day_ind < 126))) %>%
   select(-day,-mo)
 sample_dt = unique(bsrn_dt$index) # LARC data is limiting factor for days in selected months
@@ -114,7 +114,7 @@ get_bsrn.larc = function(type = "read") {
           # use curly brackets.
           # 'tryCatch()' will return the last evaluated expression
           # in case the "try" part was completed successfully
-
+          
           start_row = 1 + skip
           end_row = (24*60)+start_row
           readLines(con=url, warn=FALSE)[start_row:end_row]
@@ -151,7 +151,7 @@ get_bsrn.larc = function(type = "read") {
         }
       )
       if(is.character(out)) { # basically, if no errors get thrown
-
+        
         scrapeDF <- function(timestep) {
           bsrn_df.row = as.data.frame.list(timestep) %>%
             apply(2, function(x) {
@@ -161,18 +161,17 @@ get_bsrn.larc = function(type = "read") {
           bsrn_df.row = bsrn_df.row[,!apply(bsrn_df.row, 2, function(x) any(x==""))] %>%
             select(1:3,20)
           colnames(bsrn_df.row) <- c("date", "time", "tempC", "ghi")
-
+          
           bsrn_df.row = bsrn_df.row %>%
             mutate_if(is.factor, as.character) %>%
             mutate(tempC = as.numeric(tempC),
                    ghi = as.numeric(ghi),
                    date_time = paste(strftime(strptime(date, format = "%m/%d/%y"),
-                                                         format = "%Y-%m-%d"),
-                                                time),
+                                              format = "%Y-%m-%d"), time),
                    day_ind = as.numeric(strftime(date_time, format = "%j"))) %>%
             select(-(date:time))
           flog.info(paste(bsrn_df.row$date_time))
-
+          
           return(bsrn_df.row)
         }
         out <- out[!is.na(out)]
@@ -184,13 +183,13 @@ get_bsrn.larc = function(type = "read") {
     url_paths.larc = lapply(
       sample_dt,
       function(i) paste("http://capable.larc.nasa.gov/weatherlink/data/2014/",
-      i, "data.txt", sep = "")
-      )
+                        i, "data.txt", sep = "")
+    )
     # bsrn_df.larc.days = bind_rows(lapply(url_paths.larc, function(x) readUrl(x, skip = 3)))
-
+    
     cl <- makeCluster(3)
     registerDoSNOW(cl)
-
+    
     pkgs_to_pass = c("dplyr", "futile.logger")
     bsrn_df.larc.days = foreach(i = 1:(length(url_paths.larc)),
                                 .combine = "rbind.data.frame",
@@ -201,27 +200,27 @@ get_bsrn.larc = function(type = "read") {
                                   readUrl(url_paths.larc[[i]])
                                 }
     stopCluster(cl)
-
+    
     bsrn_df.larc.days = bsrn_df.larc.days %>%
-                          mutate(date_time = as.POSIXct(date_time),
-                                 hr = as.numeric(strftime(date_time, format = "%H")),
-                                 dayhr_ind = day_ind + hr/24) %>%
-                          filter(!is.na(date_time)) %>%
-                          arrange(dayhr_ind, date_time) %>%
-                          select(-tempC,-hr) %>%
-                          group_by(dayhr_ind, date_time) %>%
-                          summarise_if(is.numeric, "mean") %>%
-                          mutate(sun_hrs = ifelse(ghi == 0, 0, 1)) %>%
-                          ungroup() %>%
-                          add_weather()
-
+      mutate(date_time = as.POSIXct(date_time),
+             hr = as.numeric(strftime(date_time, format = "%H")),
+             dayhr_ind = day_ind + hr/24) %>%
+      filter(!is.na(date_time)) %>%
+      arrange(dayhr_ind, date_time) %>%
+      select(-tempC,-hr) %>%
+      group_by(dayhr_ind, date_time) %>%
+      summarise_if(is.numeric, "mean") %>%
+      mutate(sun_hrs = ifelse(ghi == 0, 0, 1)) %>%
+      ungroup() %>%
+      add_weather()
+    
     # tally.compare <- left_join(tally(group_by(bsrn_dt, day_ind)),
     #                            tally(group_by(bsrn_df.larc.days, day_ind)),
     #                            by = "day_ind")
     if (type == "write") {
       temp_file_name = paste0("inputs/solar_bsrn_larc_",
-                            strftime(Sys.time(), format = "%y%m%d_%H%M"),
-                           ".csv")
+                              strftime(Sys.time(), format = "%y%m%d_%H%M"),
+                              ".csv")
       write.csv(bsrn_df.larc.days, temp_file_name)
     }
   }
@@ -244,30 +243,29 @@ get_bsrn.cove = function(type = "read") {
     cove.cols <- c("day", "yr_day", "time", "zenith", "azi", "tempC", "ghi")
     bsrn_df.cove.days = strsplit(bsrn_df.cove.days[15:length(bsrn_df.cove.days)], " ")
     bsrn_df.cove.days = rbindlist(lapply(bsrn_df.cove.days,
-                                 function(x) as.data.frame.list(x, col.names = cove.cols))) %>%
-                  mutate_if(is.factor, as.character) %>%
-                  mutate_if(is.character, as.numeric) %>%
-                  mutate(min = ceiling(time*60)%%60,
-                         hr = floor(time),
-                         day = floor(day),
-                         yr = as.numeric(substr(yr_day,1,4)),
-                         date_time = as.POSIXct(strptime(paste(as.character(strptime(paste(day, yr),
-                                                                 format = "%j %Y")),
-                                                paste0(hr,":",min)), format = "%Y-%m-%d %H:%M")),
-                         dayhr_ind = floor(day) + floor(time)/24) %>%
-                  select(-(day:tempC),-(min:yr))
+                                         function(x) as.data.frame.list(x, col.names = cove.cols))) %>%
+      mutate_if(is.factor, as.character) %>%
+      mutate_if(is.character, as.numeric) %>%
+      mutate(min = ceiling(time*60)%%60,
+             hr = floor(time),
+             day = floor(day),
+             yr = as.numeric(substr(yr_day,1,4)),
+             date_time = as.POSIXct(strptime(paste(as.character(strptime(paste(day, yr),
+                                                                         format = "%j %Y")),
+                                                   paste0(hr,":",min)), format = "%Y-%m-%d %H:%M")),
+             dayhr_ind = floor(day) + floor(time)/24) %>%
+      select(-(day:tempC),-(min:yr))
     bsrn_df.cove.days = mutate(bsrn_df.cove.days, ghi = case_when((bsrn_df.cove.days$ghi < 3 & bsrn_df.cove.days$ghi > -3) ~ 0,
-                                          bsrn_df.cove.days$ghi != -999 ~ bsrn_df.cove.days$ghi)) %>%
-                  fill(ghi, .direction = "up") %>%
-                  fill(ghi) %>%
-                  mutate(index = strftime(date_time, format = "%Y-%m-%d"),
-                         day_ind = as.numeric(strftime(date_time, format = "%j")))
-
+                                                                  bsrn_df.cove.days$ghi != -999 ~ bsrn_df.cove.days$ghi)) %>%
+      fill(ghi, .direction = "up") %>% fill(ghi) %>%
+      mutate(index = strftime(date_time, format = "%Y-%m-%d"),
+             day_ind = as.numeric(strftime(date_time, format = "%j")))
+    
     bsrn_df.cove.days = left_join(data.frame(index = sample_dt, stringsAsFactors = FALSE), bsrn_df.cove.days) %>%
-                    select(-index) %>%
-                    mutate(sun_hrs = ifelse(ghi == 0, 0, 1))
+      select(-index) %>%
+      mutate(sun_hrs = ifelse(ghi == 0, 0, 1))
     bsrn_df.cove.days = bsrn_df.cove.days[2:nrow(bsrn_df.cove.days),] %>%
-                          add_weather()
+      add_weather()
     if (type == "write") {
       temp_file_name = paste0("inputs/solar_bsrn_cove_",
                               strftime(Sys.time(), format = "%y%m%d_%H%M"),
@@ -353,17 +351,17 @@ get_markovchains = function(df_str) {
   }
   condns <- unique(df$weather)
   chains = foreach(j = 1:(length(condns))) %do% {
-                  library("markovchain")
-                  condn.0 <- df %>%
-                    filter(weather == condns[j]) %>%
-                    mutate(kt = round(kt, 2),
-                           kt2 = lead(kt)) %>%
-                    fill(kt2) %>%
-                    select(date_time, kt:kt2) %>%
-                    filter(kt >= 0 & kt2 != 0 & kt2 <= 1)
-                  mCfit.0 <- markovchainFit(condn.0[["kt"]], byrow = FALSE,
-                                            possibleStates = seq(0,2,0.01))
-                  return(mCfit.0)
+    library("markovchain")
+    condn.0 <- df %>%
+      filter(weather == condns[j]) %>%
+      mutate(kt = round(kt, 2),
+             kt2 = lead(kt)) %>%
+      fill(kt2) %>%
+      select(date_time, kt:kt2) %>%
+      filter(kt >= 0 & kt2 != 0 & kt2 <= 1)
+    mCfit.0 <- markovchainFit(condn.0[["kt"]], byrow = FALSE,
+                              possibleStates = seq(0,2,0.01))
+    return(mCfit.0)
   }
   names(chains) <- condns
   return(chains)
@@ -375,25 +373,24 @@ get_1day_chain = function(t0.val, cop = 2, tpm.list, weather) {
   df_names = c("cove", "larc", "too_many")
   daychains <-  foreach(i = 1:length(tpm.list),
                         .combine = "cbind.data.frame") %do% {
-                    foreach(j = 1:cop,
-                            .combine = "cbind.data.frame") %do% {
-                    if (t0.val == 0) {
-                      daychain <- rep(0, 24*60)
-                    }
-                    else {
-                      tpm <- tpm.list[[i]]
-                      daychain <- as.numeric(markovchainSequence(
-                                                               24*60-1,
-                                                               tpm$estimate,
-                                                               t0 = round(t0.val, 2),
-                                                               include.t0 = TRUE))
-                    }
-                    daychain <- list(j = daychain)
-                    }
-                }
+                          foreach(j = 1:cop,
+                                  .combine = "cbind.data.frame") %do% {
+                                    if (t0.val == 0) {
+                                      daychain <- rep(0, 24*60)
+                                    }
+                                    else {
+                                      tpm <- tpm.list[[i]]
+                                      daychain <- as.numeric(markovchainSequence(
+                                        24*60-1,
+                                        tpm$estimate,
+                                        t0 = round(t0.val, 2),
+                                        include.t0 = TRUE))
+                                    }
+                                    daychain <- list(j = daychain)
+                                  }}
   names(daychains) <- sort(unlist(lapply(1:length(tpm.list), function(x) {
-                                    lapply(1:cop, function(y) {
-                                      paste0("kt_min.",df_names[[x]],"_",y)})})))
+    lapply(1:cop, function(y) {
+      paste0("kt_min.",df_names[[x]],"_",y)})})))
   return(daychains)
 }
 attach_chains = function(df, scalars) {
@@ -402,15 +399,15 @@ attach_chains = function(df, scalars) {
   
   ghi.col <- select(df, kt, clr_ghi)
   ghi_min <- foreach(x = iter(scalars, by = 'col'),
-                      nm = colnames(scalars),
-                      .combine = "cbind.data.frame") %do% {
-                        new_ghi_min = ghi.col %>%
-                                        mutate(new_ghi_min = clr_ghi*x) %>%
-                                        select(new_ghi_min)
-                        new_nm <- gsub("^.*?_","ghi_",nm)
-                        names(new_ghi_min) <- new_nm
-                        new_ghi_min
-                      }
+                     nm = colnames(scalars),
+                     .combine = "cbind.data.frame") %do% {
+                       new_ghi_min = ghi.col %>%
+                         mutate(new_ghi_min = clr_ghi*x) %>%
+                         select(new_ghi_min)
+                       new_nm <- gsub("^.*?_","ghi_",nm)
+                       names(new_ghi_min) <- new_nm
+                       new_ghi_min
+                     }
   
   df <- cbind.data.frame(df, scalars, ghi_min)
   
@@ -419,67 +416,64 @@ attach_chains = function(df, scalars) {
 get_kt_1min = function(daily_df, tpm.list, cop = 2, interval) {
   # Attaches 1-min clearness index (kt) values
   # to a time-series spanning 24hrs
-
+  
   weather <- unique(daily_df$weather)
   t0.val <- filter(daily_df, kt > 0) %>%
-                filter(row_number(kt) == 1) %>%
-                select(kt) %>%
-                as.numeric()
+    filter(row_number(kt) == 1) %>%
+    select(kt) %>%
+    as.numeric()
   
   # sets max kt value to 2
   kt.1min <- get_1day_chain(t0.val, cop, tpm.list) %>%
-                  mutate_all(function(x) ifelse(x > 2, 2, x))
+    mutate_all(function(x) ifelse(x > 2, 2, x))
   
   day_df <- data.frame(date_time = seq.POSIXt(daily_df$date_time[1],
-                                          length.out = nrow(kt.1min),
-                                          by = 60))
+                                              length.out = nrow(kt.1min),
+                                              by = 60))
   day_df <- day_df %>%
-                mutate(day_ind = as.numeric(strftime(date_time,
-                                                     format = "%j")),
-                       dayhr_ind = day_ind +
-                                    as.numeric(strftime(date_time,
-                                                        format = "%H"))/24,
-                       min_ind = as.numeric(strftime(date_time,
-                                                         format = "%M")),
-                       min_ind = dayhr_ind + min_ind%/%(60*interval)/(60*24)) %>%
-                left_join(daily_df, by = c("day_ind", "dayhr_ind")) %>%
-                mutate(date_time = date_time.x) %>%
-                select(-date_time.x, -date_time.y) %>%
-                attach_chains(kt.1min)
+    mutate(day_ind = as.numeric(strftime(date_time, format = "%j")),
+           dayhr_ind = day_ind + as.numeric(strftime(date_time, format = "%H"))/24,
+           min_ind = as.numeric(strftime(date_time, format = "%M")),
+           min_ind = dayhr_ind + min_ind%/%(60*interval)/(60*24)) %>%
+    left_join(daily_df, by = c("day_ind", "dayhr_ind")) %>%
+    mutate(date_time = date_time.x) %>%
+    select(-date_time.x, -date_time.y) %>%
+    attach_chains(kt.1min)
   
   # compares daily ghi values from input data
   # to markov generated ones
   # calculates scale_factor
   daily.ghi <- select(day_df, dayhr_ind, ghi) %>%
-                  group_by(dayhr_ind) %>%
-                  summarise(ghi = mean(ghi)) %>%
-                  ungroup() %>%
-                  summarise(ghi = sum(ghi)) %>%
-                  as.numeric()
+    group_by(dayhr_ind) %>%
+    summarise(ghi = mean(ghi)) %>%
+    ungroup() %>%
+    summarise(ghi = sum(ghi)) %>%
+    as.numeric()
   mC.ghi <- select(day_df, dayhr_ind, contains("ghi_")) %>%
-                  group_by(dayhr_ind) %>%
-                  summarise_at(contains("ghi_"), mean) %>%
-                  ungroup() %>%
-                  summarise_at(contains("ghi_"), sum) %>%
-                  rowMeans()
+    group_by(dayhr_ind) %>%
+    summarise_at(contains("ghi_"), mean) %>%
+    ungroup() %>%
+    summarise_at(contains("ghi_"), sum) %>%
+    rowMeans()
   scale_factor <- daily.ghi / mC.ghi
-  message(paste(scale_factor, "-",
-                unique(daily_df$day_ind), "-",
-                weather, "-",
-                daily.ghi, "-",
-                mC.ghi))
-    
+  # message(paste(scale_factor, "-",
+  #               unique(daily_df$day_ind), "-",
+  #               weather, "-",
+  #               daily.ghi, "-",
+  #               mC.ghi))
+  
   # if markov-gen'd values are within 5%
   # scale factor goes unused
   # otherwise values are scaled to be within 5%
   cols_to_keep <- select(day_df, day_ind:kt, date_time)
   scale_factor <- ifelse(abs(scale_factor-1) <= 0.05, 1, scale_factor)
   scaled_kt <- select(day_df, contains("kt_"), kt)
-  scaled_kt <- mutate_all(scaled_kt, function(x) ifelse(scaled_kt$kt == 0, 0, x)) %>%
-                  select(-kt) %>%
-                  mutate_all(function(x) x*scale_factor)
+  scaled_kt <- mutate_all(scaled_kt,
+                          function(x) ifelse(scaled_kt$kt == 0, 0, x)) %>%
+    select(-kt) %>%
+    mutate_all(function(x) x*scale_factor)
   scaled_ghi <- select(day_df, contains("ghi_")) %>%
-                  mutate_all(function(x) x*scale_factor)
+    mutate_all(function(x) x*scale_factor)
   output_df <- cbind.data.frame(cols_to_keep, scaled_kt, scaled_ghi)
   return(output_df)
 }
@@ -510,44 +504,44 @@ get_1yr_markov = function(src_df = list("cove", "larc"),
                     "tidyr", "futile.logger")
   
   all_min = foreach(j = 1:365,
-                .combine = "bind_rows",
-                .multicombine = TRUE,
-                .export = funs.to.pass,
-                .packages = pkgs.to.pass,
-                # .errorhandling = "remove",
-                .verbose = TRUE) %dopar% {
-                  
-                  date_time <- data.frame(date_time = seq.POSIXt(strptime(paste("2014", j, "00:00"),
-                                                       format = "%Y %j %H:%M"),
-                                              strptime(paste("2014", j, "23:55"),
-                                              format = "%Y %j %H:%M"),
-                                              by = "5 min"))
-                  
-                  day_min.0 = nsrdb_df %>%
-                                filter(day_ind == j)
-                  weather <- unique(day_min.0$weather)
-                  tpm.1 <- get_markovchains(df_str = src_df[1])[[weather]]
-                  tpm.2 <- get_markovchains(df_str = src_df[2])[[weather]]
-                  tpm.list <- list(tpm.1, tpm.2)
-                  
-                  day_min.0 <- get_kt_1min(day_min.0, tpm.list, cop, interval)
-                  kt_ghi <- select(day_min.0, min_ind,
-                                   contains("kt_min."),
-                                   contains("ghi_min.")) %>%
-                              group_by(min_ind) %>%
-                              summarise_if(is.numeric, mean) %>%
-                              ungroup() %>%
-                              mutate(weather = weather)
-                  
-                  if(nrow(date_time) < nrow(kt_ghi)) {
-                    kt_ghi <- kt_ghi[1:nrow(date_time),]
-                  }
-                  if(nrow(date_time) > nrow(kt_ghi)) {
-                    date_time <- date_time[1:nrow(kt_ghi),]
-                  }
-                  
-                  cbind(date_time, kt_ghi)
-                }
+                    .combine = "bind_rows",
+                    .multicombine = TRUE,
+                    .export = funs.to.pass,
+                    .packages = pkgs.to.pass,
+                    # .errorhandling = "remove",
+                    .verbose = TRUE) %dopar% {
+                      
+                      date_time <- data.frame(date_time = seq.POSIXt(strptime(paste("2014", j, "00:00"),
+                                                                              format = "%Y %j %H:%M"),
+                                                                     strptime(paste("2014", j, "23:55"),
+                                                                              format = "%Y %j %H:%M"),
+                                                                     by = "5 min"))
+                      
+                      day_min.0 = nsrdb_df %>%
+                        filter(day_ind == j)
+                      weather <- unique(day_min.0$weather)
+                      tpm.1 <- get_markovchains(df_str = src_df[1])[[weather]]
+                      tpm.2 <- get_markovchains(df_str = src_df[2])[[weather]]
+                      tpm.list <- list(tpm.1, tpm.2)
+                      
+                      day_min.0 <- get_kt_1min(day_min.0, tpm.list, cop, interval)
+                      kt_ghi <- select(day_min.0, min_ind,
+                                       contains("kt_min."),
+                                       contains("ghi_min.")) %>%
+                        group_by(min_ind) %>%
+                        summarise_if(is.numeric, mean) %>%
+                        ungroup() %>%
+                        mutate(weather = weather)
+                      
+                      if(nrow(date_time) < nrow(kt_ghi)) {
+                        kt_ghi <- kt_ghi[1:nrow(date_time),]
+                      }
+                      if(nrow(date_time) > nrow(kt_ghi)) {
+                        date_time <- date_time[1:nrow(kt_ghi),]
+                      }
+                      
+                      cbind(date_time, kt_ghi)
+                    }
   stopCluster(cl)
   
   all_min <- fill(all_min, weather, contains("_min"), .direction = "up")
@@ -569,33 +563,28 @@ validate_markov_df <- function(df, save_rds) {
                        suffix = c("_cove", "_larc"))
   bsrn_days <- unique(bsrn_df$day_ind_cove)
   bsrn_df <- bsrn_df %>%
-                select(date_time, ghi_cove, ghi_larc)
+    select(date_time, ghi_cove, ghi_larc)
   
   markov <- df %>%
-              mutate(day_ind = as.numeric(strftime(date_time,
-                                                             format = "%j"))) %>%
-              filter(day_ind %in% bsrn_days)
-  markov <- mutate(markov, markov_mean.cove = rowMeans(select(markov,
-                                                      matches("(.*ghi_)(.*cove)"))),
-                   markov_mean.larc = rowMeans(select(markov,
-                                                      matches("(.*ghi_)(.*larc)")))) %>%
-              mutate(markov_var.cove = ifelse(markov_mean.cove == 0, 0,
-                                        abs(markov_mean.cove - lag(markov_mean.cove))/markov_mean.cove),
-                     markov_var.larc = ifelse(markov_mean.larc == 0, 0,
-                                        abs(markov_mean.larc - lag(markov_mean.larc))/markov_mean.larc)) %>%
-              select(date_time, contains("markov_var"))
+    mutate(day_ind = as.numeric(strftime(date_time, format = "%j"))) %>%
+    filter(day_ind %in% bsrn_days) %>% 
+    mutate(markov_mean.cove = rowMeans(select(markov, matches("(.*ghi_)(.*cove)"))),
+           markov_mean.larc = rowMeans(select(markov, matches("(.*ghi_)(.*larc)"))),
+           markov_var.cove = ifelse(markov_mean.cove == 0, 0,
+                                    abs(markov_mean.cove - lag(markov_mean.cove))/markov_mean.cove),
+           markov_var.larc = ifelse(markov_mean.larc == 0, 0,
+                                    abs(markov_mean.larc - lag(markov_mean.larc))/markov_mean.larc)) %>%
+    select(date_time, contains("markov_var"))
   
   output_df <- left_join(markov, bsrn_df, by = "date_time") %>%
-                  mutate(cove_var = ifelse(ghi_cove == 0, 0,
-                                                abs(ghi_cove - lag(ghi_cove))/ghi_cove),
-                         larc_var = ifelse(ghi_larc == 0, 0,
-                                                abs(ghi_larc - lag(ghi_larc))/ghi_larc)) %>%
-                  mutate(cove_var = ifelse(cove_var < 0, 0, cove_var),
-                         larc_var = ifelse(larc_var < 0, 0, larc_var)) %>%
-                  fill(contains("var"), .direction = "up") %>%
-                  group_by(date_time) %>%
-                  summarize_if(is.numeric, mean) %>%
-                  select(date_time, contains("var"))
+    mutate(cove_var = ifelse(ghi_cove == 0, 0, abs(ghi_cove - lag(ghi_cove))/ghi_cove),
+           larc_var = ifelse(ghi_larc == 0, 0, abs(ghi_larc - lag(ghi_larc))/ghi_larc)) %>%
+    mutate(cove_var = ifelse(cove_var < 0, 0, cove_var),
+           larc_var = ifelse(larc_var < 0, 0, larc_var)) %>%
+    fill(contains("var"), .direction = "up") %>%
+    group_by(date_time) %>%
+    summarize_if(is.numeric, mean) %>%
+    select(date_time, contains("var"))
   
   if(save_rds) saveRDS(output_df, "inputs/solar_min_freq.rds")
   return(output_df)
