@@ -220,9 +220,11 @@ sys_ctrlr <- R6Class("System Controller",
      }
      else{
        # extra 0.001 factor is needed to convert results
-       # of get_emish call from kg CO2eq per MWh to per kWh
+       # of get_emish call from lb CO2eq per MWh to per kWh
        # so that multiplying by bldg_kw results in 
-       # kg CO2eq as the only remaining unit
+       # lb CO2eq as the only remaining unit
+       
+       # lb units converted to kg as needed in plots.R script
        
        bldg_plc2erta <- (bldg_kw*0.001)*as.numeric(private$metadata[["time_int"]])* 
                             private$disp$get_emish(iso_mw)

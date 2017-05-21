@@ -84,6 +84,7 @@ grid_arrange_shared_legend <- function(..., nrow = 1, ncol = length(list(...)), 
 } # adapted from https://stackoverflow.com/questions/13649473/add-a-common-legend-for-combined-ggplots
 
 # SAMPLE SET OF RUN RESULTS NAMES, NOT FOR RE-USE
+{
 apts_runs <- c("apts_lion_02_075_by005",
                "apts_pba_02_075_by005",
                "apts_nas_02_075_by005",
@@ -102,6 +103,7 @@ hospital_runs <- c("hospital_lion_02_075_by005",
                    "hospital_vrf_02_075_by005")
 all_runs <- unlist(c(apts_runs, market_runs,
                      office_runs, hospital_runs))
+}
 
 # Data prep functions
 summarise_run_costs <- function(df){
@@ -860,6 +862,12 @@ get_run_levcost_delta <- function(run_results, run_id, save = FALSE) {
   max_prof_lo_n <- -1
   incr <- 1
   levcost_delta_df <- data.frame()
+  
+  # need to separately pare down ESS and PV prices
+  # want to create contour plot where
+  # x-axis is reduce_frac_PV
+  # y-axis is reduce_frac_ESS
+  # contour is prof_lo_n_mean
   
   while(incr > 0) {
     incr <- incr - 0.005
