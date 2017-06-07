@@ -37,6 +37,11 @@ get_nyc_solar = function(type = "read") {
     #                        "clr_dhi", "clr_dni", "clr_ghi", "tempC", "pressure")
     # nsrdb_df = write.csv(nsrdb_df, "inputs/solar_nsrdb.csv")
     
+    # global horizontal data is used here
+    # converting irradiation values to reflect PV panel tilt
+    # and incorporating any resulting self-shading happens elsewhere
+    # (i.e. in the pv_load object)
+    
     # IF YOU HAVE ALREADY COMPILED THE RAW NSRDB CSVS, then run this chunk
     nsrdb_df = read.csv("inputs/solar_nsrdb.csv") %>%
       mutate(date_time = as.POSIXct(strptime(paste(year,"-",mo,"-",day," ",
