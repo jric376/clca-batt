@@ -37,15 +37,10 @@ get_nyc_solar = function(type = "read") {
     #                        "clr_dhi", "clr_dni", "clr_ghi", "tempC", "pressure")
     # nsrdb_df = write.csv(nsrdb_df, "inputs/solar_nsrdb.csv")
     
-<<<<<<< HEAD
     # global horizontal data is used here
     # converting irradiation values to reflect PV panel tilt
     # and incorporating any resulting self-shading happens elsewhere
     # (i.e. in the pv_load object)
-=======
-    # global horizontal data will need to be converted if PV array
-    # is to be modeled as tilted from horizontal plane
->>>>>>> c099526351c27f908ca3ff966bfa6284fcc26259
     
     # IF YOU HAVE ALREADY COMPILED THE RAW NSRDB CSVS, then run this chunk
     nsrdb_df = read.csv("inputs/solar_nsrdb.csv") %>%
