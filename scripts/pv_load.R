@@ -35,7 +35,8 @@ pv_load <- R6Class("PV Load",
     # These values can be accessed for
     # locations worldwide at
     # https://www.esrl.noaa.gov/gmd/grad/solcalc/
-   
+    
+    lat = 40.783, tilt = 40.783,
     cell_eff = 0.17, inv_eff = 0.93, nameplate = 0.0,
     sys_loss = 1 - 0.1408, self_shade = 0.3644,
     plc2erta = 1834,
@@ -82,18 +83,27 @@ pv_load <- R6Class("PV Load",
      
      ts_df = list()
      
-     dt <- select(rds, date_time)
-     ghi <- select(rds, min_ind, contains("ghi_min."))
+     dt <- select(rds, date_time, dhi:declin_ang,
+                  -kt, -tempC, -clr_ghi) %>% 
+       mutate(incid_ang = cospi(self$lat-self$tilt)*cos(declin_ang)*cos(hr_ang)+sinpi(self$lat-self$tilt)*sin(declin_ang),
+              znith_ang = cospi(self$lat)*cos(declin_ang)*cos(hr_ang)+sinpi(self$lat)*sin(declin_ang),
+              rb_fac = incid_ang/cos(znith_ang),
+              rd_fac = (1+cospi(self$tilt))/2,
+              rr_fac = (1-cospi(self$tilt))/2,
+              incid_tot = dni*rb_fac + dhi*rd_fac + 0.2*ghi*rr_fac)
+     kt <- select(rds, min_ind, contains("kt_min."))
      
-     mw_df <- sapply(1:copies, function(x) {
-       ghi_samp <- select(ghi, sample(1:ncol(ghi), 1))
-       names(ghi_samp) <- "ghi"
+     kw_df <- sapply(1:copies, function(x) {
+       kt_samp <- select(kt, sample(2:ncol(kt), 1))
+       names(kt_samp) <- "kt"
         
-       ghi_samp <- ghi_samp %>% 
-         transmute(kw = ghi*area*self$sys_loss*self$cell_eff*self$inv_eff)}) %>% 
+       kt_samp <- kt_samp %>%
+         transmute(kw = 0.001*dt$incid_tot*kt*area*self$sys_loss*self$cell_eff*self$inv_eff)
+       }) %>% 
        as.data.frame()
      
-     ts_df <- cbind.data.frame(dt, mw_df)
+     ts_df <- cbind.data.frame(dt, kw_df) %>% 
+       select(date_time, contains("kw"))
      
      private$ts_df = ts_df
    }

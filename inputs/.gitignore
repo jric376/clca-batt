@@ -6,4 +6,4 @@ solar_min_freq.rds
 /bsrn_raw/
 /nsrdb_raw/
 /nsrdb_raw_bak/
-*.rds.bak
+*.bak
