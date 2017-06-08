@@ -415,8 +415,9 @@ get_kt_1min <- function(daily_df, tpm.list, cop = 2, interval) {
     as.numeric()
   
   # sets max kt value to 2
-  kt.1min <- get_1day_chain(t0.val, cop, tpm.list) %>%
-    mutate_all(function(x) ifelse(x > 2, 2, x))
+  kt.1min <- get_1day_chain(t0.val, cop, tpm.list)
+  # %>%
+  #   mutate_all(function(x) ifelse(x > 2, 2, x))
   
   day_df <- data.frame(date_time = seq.POSIXt(daily_df$date_time[1],
                                               length.out = nrow(kt.1min),
@@ -440,12 +441,14 @@ get_kt_1min <- function(daily_df, tpm.list, cop = 2, interval) {
   # calculates scale_factor
   daily.kt <- select(day_df, dayhr_ind, kt) %>% 
     group_by(dayhr_ind) %>% 
+    filter(kt != 0) %>% 
     summarise(kt = mean(kt)) %>% 
     ungroup() %>%
     summarise(kt = sum(kt)) %>%
     as.numeric()
-  mC.kt <- select(day_df, dayhr_ind, contains("kt_")) %>%
+  mC.kt <- select(day_df, dayhr_ind, contains("kt_"), kt) %>%
     group_by(dayhr_ind) %>%
+    filter(kt != 0) %>% select(-kt) %>% 
     summarise_at(contains("kt_"), mean) %>%
     ungroup() %>%
     summarise_at(contains("kt_"), sum) %>%
@@ -463,7 +466,7 @@ get_kt_1min <- function(daily_df, tpm.list, cop = 2, interval) {
   scale_factor <- ifelse(abs(scale_factor-1) <= 0.05, 1, scale_factor)
   scaled_kt <- select(day_df, contains("kt_"), kt)
   scaled_kt <- mutate_all(scaled_kt,
-                          function(x) ifelse(scaled_kt$kt == 0, 0, x)) %>%
+                          function(x) ifelse(scaled_kt$kt == 0, 0, x)) %>% 
     select(-kt) %>%
     mutate_all(function(x) x*scale_factor)
   # scaled_ghi <- select(day_df, contains("ghi_")) %>%
@@ -473,8 +476,8 @@ get_kt_1min <- function(daily_df, tpm.list, cop = 2, interval) {
   return(output_df)
 }
 get_1yr_markov <- function(src_df = list("cove", "larc"),
-                          cop = 2, interval,
-                          save_rds = FALSE, seed = 7) {
+                          cop = 2, days = c(1,365),
+                          interval = 1/12, save_rds = FALSE) {
   # compiles a specified number of copies of
   # 1yr time-series with 1min intervals 
   # of clearness index (kt) and ghi values
@@ -496,7 +499,7 @@ get_1yr_markov <- function(src_df = list("cove", "larc"),
                     "plyr", "dplyr",
                     "tidyr", "futile.logger")
   
-  all_min = foreach(j = 1:365,
+  all_min = foreach(j = days[1]:days[2],
                     .combine = "bind_rows",
                     .multicombine = TRUE,
                     .export = funs.to.pass,
@@ -513,9 +516,9 @@ get_1yr_markov <- function(src_df = list("cove", "larc"),
                       day_min.0 = nsrdb_df %>%
                         filter(day_ind == j)
                       weather <- unique(day_min.0$weather)
-                      tpm.1 <- get_markovchains(df_str = src_df[1])[[weather]]
-                      tpm.2 <- get_markovchains(df_str = src_df[2])[[weather]]
-                      tpm.list <- list(tpm.1, tpm.2)
+                      cove_tpm <- get_markovchains(df_str = src_df[1])[[weather]]
+                      larc_tpm <- get_markovchains(df_str = src_df[2])[[weather]]
+                      tpm.list <- list(cove_tpm, larc_tpm)
                       
                       day_min.0 <- get_kt_1min(day_min.0, tpm.list, cop, interval)
                       kt_scalars <- day_min.0 %>% 
