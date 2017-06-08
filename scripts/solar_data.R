@@ -6,12 +6,13 @@
 # subhourly solar generation time-series
 
 library("data.table")
-library('foreach')
-library('iterators')
-library('doSNOW')
+library("foreach")
+library("iterators")
+library("doSNOW")
 library("futile.logger")
 library("plyr")
 library("dplyr")
+library("lubridate")
 library("ggplot2")
 library("ggrepel")
 library("tidyr")
@@ -20,40 +21,30 @@ sampleDF <- function(df, n) df[sample(nrow(df), n), , drop = FALSE]
 #used for generating aggregate statistics from:
 
 ## NSRDB 2005-2014 Hourly Data
-get_nyc_solar = function(type = "read") {
+get_nyc_solar = function(type = "read", yr = "2014") {
   # can be called to read a compiled & summarized time-series
   # of hourly NYC solar generation
   
   # or to compile ("write") this time-series from
   # years worth of raw csvs of solar gen from NSRDB
   
-  if (type == "new" | type == "write") {
+  if (type == "full" | type == "write") {
     # THIS BLOCK IS ONLY NEEDED ONCE, TO COMPILE DIFFERENT CSV FILES
     # which for now have to be manually downloaded from NSRDB
     
-    # nsrdb_files = list.files("inputs/nsrdb_raw", pattern = "*.csv", full.names = TRUE)
-    # nsrdb_df = rbindlist(lapply(nsrdb_files, fread))
-    # colnames(nsrdb_df) = c("year","mo","day","hr","min","dhi","dni","ghi",
-    #                        "clr_dhi", "clr_dni", "clr_ghi", "tempC", "pressure")
-    # nsrdb_df = write.csv(nsrdb_df, "inputs/solar_nsrdb.csv")
+    nsrdb_files <-  list.files("inputs/nsrdb_raw", pattern = "*.csv", full.names = TRUE)
+    nsrdb_df <- bind_rows(lapply(nsrdb_files, fread))
+    colnames(nsrdb_df) <- c("year","mo","day","hr","min","dhi","dni","ghi",
+                           "clr_ghi", "tempC", "znith_ang")
     
-    # global horizontal data is used here
-    # converting irradiation values to reflect PV panel tilt
-    # and incorporating any resulting self-shading happens elsewhere
-    # (i.e. in the pv_load object)
-    
-    # IF YOU HAVE ALREADY COMPILED THE RAW NSRDB CSVS, then run this chunk
-    nsrdb_df = read.csv("inputs/solar_nsrdb.csv") %>%
-      mutate(date_time = as.POSIXct(strptime(paste(year,"-",mo,"-",day," ",
-                                                   hr,":",0, sep = ""),
-                                             format = "%Y-%m-%d %H:%M")),
-             day_ind = as.numeric(strftime(date_time, format = "%j")) +
-               (year-min(year))*365,
-             dayhr_ind = day_ind + as.numeric(hr/24),
-             kt = ifelse(clr_ghi == 0, 0, ghi/clr_ghi)) %>%
-      filter(!is.na(date_time)) %>%
-      arrange(dayhr_ind, date_time) %>%
-      select(-X,-(year:min)) %>%
+    nsrdb_df <- nsrdb_df %>%
+      unite(date_time, year:min) %>% 
+      mutate(date_time = floor_date(ymd_hm(date_time), "hour"),
+             day_ind = yday(date_time) + (year(date_time)-min(year(date_time)))*365,
+             dayhr_ind = day_ind + hour(date_time)/24,
+             kt = ifelse(clr_ghi == 0, 0, ghi/clr_ghi),
+             hr_ang = (pi/12)*(hour(date_time)-12),
+             declin_ang = 23.45*(pi/180)*sin(2*pi*(284+yday(date_time))/365)) %>%
       group_by(dayhr_ind, date_time) %>%
       summarise_if(is.numeric, "mean") %>%
       mutate(sun_hrs = ifelse(ghi == 0, 0, 1)) %>%
@@ -61,29 +52,22 @@ get_nyc_solar = function(type = "read") {
       add_weather()
     
     if (type == "write") {
-      temp_file_name = paste0("inputs/solar_nsrdb_2014",
-                              strftime(Sys.time(), format = "%y%m%d_%H%M"),
-                              ".csv")
-      write.csv(nsrdb_df, temp_file_name)
+      write.csv(nsrdb_df, "inputs/solar_nsrdb.csv")
     }
   }
   if(type == "read") {
-    nsrdb_df = read.csv("inputs/solar_nsrdb_2014.csv")  %>% 
-      select(-X) %>%
-      mutate(date_time = as.POSIXct(date_time)) %>%
-      mutate_if(is.factor, as.character) %>%
-      filter(strftime(date_time, format = "%Y") == "2014") %>% 
-      mutate(day_ind = as.numeric(strftime(date_time, format = "%j")),
-             dayhr_ind = day_ind + 
-               as.numeric(strftime(date_time, format = "%H"))/24) %>%
-      select(-(kt.sum:kt.til),-(dhi:dni),-(clr_dhi:clr_dni),
-             -sun_hrs)
+    nsrdb_df <- fread("inputs/solar_nsrdb.csv")  %>% 
+      select(-V1,-(kt.sum:kt.til),-sun_hrs) %>%
+      mutate(date_time = ymd_hms(date_time)) %>%
+      filter(year(date_time) == yr) %>% 
+      mutate(day_ind = yday(date_time),
+             dayhr_ind = day_ind + hour(date_time)/24)
   }
   return(nsrdb_df)
 }
 ## BSRN 2014 1-min Data
 {
-bsrn_dt = data.frame(seq.POSIXt(as.POSIXct("2014-01-01 00:01"),
+bsrn_dt <- data.frame(seq.POSIXt(as.POSIXct("2014-01-01 00:01"),
                                 as.POSIXct("2014-12-31 23:59"),
                                 by = "1 min"))
 names(bsrn_dt) <- "date_time"
@@ -260,8 +244,9 @@ get_bsrn.cove = function(type = "read") {
                                                    paste0(hr,":",min)), format = "%Y-%m-%d %H:%M")),
              dayhr_ind = floor(day) + floor(time)/24) %>%
       select(-(day:tempC),-(min:yr))
-    bsrn_df.cove.days = mutate(bsrn_df.cove.days, ghi = case_when((bsrn_df.cove.days$ghi < 3 & bsrn_df.cove.days$ghi > -3) ~ 0,
-                                                                  bsrn_df.cove.days$ghi != -999 ~ bsrn_df.cove.days$ghi)) %>%
+    bsrn_df.cove.days = mutate(bsrn_df.cove.days,
+                               ghi = case_when((bsrn_df.cove.days$ghi < 3 & bsrn_df.cove.days$ghi > -3) ~ 0,
+                                                bsrn_df.cove.days$ghi != -999 ~ bsrn_df.cove.days$ghi)) %>%
       fill(ghi, .direction = "up") %>% fill(ghi) %>%
       mutate(index = strftime(date_time, format = "%Y-%m-%d"),
              day_ind = as.numeric(strftime(date_time, format = "%j")))
@@ -291,56 +276,51 @@ get_bsrn_clearsky = function() {
   # where LARC and COVE data comes from
   # from local csv
   
-  bsrn_df.clearsky = fread("inputs/bsrn_raw/1155277_37.01_-76.34_2014.csv")
+  bsrn_df.clearsky <- fread("inputs/bsrn_raw/1155277_37.01_-76.34_2014.csv")
   colnames(bsrn_df.clearsky) = c("year","mo","day","hr","min","ghi",
                                  "clr_ghi", "tempC")
-  bsrn_df.clearsky = bsrn_df.clearsky %>%
-    mutate(date_time = as.POSIXct(strptime(paste(year,"-",mo,"-",day," ",
-                                                 hr,":",0, sep = ""),
-                                           format = "%Y-%m-%d %H:%M")),
-           day_ind = as.numeric(strftime(date_time, format = "%j")),
-           dayhr_ind = day_ind + as.numeric(hr/24),
-           dayhr_ind = round(dayhr_ind, 5)) %>%
-    filter(!is.na(date_time)) %>%
-    arrange(dayhr_ind, date_time) %>%
-    select(-(year:ghi),-tempC) %>%
-    group_by(dayhr_ind, date_time) %>%
+  bsrn_df.clearsky <- bsrn_df.clearsky %>%
+    unite(date_time, year:min) %>% 
+    mutate(date_time = ymd_hm(date_time),
+           day_ind = yday(date_time),
+           dayhr_ind = round(day_ind + hour(date_time)/24, 5)) %>%
+    select(-(date_time:ghi),-tempC) %>%
+    group_by(dayhr_ind) %>%
     summarise_if(is.numeric, "mean") %>%
-    select(-date_time)
-  bsrn_df.clearsky = left_join(data.frame(day_ind = unique(bsrn_dt$day_ind),
-                                          stringsAsFactors = FALSE),
-                               bsrn_df.clearsky)
+    right_join(data.frame(day_ind = unique(bsrn_dt$day_ind),
+                                           stringsAsFactors = FALSE),
+               by = "day_ind")
   
   return(bsrn_df.clearsky)
 }
-add_weather = function(bsrn_df.station) {
+add_weather = function(df_to_mod) {
   # Attaches weather type, based on Hofmann (2015)
   # for 1min solar data
   
-  bsrn_df.clearsky = get_bsrn_clearsky()
-  bsrn_df.station = bsrn_df.station %>%
+  bsrn_df.clearsky <- get_bsrn_clearsky()
+  df_to_mod <- df_to_mod %>%
     mutate(dayhr_ind = round(dayhr_ind, 5)) %>%
     left_join(bsrn_df.clearsky) %>%
     mutate(kt = ifelse(clr_ghi == 0, 0, ghi/clr_ghi),
            kt = ifelse(kt > 2, 2, kt))
-  sun_hrs.daily = group_by(bsrn_df.station, day_ind, sun_hrs) %>%
+  sun_hrs.daily <- group_by(df_to_mod, day_ind, sun_hrs) %>%
     tally() %>%
     mutate(sun_hrs.daily = ifelse(sun_hrs < 1, 0, as.numeric(n))) %>%
     group_by(day_ind) %>%
     slice(which.max(sun_hrs.daily)) %>%
     select(-(sun_hrs:n))
-  kt_sum = group_by(bsrn_df.station, day_ind) %>%
+  kt_sum <- group_by(df_to_mod, day_ind) %>%
     summarise(kt.sum = sum(kt))
-  kt_diff = group_by(bsrn_df.station, day_ind) %>%
+  kt_diff <- group_by(df_to_mod, day_ind) %>%
     mutate(temp_diff = abs(kt - lag(kt, default = 0))) %>%
     summarise(kt.diff = sum(temp_diff))
-  cols_to_add = Reduce(left_join, list(kt_sum, kt_diff, sun_hrs.daily)) %>%
+  cols_to_add <- Reduce(left_join, list(kt_sum, kt_diff, sun_hrs.daily)) %>%
     mutate(kt.bar = ifelse(sun_hrs.daily == 0, 0, kt.sum / sun_hrs.daily),
            kt.til = ifelse(sun_hrs.daily == 0, 0, kt.diff / sun_hrs.daily),
            weather = ifelse((kt.bar+kt.til)<0.6, "Overcast",
                             ifelse((0.8*kt.bar-kt.til)>=0.72, "Cloudless",
                                    "Some clouds")))
-  bsrn_df.station = left_join(cols_to_add, bsrn_df.station)
+  df_to_mod <- left_join(cols_to_add, df_to_mod)
 }
 get_markovchains = function(df_str) {
   # returns a transition probability matrix

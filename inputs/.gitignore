@@ -1,7 +1,8 @@
-solar_nsrdb.csv
+solar_nsrdb_bak.csv
 solar
 inputs.zip
 solar_min.rds
 solar_min_freq.rds
 /bsrn_raw/
 /nsrdb_raw/
+/nsrdb_raw_bak/
