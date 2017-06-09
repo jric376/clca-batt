@@ -282,13 +282,14 @@ run_one_sim <- function(run_id, ctrl_id, bldg_nm = NULL, bldg_ts = NULL, pv_ts =
   return(out_vec)
 }
 
-sim_year <- function(run_id, bldg = NULL, cop = 1, batt_type = NULL, terr = NULL,
-                      guess = NULL, steps = NULL, is_pv = TRUE, num_clust = 3) {
+sim_year <- function(run_id, bldg = NULL, cop = 1, dmd_fracs = seq(0.2,0.65,0.05),
+                     batt_type = NULL, terr = NULL, guess = NULL,
+                     steps = NULL, is_pv = TRUE, num_clust = 3) {
   
   run_id = make_run_folder(run_id)
   
   # Tests shaving b/w 20% and 75% pk. dmd
-  dmd_fracs = seq(0.2,0.75,0.05)
+  dmd_fracs = dmd_fracs
   
   # Tracks parallel, jittered copies of time-series
   ts_index = seq(0,cop)
@@ -478,11 +479,11 @@ sim_year <- function(run_id, bldg = NULL, cop = 1, batt_type = NULL, terr = NULL
   return(output_df)
 }
 
-size_results <- sim_year(run_id = "fillin",
+sim_results <- sim_year(run_id = "apts_test2",
                          bldg = "apt", cop = 2,
                          batt_type = "vrf",
                          terr = "nyiso", guess = 2.5,
-                         steps = c(10,100), num_clust = 3)
+                         num_clust = 3)
 
 ## For use in remote EC2 sessions
 
@@ -498,7 +499,7 @@ size_results <- sim_year(run_id = "fillin",
 #               "futile.logger", "imputeTS")
 # ipak(packages)
 
-size_results
+# sim_results
 
 ## size_results is a sample fn call for running simulations:
 
