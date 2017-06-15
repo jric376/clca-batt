@@ -1,0 +1,52 @@
+```{r, message=FALSE}
+library(rvest)
+library(data.table)
+library(dplyr)
+library(tidyr)
+library(lubridate)
+library(readxl)
+library(stringr)
+```
+
+```{r}
+ercot_url <- read_html("http://www.ercot.com/gridinfo/load/load_hist")
+ercot_xls <- ercot_url %>% 
+  html_nodes("a") %>% 
+  html_attr("href") %>% 
+  str_subset("\\.xls")
+ercot_xls <- paste0("http://www.ercot.com/", ercot_xls)
+out_dir <- paste0(getwd(), "/ercot_xls/")
+ercot_files <- paste0(out_dir, basename(ercot_xls))
+```
+
+```{r, dl_xls}
+if(!dir.exists(out_dir)) dir.create(out_dir)
+
+for (i in 1:length(ercot_xls)){
+  download.file(ercot_xls[i], ercot_files[i], mode = "wb")
+}
+### MORE RECENT ERCOT DATA WILL REQ UNZIPPING FILES
+```
+
+```{r}
+year_pttrn <- "201[0-6]"
+ercot_files <-  list.files(out_dir, pattern = "*.xls", full.names = TRUE) %>% 
+  str_subset(year_pttrn)
+
+ercot_df <- bind_rows(lapply(ercot_files, read_xls))
+names(ercot_df) <- c("time_5min", "coast", "east", "far_west", "north", "north_c",
+                     "south", "south_c", "west", "mw")
+ercot_df_tot <- ercot_df %>%
+  mutate(time_5min = round_date(time_5min, unit = "hour"))  %>% 
+  select(time_5min, mw) %>%
+  group_by(time_5min) %>%
+  summarise(mw = sum(mw)) %>%
+  fill(mw)
+write.csv(ercot_df_tot, paste0(dirname(getwd()), "/inputs/ercot2011_2016_combnd.csv"))
+
+# will need to impute or use markov chains to synthesize 5-min interval data
+```
+
+
+
+

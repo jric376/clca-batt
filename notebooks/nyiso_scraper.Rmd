@@ -1,0 +1,52 @@
+```{r, message=FALSE}
+library(rvest)
+library(data.table)
+library(dplyr)
+library(tidyr)
+library(lubridate)
+library(stringr)
+```
+
+```{r}
+nyiso_url <- read_html("http://mis.nyiso.com/public/P-58Blist.htm")
+nyiso_zips <- nyiso_url %>% 
+  html_nodes("a") %>% 
+  html_attr("href") %>% 
+  stringr::str_subset("\\.zip")
+nyiso_zips <- paste0("http://mis.nyiso.com/public/", nyiso_zips)
+out_dir <- paste0(getwd(), "/nyiso_zips")
+# nyiso_zips <- bind_rows(lapply(nyiso_zips, fread))
+```
+
+```{r, dl_csvs}
+if(!dir.exists(out_dir)) dir.create(out_dir)
+
+temp <- tempfile(tmpdir = out_dir, fileext = ".zip")
+for (i in nyiso_zips){
+  download.file(i, temp)
+  test_zip <- unzip(temp, exdir = out_dir)
+}
+unlink(temp)
+```
+
+```{r}
+year_pttrn <- "/201[0-6]"
+nyiso_files <-  list.files(out_dir, pattern = "*.csv", full.names = TRUE) %>% 
+  str_subset(year_pttrn)
+
+nyiso_df <- bind_rows(lapply(nyiso_files, fread))
+names(nyiso_df) <- c("time_5min", "tz", "nm", "ptid", "mw")
+
+nyiso_df_tot <- nyiso_df %>% 
+  select(-(tz:ptid)) %>%
+  group_by(time_5min) %>% 
+  summarise(mw = sum(mw)) %>% 
+  fill(mw) %>% 
+  mutate(time_5min = mdy_hms(time_5min),
+         time_5min = floor_date(time_5min, unit = "5 minutes"))
+write.csv(nyiso_df_tot, paste0(dirname(getwd()), "/inputs/nyiso2011_2016_combnd.csv"))
+```
+
+
+
+

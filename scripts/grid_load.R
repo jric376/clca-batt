@@ -24,9 +24,9 @@ grid_load <- R6Class("Grid Load",
         return("Base time-series data is missing")
       } else {
         base_ts <- base_ts %>%
-                   mutate(date_time = as.POSIXct(strptime(time_5min,
-                                                          format="%m/%d/%Y %H:%M"))) %>%
-                   select(-time_5min)
+                   mutate(date_time = ymd_hms(time_5min)) %>%
+                   select(-time_5min) %>% 
+                   filter(year(date_time) == self$get_metadata()[["yr"]])
          
         interval = self$set_interval(base_ts)
          
@@ -62,18 +62,22 @@ grid_load <- R6Class("Grid Load",
   )
 )
 
-get_grid <- function(run_id, terr, copies = 0, factor = 0.05) {
+get_grid <- function(run_id, terr, yr, copies = 0, factor = 0.05) {
   # Default function for creating a grid load object
   # based on grid regional title, random copies and random factor
   
   metadat = list(
     "load_nm" = terr,
+    "yr" = yr,
     "run_id" = run_id,
     "copies" = copies,
     "factor" = factor
   )
   if (terr == "nyiso") {
-    path = "inputs/2014pal_combined.csv"
+    path = "inputs/nyiso2011_2016_combnd.csv"
+  }
+  if (terr == "ercot") {
+    path = "inputs/ercot2011_2016_combnd.csv"
   }
     
   grid_test <- grid_load$new(

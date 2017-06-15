@@ -9,6 +9,7 @@
 
 library("plyr")
 library("dplyr")
+library("lubridate")
 library("foreach")
 library("iterators")
 library("doSNOW")
