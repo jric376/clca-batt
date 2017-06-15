@@ -2,8 +2,11 @@
 library(rvest)
 library(data.table)
 library(dplyr)
+library(ggplot2)
 library(tidyr)
 library(lubridate)
+library(xts)
+library(imputeTS)
 library(readxl)
 library(stringr)
 ```
@@ -14,9 +17,14 @@ ercot_xls <- ercot_url %>%
   html_nodes("a") %>% 
   html_attr("href") %>% 
   str_subset("\\.xls")
+ercot_zips <- ercot_url %>% 
+  html_nodes("a") %>% 
+  html_attr("href") %>% 
+  str_subset("\\.zip")
 ercot_xls <- paste0("http://www.ercot.com/", ercot_xls)
-out_dir <- paste0(getwd(), "/ercot_xls/")
-ercot_files <- paste0(out_dir, basename(ercot_xls))
+ercot_zips <- paste0("http://www.ercot.com/", ercot_zips)
+out_dir <- paste0(getwd(), "/ercot_xls")
+ercot_files <- paste0(out_dir, "/", basename(ercot_xls))
 ```
 
 ```{r, dl_xls}
@@ -25,28 +33,48 @@ if(!dir.exists(out_dir)) dir.create(out_dir)
 for (i in 1:length(ercot_xls)){
   download.file(ercot_xls[i], ercot_files[i], mode = "wb")
 }
-### MORE RECENT ERCOT DATA WILL REQ UNZIPPING FILES
+
+for (i in ercot_zips) {
+  temp <- tempfile(tmpdir = out_dir, fileext = ".zip")
+  download.file(i, temp)
+  test <- unzip(temp, exdir = out_dir)
+  unlink(temp)
+}
 ```
 
 ```{r}
 year_pttrn <- "201[0-6]"
-ercot_files <-  list.files(out_dir, pattern = "*.xls", full.names = TRUE) %>% 
+ercot_files <- list.files(out_dir, pattern = "*.xlsx?", full.names = TRUE) %>% 
   str_subset(year_pttrn)
 
-ercot_df <- bind_rows(lapply(ercot_files, read_xls))
-names(ercot_df) <- c("time_5min", "coast", "east", "far_west", "north", "north_c",
-                     "south", "south_c", "west", "mw")
+ercot_df <- bind_rows(lapply(ercot_files, read_excel))
+names(ercot_df) <- c("time_5min", "coast", "east", "far_west", "north",
+                     "north_c", "south", "south_c", "west", "mw")
 ercot_df_tot <- ercot_df %>%
   mutate(time_5min = round_date(time_5min, unit = "hour"))  %>% 
   select(time_5min, mw) %>%
   group_by(time_5min) %>%
   summarise(mw = sum(mw)) %>%
   fill(mw)
-write.csv(ercot_df_tot, paste0(dirname(getwd()), "/inputs/ercot2011_2016_combnd.csv"))
 
-# will need to impute or use markov chains to synthesize 5-min interval data
+ercot_xts_tot <- xts(ercot_df_tot$mw, ercot_df_tot$time_5min)
+ercot_xts5min <- xts(order.by = seq(start(ercot_xts_tot), end(ercot_xts_tot), by = "5 min"))
+ercot_xts5min <- merge(ercot_xts5min, ercot_xts_tot) 
+ercot_df5min <- data.frame(time_5min = index(ercot_xts5min)) %>% 
+  mutate(mw = as.numeric(coredata(ercot_xts5min)),
+         mw = na.interpolation(mw, option = "spline"))
+write.csv(ercot_df5min, paste0(dirname(getwd()), "/inputs/ercot2011_2016_combnd.csv"))
 ```
 
+```{r imputation_viz}
+data.frame(time_5min = index(ercot_xts5min)) %>% 
+  mutate(mw = as.numeric(coredata(ercot_xts5min)),
+         mw5min = na.interpolation(mw, option = "spline")) %>% 
+  filter(year(time_5min) == 2013 & month(time_5min) %in% c(5:6)) %>% 
+  ggplot(aes(x = time_5min)) +
+  geom_line(aes(y = mw5min)) +
+  geom_point(aes(y = mw), color = "blue", size = 0.5)
+```
 
 
 
