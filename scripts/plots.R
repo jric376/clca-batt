@@ -1556,7 +1556,11 @@ get_bldg_enduse_bars <- function(save = FALSE) {
            area = ifelse(bldg_type == "Apartments", 3135,
                          ifelse(bldg_type == "Office", 4982,
                                 ifelse(bldg_type == "Supermarket", 4181,
-                                       22422)))) %>%
+                                       22422))),
+           pv_kw = ifelse(bldg_type == "Apartments", 39.6,
+                          ifelse(bldg_type == "Office", 86.2,
+                                 ifelse(bldg_type == "Supermarket", 234.3,
+                                        235.4)))) %>%
     mutate_if(is.character, as.factor) %>% 
     group_by(bldg_type, area, src, slim_cat) %>% 
     summarise_if(is.numeric, sum) %>%
@@ -1593,13 +1597,13 @@ get_bldg_enduse_bars <- function(save = FALSE) {
           panel.grid.minor.y = element_line(colour = "gray85")) +
     labs(y = bquote(kWh/m^2))
   
-  kwh_bars <- ggplot(bldg_df, aes(y = area,
+  area_bars <- ggplot(bldg_df, aes(y = area,
                                   x = bldg_type)) +
     facet_wrap( ~ bldg_type,
                 scales = "free_x",
                 nrow = 1) +
     geom_bar(position = "dodge", stat = "identity") +
-    expand_limits(c(0,0)) +
+    scale_y_continuous(breaks = c(1000, 10000, 20000)) +
     scale_fill_manual(name = NULL, values = cbb_qual.enduse,
                       drop = FALSE,
                       guide = guide_legend(nrow = 3)) +
@@ -1613,13 +1617,34 @@ get_bldg_enduse_bars <- function(save = FALSE) {
           strip.text.x = element_blank()) +
     labs(y = bquote(m^2))
   
-  both_bars <- plot_grid(dens_bars, kwh_bars,
-                         align = "v", nrow = 2,
-                         rel_heights = c(3,1))
+  pv_bars <- ggplot(bldg_df, aes(y = pv_kw,
+                                 x = bldg_type)) +
+    facet_wrap( ~ bldg_type,
+                scales = "free_x",
+                nrow = 1) +
+    geom_bar(position = "dodge", stat = "identity",
+             fill = "darkblue") +
+    scale_y_continuous(breaks= c(100,500,1000)) +
+    scale_fill_manual(name = NULL, values = cbb_qual.enduse,
+                      drop = FALSE,
+                      guide = guide_legend(nrow = 3)) +
+    theme(axis.text.x = element_blank(),
+          axis.ticks.x = element_blank(),
+          axis.line = element_blank(),
+          axis.title.x = element_blank(),
+          legend.position = "none",
+          panel.background = element_rect(colour = "gray75", fill = "gray80"),
+          strip.background = element_blank(),
+          strip.text.x = element_blank()) +
+    labs(y = bquote(kWp))
+  
+  both_bars <- plot_grid(dens_bars, area_bars, pv_bars,
+                         align = "v", nrow = 3,
+                         rel_heights = c(3,0.75,0.75))
   # both_bars <- ggplot() +
   #   annotation_custom(
-  #     grid.arrange(dens_bars, kwh_bars,
-  #                  nrow = 2, heights = c(3,1))
+  #     grid.arrange(dens_bars, area_bars, pv_bars,
+  #                  nrow = 3, heights = c(3,0.75,0.75))
   #   )
   
   if (save) {
@@ -1829,7 +1854,7 @@ get_kt_dist <- function(which_df, save = FALSE) {
 }
 get_markov_sample <- function(save = FALSE) {
   
-  solar_df <- read.csv("inputs/solar_nsrdb_2014.csv") %>%
+  solar_df <- read.csv("inputs/solar_nsrdb.csv") %>%
     select(date_time, kt, ghi) %>% 
     mutate(date_time = ymd_hms(date_time),
            yr = year(date_time)) %>% 
@@ -1846,8 +1871,11 @@ get_markov_sample <- function(save = FALSE) {
     
   names(sample) <- c("date_time", "min_ind",
                      "kt_min.cove", "kt_min.larc",
-                     "ghi_min.cove", "ghi_min.larc",
                      "kt", "ghi")
+  
+  sample <- sample %>%
+    mutate(ghi_min.cove = ghi*kt_min.cove,
+           ghi_min.larc = ghi*kt_min.larc)
   
   sample_colors = c("COVE 1min" = cbb_qual[9],
                     "LARC 1min" = cbb_qual[8],
