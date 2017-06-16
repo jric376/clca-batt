@@ -109,22 +109,23 @@ bldg_load <- R6Class("Bldg Load",
   )
 )
 
-get_bldg <- function(run_id, type, copies = 0, factor = 0.05) {
+get_bldg <- function(run_id, type, locn = c("NY", "TX"), copies = 0, factor = 0.05) {
   # Default function for creating a building load object
   # based on building type, random copies and random factor
   
   if (type == "apt") {
-    path = "inputs/apt_161202.csv"
+    path = "inputs/apt"
   }
   if (type == "hospital") {
-    path = "inputs/hospital_161208.csv"
+    path = "inputs/hospital"
   }
   if (type == "office") {
-    path = "inputs/office_med_160929.csv"
+    path = "inputs/office_med"
   }
   if (type == "supermarket") {
-    path = "inputs/supermarket_161116.csv"
+    path = "inputs/supermarket"
   }
+  path <- paste0(path, "_", locn, ".csv")
   
   metadat = list(
     "load_nm" = type,

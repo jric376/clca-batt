@@ -32,7 +32,7 @@ get_nyc_solar <- function(type = "read", yr = "2014") {
     # THIS BLOCK IS ONLY NEEDED ONCE, TO COMPILE DIFFERENT CSV FILES
     # which for now have to be manually downloaded from NSRDB
     
-    nsrdb_files <-  list.files("inputs/nsrdb_raw", pattern = "*.csv", full.names = TRUE)
+    nsrdb_files <-  list.files("inputs/ny_nsrdb_raw", pattern = "*.csv", full.names = TRUE)
     nsrdb_df <- bind_rows(lapply(nsrdb_files, fread))
     colnames(nsrdb_df) <- c("year","mo","day","hr","min","dhi","dni","ghi",
                            "clr_ghi", "tempC", "znith_ang")
@@ -304,6 +304,7 @@ add_weather <- function(df_to_mod) {
   # for 1min solar data
   
   bsrn_df.clearsky <- get_bsrn_clearsky()
+  # NEED TO CHANGE TO GET CLEARSKY FROM SPECIFIED LOCN
   df_to_mod <- df_to_mod %>%
     mutate(dayhr_ind = round(dayhr_ind, 5)) %>%
     left_join(bsrn_df.clearsky) %>%
