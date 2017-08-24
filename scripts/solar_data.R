@@ -543,7 +543,8 @@ get_1yr_markov <- function(src_df = list("cove", "larc"),
   if(save_rds) saveRDS(all_min, "inputs/solar_min.rds")
   return(all_min)
 }
-validate_markov_df <- function(df, save_rds) {
+
+validate_markov_df <- function(df, save_rds = FALSE) {
   # Takes a dataframe of markov-generated 1min solar time-series
   # and compares its gradient frequency distribution
   # with that of the input 1min data (from COVE and LARC)

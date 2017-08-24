@@ -85,25 +85,27 @@ grid_arrange_shared_legend <- function(..., nrow = 1, ncol = length(list(...)), 
 
 # SAMPLE SET OF RUN RESULTS NAMES, NOT FOR RE-USE
 {
-apts_runs <- c("apts_lion_02_075_by005",
-               "apts_pba_02_075_by005",
-               "apts_nas_02_075_by005",
-               "apts_vrf_02_075_by005") 
-market_runs <- c("supermarket_lion_02_075_by005",
-                 "supermarket_pba_02_075_by005",
-                 "supermarket_nas_02_075_by005",
-                 "supermarket_vrf_02_075_by005") 
-office_runs <- c("office_lion_02_075_by005",
-                 "office_pba_02_075_by005",
-                 "office_nas_02_075_by005",
-                 "office_vrf_02_075_by005")
-hospital_runs <- c("hospital_lion_02_075_by005",
-                   "hospital_pba_02_075_by005",
-                   "hospital_nas_02_075_by005",
-                   "hospital_vrf_02_075_by005")
-all_runs <- unlist(c(apts_runs, market_runs,
-                     office_runs, hospital_runs))
+# apts_runs <- c("apts_lion_02_075_by005",
+#                "apts_pba_02_075_by005",
+#                "apts_nas_02_075_by005",
+#                "apts_vrf_02_075_by005") 
+# market_runs <- c("supermarket_lion_02_075_by005",
+#                  "supermarket_pba_02_075_by005",
+#                  "supermarket_nas_02_075_by005",
+#                  "supermarket_vrf_02_075_by005") 
+# office_runs <- c("office_lion_02_075_by005",
+#                  "office_pba_02_075_by005",
+#                  "office_nas_02_075_by005",
+#                  "office_vrf_02_075_by005")
+# hospital_runs <- c("hospital_lion_02_075_by005",
+#                    "hospital_pba_02_075_by005",
+#                    "hospital_nas_02_075_by005",
+#                    "hospital_vrf_02_075_by005")
+# all_runs <- unlist(c(apts_runs, market_runs,
+#                      office_runs, hospital_runs))
 }
+
+full_rds <- readRDS("outputs/nyiso_allruns.rds")
 
 # Data prep functions
 summarise_run_costs <- function(df){
@@ -639,12 +641,18 @@ get_isoterr_donuts <- function(runs = 20, terr = "nyiso", save = FALSE) {
   }
   return(donut_plots)
 }
-get_run_prof_plc2e <- function(run_results, run_id, save = FALSE) {
+get_run_prof_plc2e <- function(run_results,
+                               bldg_set = list("all","Apartments","Office",
+                                           "Supermarket", "Hospital")[1],
+                               run_id, save = FALSE) {
   
   df <- run_results$df
-  costs <- run_results$costs
-  plc2e <- run_results$plc2e
   summ <- run_results$summ
+  
+  if (bldg_set != "all") {
+    df <- df %>% filter(bldg == bldg_set)
+    summ <- summ %>% filter(bldg == bldg_set)
+  }
   
   sample_sims <- filter(df,
                         dmd_frac == 0.2 | dmd_frac == 0.45 | dmd_frac == 0.7,
@@ -781,18 +789,19 @@ get_run_prof_plc2e <- function(run_results, run_id, save = FALSE) {
                alpha = 1/1.2) +
     scale_x_continuous(trans = "asinh",
                        labels=trans_format("identity", function(x) -x),
-                       breaks = c(5,1,0.5,0.25,0,
+                       # breaks = c(0.2,0.25,0.3)) + # use for office plot
+                       breaks = c(5,1,0.5,0.25,0,    # use for all bldgs
                                   -0.25,-0.5,-1,-5)) +
-                       # breaks = c(0.025,0.02,0,-0.1)) +
+                       # breaks = c(0.025,0.02,0,-0.1)) + # use for all bldgs, alt func unit
     scale_y_continuous(trans = "asinh",
                        labels= trans_format("identity", function(x) dollar(x)),
                        breaks = c(-1,-0.5,-0.1,0,0.5)) +
-    labs(x = bquote(scriptstyle("kg"~ CO[scriptscriptstyle(2)]~ "eq / kWh")),
-         y = bquote(scriptstyle(Pr[dr]~"/ kWh"))) +
+    labs(x = bquote("kg"~ CO[2]~ "eq / kWh"),
+         y = bquote(Pr[dr]~"/ kWh")) +
     theme(panel.background = element_rect(colour = "gray75", fill = "gray80")) +
     theme(panel.grid.major = element_line(colour = "gray85")) +
     theme(panel.grid.minor = element_line(colour = "gray85")) +
-    scale_size(name = bquote(scriptstyle(NP[ESS])),
+    scale_size(name = bquote(NP[ESS]),
                labels = c(10,100,">1000"),
                breaks = c(10,100,1000),
                trans = "sqrt",
@@ -809,7 +818,11 @@ get_run_prof_plc2e <- function(run_results, run_id, save = FALSE) {
                                                                linetype = 0))) +
     scale_colour_manual(name = NULL,
                         values = cbb_qual[c(3,5,7,4)],
-                        labels = c("Li-ion", "NaS", "Pb-a", "VRF"))
+                        labels = c("Li-ion", "NaS", "Pb-a", "VRF")) +
+    theme(axis.text = element_text(size = 16),
+          axis.title = element_text(size = 17),
+          legend.text = element_text(size = 16),
+          legend.title = element_text(size = 16))
   
   if (length(unique(summ$bldg)) > 1) {
     plc2e_prof_plot <- plc2e_prof_plot +
@@ -817,7 +830,9 @@ get_run_prof_plc2e <- function(run_results, run_id, save = FALSE) {
       coord_cartesian(ylim = c(-0.75, max(df$prof_lo_n)), xlim =c(-0,0.75))
     plc2e_prof_plot.lines <- plc2e_prof_plot +
       geom_vline(xintercept = c(0.047,0.67),
-                 lty = 2)
+                 lty = 2) +
+      theme(strip.text = element_text(size = 16))
+    
     plot_list <- list("no_lines" = plc2e_prof_plot,
                       "lines" = plc2e_prof_plot.lines)
   } else {
@@ -840,11 +855,11 @@ get_run_prof_plc2e <- function(run_results, run_id, save = FALSE) {
   
   if (save) {
     if (length(unique(summ$bldg)) == 1) {
-      ggsave(filename = paste0("outputs/plots/", run_id, "_grid.png"),
+      ggsave(paste0("outputs/plots/", run_id, "_grid.png"),
              combine_plot,
              height = 6.25, width = 8)
     } else {
-      ggsave(filename = paste0("outputs/plots/",
+      ggsave(paste0("outputs/plots/",
                                run_id, "_litcompare_plc2e_prof.png"),
              plc2e_prof_plot.lines,
              height = 6.25, width = 8)
@@ -898,10 +913,10 @@ get_run_levcost_delta <- function(run_results, run_id, save = FALSE) {
                                    y = prof_lo_n_mean,
                                    colour = bldg)) +
     geom_line(size = 3) +
-    xlab(bquote(scriptstyle("Fractional reduction PV + ESS lev. costs"))) +
+    labs(x = bquote("Fractional reduction PV + ESS lev. costs"),
+         y = bquote(Pr["dr,max"]~"/ kWh")) +
     coord_cartesian(ylim = c(-0.1,max(levcost_delta_df$prof_lo_n_mean))) +
-    scale_y_continuous(name = bquote(scriptstyle(Pr["dr,max"]~"/ kWh")),
-                       trans = "asinh",
+    scale_y_continuous(trans = "asinh",
                        breaks = c(-0.1,0,0.1,1),
                        labels = trans_format("identity",
                                              function(x) dollar(x))) +
@@ -910,15 +925,17 @@ get_run_levcost_delta <- function(run_results, run_id, save = FALSE) {
     scale_linetype_discrete(name = NULL,
                             guide = guide_legend(override.aes = list(size = 0.75))) +
     theme(panel.background = element_rect(colour = "gray75",
-                                          fill = "gray80")) +
-    theme(text = element_text(size = 20),
+                                          fill = "gray80"),
           panel.grid.major = element_line(colour = "gray85"),
           panel.grid.minor = element_line(colour = "gray85"),
-          legend.text = element_text(),
+          legend.text = element_text(size = 16),
+          legend.title = element_text(size = 16),
           legend.background = element_rect(colour = "gray75",
                                            fill = alpha("gray85", 1/2)),
           legend.box = "horizontal",
-          legend.position = c(0.2,0.8))
+          legend.position = c(0.2,0.8),
+          axis.text = element_text(size = 16),
+          axis.title = element_text(size = 17))
   
   if (save) {
     ggsave(filename = paste0("outputs/plots/", run_id, "_breakeven.png"),
@@ -1942,7 +1959,9 @@ get_markov_freqpoly <- function(mC_freq, save = FALSE) {
   
   markov_colors = c("cove model" = "#ca0020", "cove" = "#f4a582",
                     "larc" = "#92c5de", "larc model" = "#0571b0")
-  mC_freq.plot <- ggplot(data = mC_freq) + 
+  mC_freq.plot <- mC_freq %>% 
+    # filter_at(vars(contains("var")), all_vars(. != 0.005)) %>% 
+    ggplot() + 
     geom_freqpoly(aes(cove_var, colour = "cove"), binwidth = 10,
                   size = 1.5) + 
     geom_freqpoly(aes(larc_var, colour = "larc"),binwidth = 10,
